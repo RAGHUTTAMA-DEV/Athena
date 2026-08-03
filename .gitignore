@@ -1,0 +1,43 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_modules/
+
+# Compiled output
+dist/
+out/
+build/
+*.tsbuildinfo
+
+# Local databases (SQLite files)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+state.db
+verify_state.db
+test_state.db
+test_phase3.db
+
+# Secrets & Configs
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.backup
+.env.env
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Playwright / Testing reports
+playwright-report/
+test-results/
+html-report/
+
+# Temporary / Scratch files
+scratch/
+test_skills/

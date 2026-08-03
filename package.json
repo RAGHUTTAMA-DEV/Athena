@@ -1,0 +1,31 @@
+{
+  "name": "athena",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc && node dist/index.js",
+    "verify": "tsc && node dist/verify.js",
+    "test:memory": "tsc && node dist/test_memory.js"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/sqlite3": "^3.1.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.15.0",
+    "dotenv": "^17.4.2",
+    "playwright": "^1.62.1",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^6.0.1",
+    "telegraf": "^4.16.3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
