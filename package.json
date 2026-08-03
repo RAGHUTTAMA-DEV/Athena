@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "verify": "tsc && node dist/verify.js",
-    "test:memory": "tsc && node dist/test_memory.js"
+    "test:memory": "tsc && node dist/test_memory.js",
+    "test:delegation": "tsc && node dist/test_phase4_delegation.js"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

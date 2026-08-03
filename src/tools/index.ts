@@ -9,6 +9,7 @@ import { searchWebTool } from './searchWeb.js';
 import { skillManageTool } from './skillManage.js';
 import { semanticMemoryTool } from './semanticMemory.js';
 import { executePythonTool } from './executePython.js';
+import { delegateTaskTool } from './delegateTask.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -22,7 +23,8 @@ export const tools: Tool[] = [
   searchWebTool,
   skillManageTool,
   semanticMemoryTool,
-  executePythonTool
+  executePythonTool,
+  delegateTaskTool
 ];
 
 export const toolsRegistry = new Map<string, Tool>(

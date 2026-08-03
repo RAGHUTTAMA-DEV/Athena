@@ -50,6 +50,9 @@ export interface Tool {
 export interface ToolContext {
   confirm?: (toolName: string, args: any) => Promise<boolean>;
   memory?: any;
+  depth?: number;
+  parentRunId?: string;
+  onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void;
 }
 
 export interface AgentConfig {
@@ -59,4 +62,7 @@ export interface AgentConfig {
   soulPath?: string;
   dbPath?: string;
   skillsPath?: string;
+  allowedTools?: string[];
+  depth?: number;
+  taskId?: string;
 }

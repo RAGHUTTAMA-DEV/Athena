@@ -47,6 +47,7 @@ export class Agent {
   }
 
   // Execute the agent run
+  // Execute the agent run
   async run(
     userPrompt: string,
     history: Message[],
@@ -54,6 +55,40 @@ export class Agent {
     confirm?: (toolName: string, args: any) => Promise<boolean>,
     sessionId?: string
   ): Promise<string> {
+    const logPrefix = this.config.taskId ? `[${this.config.taskId}] ` : '';
+    const safeOnUpdate = (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => {
+      if (onUpdate) {
+        onUpdate({
+          type: status.type,
+          message: logPrefix ? `${logPrefix}${status.message}` : status.message
+        });
+      }
+    };
+
+    // Serialized confirmation handler to avoid interleaved confirmation requests
+    let confirmChain = Promise.resolve();
+    const serializedConfirm = async (toolName: string, args: any): Promise<boolean> => {
+      let resolveConfirm: (val: boolean) => void;
+      const confirmPromise = new Promise<boolean>((resolve) => {
+        resolveConfirm = resolve;
+      });
+
+      confirmChain = confirmChain.then(async () => {
+        if (!confirm) {
+          resolveConfirm(false);
+          return;
+        }
+        try {
+          const approved = await confirm(toolName, args);
+          resolveConfirm(approved);
+        } catch (err) {
+          resolveConfirm(false);
+        }
+      });
+
+      return confirmPromise;
+    };
+
     // 1. Load Episodic History if sessionId is provided and local history is empty
     let episodicCount = 0;
     if (sessionId && this.memory && history.length === 0) {
@@ -62,7 +97,7 @@ export class Agent {
         history.push(...dbHistory);
         episodicCount = dbHistory.length;
       } catch (err: any) {
-        onUpdate?.({ type: 'error', message: `Failed to load history from database: ${err.message}` });
+        safeOnUpdate({ type: 'error', message: `Failed to load history from database: ${err.message}` });
       }
     }
 
@@ -72,7 +107,7 @@ export class Agent {
       try {
         retrievedFacts = await this.memory.searchSemanticFacts(userPrompt, 3, 0.65);
       } catch (err: any) {
-        onUpdate?.({ type: 'error', message: `Failed to search semantic memory: ${err.message}` });
+        safeOnUpdate({ type: 'error', message: `Failed to search semantic memory: ${err.message}` });
       }
     }
 
@@ -82,14 +117,14 @@ export class Agent {
       try {
         retrievedSkills = await this.procedural.searchSkills(userPrompt, 2);
       } catch (err: any) {
-        onUpdate?.({ type: 'error', message: `Failed to search procedural memory: ${err.message}` });
+        safeOnUpdate({ type: 'error', message: `Failed to search procedural memory: ${err.message}` });
       }
     }
 
     // 4. Fire memory retrieval status update
     const factDetails = retrievedFacts.map(f => `"${f.fact}" [score: ${f.score.toFixed(2)}]`).join(', ') || 'none';
     const skillDetails = retrievedSkills.map(s => s.name).join(', ') || 'none';
-    onUpdate?.({
+    safeOnUpdate({
       type: 'memory',
       message: `Memory retrieved:\n` +
                `  - Episodic: loaded ${episodicCount} past turns for session.\n` +
@@ -134,15 +169,17 @@ export class Agent {
       parts: [{ text: userPrompt }]
     });
 
-    // 7. Prepare function declarations for Gemini
-    const functionDeclarations = Array.from(toolsRegistry.values()).map(tool => tool.definition);
+    // 7. Prepare function declarations for Gemini (scoped to allowedTools)
+    const functionDeclarations = Array.from(toolsRegistry.values())
+      .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
+      .map(tool => tool.definition);
 
     let turns = 0;
     while (turns < this.config.maxTurns) {
       turns++;
       
       try {
-        onUpdate?.({ type: 'thought', message: `Thinking (Turn ${turns}/${this.config.maxTurns})...` });
+        safeOnUpdate({ type: 'thought', message: `Thinking (Turn ${turns}/${this.config.maxTurns})...` });
 
         // Call Gemini API
         const response = await this.ai.models.generateContent({
@@ -169,106 +206,114 @@ export class Agent {
         // Check for function calls
         const functionCalls = response.functionCalls;
         if (functionCalls && functionCalls.length > 0) {
-          // Model wants to call tools
-          const toolResponseParts: Part[] = [];
+          // Model wants to call tools concurrently
+          const toolResponseParts: Part[] = new Array(functionCalls.length);
 
-          for (const call of functionCalls) {
+          const tasks = functionCalls.map((call, idx) => async () => {
             if (!call.name) {
-              continue;
+              toolResponseParts[idx] = {
+                functionResponse: {
+                  name: '',
+                  response: { success: false, error: 'Empty function call name.' }
+                }
+              };
+              return;
             }
 
-            onUpdate?.({
+            safeOnUpdate({
               type: 'tool_call',
               message: `Calling tool: ${call.name} with args: ${JSON.stringify(call.args)}`
             });
 
-            const tool = toolsRegistry.get(call.name);
+            // Enforce tool scoping
+            const isAllowed = !this.config.allowedTools || this.config.allowedTools.includes(call.name);
+            const tool = isAllowed ? toolsRegistry.get(call.name) : null;
             if (!tool) {
-              const errMsg = `Tool ${call.name} not found in registry.`;
-              onUpdate?.({ type: 'error', message: errMsg });
-              toolResponseParts.push({
+              const errMsg = !isAllowed
+                ? `Tool "${call.name}" is not permitted for this agent run.`
+                : `Tool "${call.name}" not found in registry.`;
+              safeOnUpdate({ type: 'error', message: errMsg });
+              toolResponseParts[idx] = {
                 functionResponse: {
                   name: call.name,
                   response: { success: false, error: errMsg }
                 }
-              });
-              continue;
+              };
+              return;
             }
 
             // Check for confirmation for risky actions
             if (tool.requiresConfirmation) {
-              if (confirm) {
-                onUpdate?.({
-                  type: 'thought',
-                  message: `Tool "${call.name}" requires confirmation. Awaiting user response...`
-                });
-                try {
-                  const isApproved = await confirm(call.name, call.args);
-                  if (!isApproved) {
-                    const deniedMsg = `Permission denied by user for tool: ${call.name}`;
-                    onUpdate?.({ type: 'error', message: deniedMsg });
-                    toolResponseParts.push({
-                      functionResponse: {
-                        name: call.name,
-                        response: { success: false, error: 'Permission denied by user.' }
-                      }
-                    });
-                    continue;
-                  }
-                } catch (confirmErr: any) {
-                  const errMsg = `Confirmation process failed: ${confirmErr.message}`;
-                  onUpdate?.({ type: 'error', message: errMsg });
-                  toolResponseParts.push({
+              safeOnUpdate({
+                type: 'thought',
+                message: `Tool "${call.name}" requires confirmation. Awaiting user response...`
+              });
+              try {
+                const isApproved = await serializedConfirm(call.name, call.args);
+                if (!isApproved) {
+                  const deniedMsg = `Permission denied by user for tool: ${call.name}`;
+                  safeOnUpdate({ type: 'error', message: deniedMsg });
+                  toolResponseParts[idx] = {
                     functionResponse: {
                       name: call.name,
-                      response: { success: false, error: errMsg }
+                      response: { success: false, error: 'Permission denied by user.' }
                     }
-                  });
-                  continue;
+                  };
+                  return;
                 }
-              } else {
-                // Deny by default if confirmation is required but no confirm callback was provided
-                const blockedMsg = `Tool "${call.name}" blocked: Requires confirmation, but no confirmation callback was provided.`;
-                onUpdate?.({ type: 'error', message: blockedMsg });
-                toolResponseParts.push({
+              } catch (confirmErr: any) {
+                const errMsg = `Confirmation process failed: ${confirmErr.message}`;
+                safeOnUpdate({ type: 'error', message: errMsg });
+                toolResponseParts[idx] = {
                   functionResponse: {
                     name: call.name,
-                    response: { success: false, error: 'Blocked: Confirmation callback required.' }
+                    response: { success: false, error: errMsg }
                   }
-                });
-                continue;
+                };
+                return;
               }
             }
 
             try {
-              const result = await tool.execute(call.args, { confirm, memory: this.memory || undefined });
-              onUpdate?.({
+              const toolContext = {
+                confirm,
+                memory: this.memory || undefined,
+                depth: this.config.depth || 0,
+                parentRunId: sessionId,
+                onUpdate: safeOnUpdate
+              };
+
+              const result = await tool.execute(call.args, toolContext);
+              safeOnUpdate({
                 type: 'tool_response',
                 message: `Tool ${call.name} returned: ${JSON.stringify(result)}`
               });
 
-              toolResponseParts.push({
+              toolResponseParts[idx] = {
                 functionResponse: {
                   name: call.name,
                   response: result
                 }
-              });
+              };
             } catch (toolErr: any) {
               const errMsg = `Tool ${call.name} execution failed: ${toolErr.message}`;
-              onUpdate?.({ type: 'error', message: errMsg });
-              toolResponseParts.push({
+              safeOnUpdate({ type: 'error', message: errMsg });
+              toolResponseParts[idx] = {
                 functionResponse: {
                   name: call.name,
                   response: { success: false, error: errMsg }
                 }
-              });
+              };
             }
-          }
+          });
+
+          // Run tool calls concurrently, capped at 3
+          await runWithConcurrencyLimit(tasks, 3);
 
           // Push the tool responses back to the model as a user role message
           currentRunHistory.push({
             role: 'user',
-            parts: toolResponseParts
+            parts: toolResponseParts.filter(Boolean)
           });
 
           // Continue the loop to let the model process the tool responses
@@ -294,21 +339,21 @@ export class Agent {
             await this.memory.saveMessage(sessionId, 'user', [{ text: userPrompt }]);
             await this.memory.saveMessage(sessionId, 'model', [{ text }]);
           } catch (err: any) {
-            onUpdate?.({ type: 'error', message: `Failed to save message to database: ${err.message}` });
+            safeOnUpdate({ type: 'error', message: `Failed to save message to database: ${err.message}` });
           }
         }
 
         return text;
 
       } catch (err: any) {
-        onUpdate?.({ type: 'error', message: `API call failed: ${err.message}` });
+        safeOnUpdate({ type: 'error', message: `API call failed: ${err.message}` });
         throw err;
       }
     }
 
     // If we exit the loop because we hit the maxTurns limit
     const warningText = `[Guardrail Alert] Max iterations (${this.config.maxTurns}) reached. Stopping run.`;
-    onUpdate?.({ type: 'error', message: warningText });
+    safeOnUpdate({ type: 'error', message: warningText });
     
     // Add warning as final model turn so the user sees it
     history.push({
@@ -326,7 +371,7 @@ export class Agent {
         await this.memory.saveMessage(sessionId, 'user', [{ text: userPrompt }]);
         await this.memory.saveMessage(sessionId, 'model', [{ text: warningText }]);
       } catch (err: any) {
-        onUpdate?.({ type: 'error', message: `Failed to save guardrail alert to database: ${err.message}` });
+        safeOnUpdate({ type: 'error', message: `Failed to save guardrail alert to database: ${err.message}` });
       }
     }
 
@@ -338,4 +383,23 @@ export class Agent {
       await this.memory.clearHistory(sessionId);
     }
   }
+}
+
+async function runWithConcurrencyLimit<T>(
+  tasks: (() => Promise<T>)[],
+  limit: number
+): Promise<T[]> {
+  const results: T[] = new Array(tasks.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < tasks.length) {
+      const index = currentIndex++;
+      results[index] = await tasks[index]();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, worker);
+  await Promise.all(workers);
+  return results;
 }
