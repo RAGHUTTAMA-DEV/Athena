@@ -490,6 +490,10 @@ export class Agent {
             console.log(`[Background Consolidation Done] Extracted ${result.factsExtracted} facts, created ${result.skillsCreated} skills.`);
           }
         }).catch(err => {
+          if (err.message?.includes('SQLITE_MISUSE') || err.message?.includes('closed') || err.code === 'SQLITE_MISUSE') {
+            // Silence DB closed errors since consolidation is asynchronous and database may close before it completes
+            return;
+          }
           console.error('[Background Consolidation Error]', err);
         });
       }

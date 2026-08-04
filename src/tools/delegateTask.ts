@@ -53,15 +53,16 @@ ${args.context}
 Operational Instructions:
 ${parentPrompt}
 
-Focus strictly on accomplishing the goal. When you are done, output your final findings clearly and concisely. Do NOT ask for additional user confirmation. Focus on the sub-task.`;
-
-    const dbPath = process.env.DATABASE_PATH || './state.db';
+Crucial Sub-Agent Rules:
+1. Be extremely concise, direct, and fast.
+2. Do NOT perform excessive web browsing or crawl multiple pages one-by-one unless it is absolutely critical for the goal. Use search snippets directly if they answer the question.
+3. Complete your task in as few turns as possible (aim for 2-4 turns maximum).
+4. When you are done, output your final findings clearly and concisely. Do NOT ask for additional user confirmation. Focus on the sub-task.`;
 
     const childAgent = new Agent({
       modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
       maxTurns: args.maxTurns || 10,
       systemPrompt,
-      dbPath,
       allowedTools,
       depth: childDepth,
       taskId
@@ -86,7 +87,7 @@ Focus strictly on accomplishing the goal. When you are done, output your final f
         `Please accomplish your goal and summarize the result.`,
         [],
         childOnUpdate,
-        parentConfirm,
+        undefined, // Sub-agent runs autonomously without prompting for tool confirmation
         childSessionId
       );
 

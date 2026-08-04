@@ -14,6 +14,8 @@ export class TelegramGateway implements Gateway {
   private chatHistories: Map<number, Message[]> = new Map();
   // Map of unique confirmation ID to its resolve callback
   private pendingConfirmations: Map<string, (approved: boolean) => void> = new Map();
+  // Map of chatId to Map of taskId to current status string
+  private chatStatuses: Map<number, Map<string, string>> = new Map();
 
   constructor() {
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -147,11 +149,20 @@ export class TelegramGateway implements Gateway {
 
     if (!userText) return;
 
+    const parentTaskId = `parent-${Math.random().toString(36).substring(2, 7)}`;
+
     // Get or create history
     if (!this.chatHistories.has(chatId)) {
       this.chatHistories.set(chatId, []);
     }
     const history = this.chatHistories.get(chatId)!;
+
+    // Initialize status map for this chat
+    if (!this.chatStatuses.has(chatId)) {
+      this.chatStatuses.set(chatId, new Map());
+    }
+    const statuses = this.chatStatuses.get(chatId)!;
+    statuses.clear();
 
     // Instantiate a new agent run
     const agent = new Agent({
@@ -159,7 +170,8 @@ export class TelegramGateway implements Gateway {
       maxTurns: 10,
       systemPrompt: DEFAULT_AGENT_PROMPT,
       soulPath: './SOUL.md',
-      dbPath: process.env.DATABASE_PATH || './state.db'
+      dbPath: process.env.DATABASE_PATH || './state.db',
+      taskId: parentTaskId
     });
 
     await agent.init();
@@ -167,9 +179,17 @@ export class TelegramGateway implements Gateway {
     // Send initial status message
     const statusMsg = await ctx.reply('🤔 thinking...');
 
-    const updateStatus = async (msg: string) => {
+    const updateStatus = async (taskId: string, msg: string) => {
+      statuses.set(taskId, msg);
+
+      const lines: string[] = [];
+      for (const [tid, text] of statuses.entries()) {
+        lines.push(`• **[${tid}]**: ${text}`);
+      }
+      const combinedMsg = `⏳ *Agent Progress:*\n\n${lines.join('\n')}`;
+
       try {
-        await ctx.telegram.editMessageText(chatId, statusMsg.message_id, undefined, msg, { parse_mode: 'Markdown' });
+        await ctx.telegram.editMessageText(chatId, statusMsg.message_id, undefined, combinedMsg, { parse_mode: 'Markdown' });
       } catch (e) {
         // Avoid logging spam errors if text is identical
       }
@@ -192,7 +212,7 @@ export class TelegramGateway implements Gateway {
       await ctx.reply(messageText, { parse_mode: 'Markdown', reply_markup: keyboard.reply_markup });
 
       // Update main thinking message to note we are waiting for permission
-      await updateStatus(`⏳ Awaiting confirmation for \`${toolName}\`...`);
+      await updateStatus(parentTaskId, `⏳ Awaiting confirmation for \`${toolName}\`...`);
 
       // Wait for resolve
       console.log(`[Telegram Debug] Registering confirmation: ${confirmId} for tool: ${toolName}`);
@@ -214,17 +234,25 @@ export class TelegramGateway implements Gateway {
               currentTraceId = getActiveTraceId();
             } catch (e) {}
           }
-          if (status.type === 'thought') {
-            updateStatus(`🧠 ${status.message}`).catch(() => {});
-          } else if (status.type === 'memory') {
-            updateStatus(`💾 ${status.message}`).catch(() => {});
-          } else if (status.type === 'tool_call') {
-            updateStatus(`⚙️ ${status.message}`).catch(() => {});
-          } else if (status.type === 'tool_response') {
-            updateStatus(`📥 ${status.message}`).catch(() => {});
-          } else if (status.type === 'error') {
-            updateStatus(`⚠️ ${status.message}`).catch(() => {});
+          
+          let taskId = parentTaskId;
+          let cleanMessage = status.message;
+
+          // Try to extract taskId prefix
+          const match = status.message.match(/^\[([^\]]+)\]\s*(.*)/);
+          if (match) {
+            taskId = match[1];
+            cleanMessage = match[2];
           }
+
+          let icon = 'ℹ️';
+          if (status.type === 'thought') icon = '🧠';
+          else if (status.type === 'memory') icon = '💾';
+          else if (status.type === 'tool_call') icon = '⚙️';
+          else if (status.type === 'tool_response') icon = '📥';
+          else if (status.type === 'error') icon = '⚠️';
+
+          updateStatus(taskId, `${icon} ${cleanMessage}`).catch(() => {});
         },
         confirmCallback,
         sessionId
@@ -249,7 +277,7 @@ export class TelegramGateway implements Gateway {
     } catch (err: any) {
       console.error('[Telegram Error]', err);
       try {
-        await updateStatus(`❌ Failed: ${err.message}`);
+        await updateStatus(parentTaskId, `❌ Failed: ${err.message}`);
       } catch (e) {
         await ctx.reply(`❌ Failed: ${err.message}`);
       }

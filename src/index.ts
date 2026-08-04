@@ -125,6 +125,18 @@ async function startCli() {
         process.exit(0);
       }
 
+      if (trimmed.toLowerCase() === 'clear') {
+        chatHistory.length = 0;
+        try {
+          await agent.clearHistory('cli');
+          console.log(`\n${COLORS.fgGreen}[SYSTEM] Chat history for the CLI session cleared successfully.${COLORS.reset}\n`);
+        } catch (err: any) {
+          console.log(`\n${COLORS.fgRed}[SYSTEM] Failed to clear chat history: ${err.message}${COLORS.reset}\n`);
+        }
+        askPrompt();
+        return;
+      }
+
       if (!trimmed) {
         askPrompt();
         return;

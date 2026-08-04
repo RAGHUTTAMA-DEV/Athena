@@ -1,0 +1,261 @@
+{
+  "Azure VM pricing B2s D2s v5 F2s v2 East US": [
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a en-us \u203a pricingPricing - Windows Virtual Machines | Microsoft Azure",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/virtual-machines/windows/",
+      "snippet": "Buy Windows Virtual Machines today and pay only for what you use. Compare pricing options to choose the best plan for your business."
+    },
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a en-us \u203a pricingPricing Calculator | Microsoft Azure",
+      "url": "https://azure.microsoft.com/en-us/pricing/calculator/",
+      "snippet": "Configure and estimate the costs for Azure products and features for your specific scenarios."
+    },
+    {
+      "title": "Azure Speed Testhttps://www.azurespeed.com \u203a AzureVmPricingAzure VM Sizes & Pricing",
+      "url": "https://www.azurespeed.com/AzureVmPricing",
+      "snippet": "Compare Azure VM sizes, hardware specifications, and Linux or Windows pay-as-you-go, 1-year reserved, 3-year reserved, and Spot pricing. Find each size's lowest published hourly price and estimated monthly cost."
+    },
+    {
+      "title": "cloudprice.nethttps://cloudprice.netAzure VM Pricing Comparison - 700+ Virtual Machine Sizes",
+      "url": "https://cloudprice.net/",
+      "snippet": "4 days ago \u00b7   Find the most cost-effective Azure VM for your workload. Free instant comparison across all Azure regions with spot, reserved, and pay-as-you-go pricing."
+    },
+    {
+      "title": "comparedge.comhttps://comparedge.com \u203a tools \u203a azureAzure Pricing 2026: VM Rates from $0.04/hr, Storage & Free Tier",
+      "url": "https://comparedge.com/tools/azure/pricing",
+      "snippet": "Jul 17, 2026 \u00b7   Microsoft Azure Pricing: Plans & Cost Guide 2026 Azure has no flat plan: you pay per resource. A Linux VM runs from $0.0416/hour for a burstable B2s to $0.384 for a D8s v5, blob storage from $0.0208/GB-month hot down to $0.00099 archive, and Reserved Instances cut 30 to 70 percent off on-demand."
+    },
+    {
+      "title": "cloudprice.nethttps://cloudprice.net \u203a vm \u203a Standard_D2s_v5Standard_D2s_v5 specs and pricing | Azure | CloudPrice",
+      "url": "https://cloudprice.net/vm/Standard_D2s_v5",
+      "snippet": "6 days ago \u00b7   Compare Standard_D2s_v5 Azure instance prices and specifications across regions, currencies, spot and standard tiers, savings, and reserved instances."
+    },
+    {
+      "title": "Azure Speed Testhttps://www.azurespeed.com \u203a AzureVmPricing \u203a RegionsAzure VM Prices in East US: Linux and Windows",
+      "url": "https://www.azurespeed.com/AzureVmPricing/Regions/eastus",
+      "snippet": "Compare Linux and Windows pay-as-you-go, savings plan, reserved, and Spot Azure VM prices in East US (eastus). Search and sort by hourly price, VM size, series, family, vCPU, memory, and architecture."
+    }
+  ],
+  "Azure Storage Blob pricing hot cool cold archive East US": [
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a en-us \u203a pricingAzure Blob Storage pricing",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/storage/blobs/",
+      "snippet": "Our recommended pricing offers for block blobs and append blobs provide access to the latest Azure Storage features. The Hot tier is applicable for most workloads. The Cool and Archive tiers are for cool or cold data with pricing optimized for lowest GB storage prices."
+    },
+    {
+      "title": "cloudwebschool.comhttps://cloudwebschool.com \u203a docs \u203a azureHot vs Cool vs Archive Storage Tiers in Azure Blob Storage",
+      "url": "https://cloudwebschool.com/docs/azure/service-comparisons/hot-vs-cool-vs-archive-storage-in-azure/",
+      "snippet": "Mar 19, 2026 \u00b7   Compare Azure Blob Storage Hot, Cool, Cold, and Archive access tiers across storage cost, access cost, retrieval latency, and minimum retention with real cost examples."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azureEstimate the cost of using Azure Blob Storage | Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/azure/storage/blobs/blob-storage-estimate-costs",
+      "snippet": "May 19, 2025 \u00b7   If you download blobs from the cool or cold tier, you're also charged a data retrieval per GiB downloaded from the cool, cold, or archive tier. Using the Sample prices that appear in this article, the following table estimates the cost to download 1,000 blobs that are 5 GiB each in size from the cool tier by using the Blob Storage endpoint."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azureAccess tiers for blob data - Azure Storage | Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/azure/storage/blobs/access-tiers-overview",
+      "snippet": "Jun 15, 2026 \u00b7  Azure storage offers different access tiers so that you can store your blob data in the most cost-effective manner based on how it's being used. Learn about the hot, cool, cold, and archive access tiers for Blob Storage."
+    },
+    {
+      "title": "logiclibrary.nethttps://logiclibrary.net \u203a cloud \u203a azureAzure Blob Storage Cost Calculator 2026 \u2014 Hot/Cool/Cold ...",
+      "url": "https://logiclibrary.net/cloud/azure/blob-storage-calculator/",
+      "snippet": "This calculator provides estimates based on rates published by the Azure official pricing pages at the time stated. It does not account for every relief, exemption, or personal circumstance, and it is not financial, tax, legal, or investment advice."
+    },
+    {
+      "title": "storagecalculators.comhttps://storagecalculators.com \u203a azure-storage-calculatorAzure Storage Calculator | Storage Calculators",
+      "url": "https://storagecalculators.com/azure-storage-calculator/",
+      "snippet": "Azure storage calculator for Blob Storage Hot, Cool, Cold, and Archive tiers. Models transactions, egress, and retrieval fees in one monthly estimate."
+    },
+    {
+      "title": "c3x.devhttps://c3x.dev \u203a blog \u203a azure-storage-account-tiers-costAzure storage account tiers cost: Hot vs Cool vs Cold vs Archive",
+      "url": "https://c3x.dev/blog/azure-storage-account-tiers-cost/",
+      "snippet": "Jun 29, 2026 \u00b7  Azure storage account tiers cost: Hot vs Cool vs Cold vs Archive Azure Blob tiers trade storage price for access price, and each cold tier adds a retention penalty. Here's the full picture \u2014 storage rates, access costs, minimum retention, and redundancy \u2014 and how to pick the right tier."
+    }
+  ],
+  "Azure Premium SSD v2 pricing East US": [
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a en-us \u203a pricingPricing - Managed Disks | Microsoft Azure",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/managed-disks/",
+      "snippet": "The monthly cost for each Premium SSD v2 Disk, in a Locally Redundant Storage (LRS) configuration, in the East US region will be: Disk 1 monthly cost = 64* $0.081 = $5.14 /month"
+    },
+    {
+      "title": "Azure \u4e91\u8ba1\u7b97https://www.azure.cn \u203a en-us \u203a pricingPricing Details - Storage - Managed Disks - Azure Cloud Computing",
+      "url": "https://www.azure.cn/en-us/pricing/details/storage/managed-disks/",
+      "snippet": "Mar 20, 2026 \u00b7  Premium SSD v2 provides a baseline performance of 3,000 IOPS and 125 MB/s for any disk size that is offered at no additional cost. Disk storage capacity can range from a minimum of 1 GiB to a maximum of 64 TiBs."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azureSelect a disk type for Azure IaaS VMs - managed disks - Azure ...",
+      "url": "https://learn.microsoft.com/en-us/azure/virtual-machines/disks-types",
+      "snippet": "Applies to: \u2714\ufe0f Linux VMs \u2714\ufe0f Windows VMs \u2714\ufe0f Flexible scale sets \u2714\ufe0f Uniform scale sets"
+    },
+    {
+      "title": "lucidity.cloudhttps://www.lucidity.cloud \u203a blog \u203a azure-disk-pricingAzure Disk pricing guide for 2026. Compare Premium SSD ...",
+      "url": "https://www.lucidity.cloud/blog/azure-disk-pricing",
+      "snippet": "May 22, 2026 \u00b7  Azure Disk pricing guide for 2026. Compare Premium SSD, Standard SSD, Ultra Disk, and Premium SSD v2 costs, and learn how to cut Azure block storage spend by 40 to 70 percent."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azureDeploy a Premium SSD v2 managed disk - Azure Virtual Machines",
+      "url": "https://learn.microsoft.com/en-us/azure/virtual-machines/disks-deploy-premium-v2",
+      "snippet": "Jun 18, 2026 \u00b7  Premium SSD v2 disks support a 4k physical sector size by default, but can be configured to use a 512E sector size as well. While most applications are compatible with 4k sector sizes, some require 512 byte sector sizes."
+    },
+    {
+      "title": "docs.azure.cnhttps://docs.azure.cn \u203a en-us \u203a virtual-machinesUnderstand Azure Disk Storage billing - Azure Virtual Machines",
+      "url": "https://docs.azure.cn/en-us/virtual-machines/disks-understand-billing",
+      "snippet": "Jun 16, 2026 \u00b7   The following sections focus on these factors as they relate to the price of your Premium SSD v2. For more information on how these factors work, see the Premium SSD v2 section of the Azure managed disk types article."
+    },
+    {
+      "title": "cloudtoolstack.comhttps://cloudtoolstack.com \u203a tools \u203a azure-disk-cost-estimatorAzure Disk Cost Estimator - CloudToolStack",
+      "url": "https://cloudtoolstack.com/tools/azure-disk-cost-estimator",
+      "snippet": "The Azure Disk Cost Estimator calculates monthly costs for Azure Managed Disks across all available SKUs including Standard HDD, Standard SSD, Premium SSD, Premium SSD v2, and Ultra Disk."
+    }
+  ],
+  "Azure SQL Database vCore vs DTU pricing 2026": [
+    {
+      "title": "kanerika.comhttps://kanerika.com \u203a blogs \u203a azure-sql-database-pricingAzure SQL Database Pricing: DTU vs vCore Costs (2026)",
+      "url": "https://kanerika.com/blogs/azure-sql-database-pricing/",
+      "snippet": "Jul 24, 2026 \u00b7  Azure SQL Database pricing explained: DTU vs vCore vs serverless costs, hidden backup fees, and how to cut your bill up to 80% with reservations."
+    },
+    {
+      "title": "logiclibrary.nethttps://logiclibrary.net \u203a cloud \u203a azureAzure SQL Database Cost Calculator 2026 \u2014 vCore vs DTU ...",
+      "url": "https://logiclibrary.net/cloud/azure/sql-database-calculator/",
+      "snippet": "Two pricing models, two ways to land your database bill. vCore is the modern path with Reserved discounts and Business Critical / Hyperscale tiers; DTU is the legacy flat-bundle that still wins for small workloads."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azurePurchasing Models - Azure SQL Database | Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-sql/database/purchasing-models?view=azuresql",
+      "snippet": "Applies to: Azure SQL Database"
+    },
+    {
+      "title": "usage.aihttps://www.usage.ai \u203a blogs \u203a azureAzure SQL Database Pricing | DTU vs vCore vs Serverless ...",
+      "url": "https://www.usage.ai/blogs/azure/sql-database-pricing/",
+      "snippet": "Jul 8, 2026 \u00b7  Azure SQL Database reserved capacity is only available in the vCore purchasing model. The DTU model also does not offer the Serverless compute tier, Hyperscale service tier, or the ability to separately scale compute and storage. If you want any of these capabilities, you need the vCore model."
+    },
+    {
+      "title": "microsoftnegotiations.comhttps://microsoftnegotiations.com \u203a blog \u203a azure-sqlAzure SQL Database Licensing: DTU vs vCore Models in 2026",
+      "url": "https://microsoftnegotiations.com/blog/azure-sql-database-licensing-dtu-vcore",
+      "snippet": "DTU and vCore look interchangeable on the price calculator and are not. We compare the two licensing models on AHB, reservations, service tiers."
+    },
+    {
+      "title": "c3x.devhttps://c3x.dev \u203a blog \u203a azure-sql-database-dtu-vs-vcore-costAzure SQL Database cost: DTU vs vCore and why vCore unlocks ...",
+      "url": "https://c3x.dev/blog/azure-sql-database-dtu-vs-vcore-cost/",
+      "snippet": "Jun 29, 2026 \u00b7   For larger or license-heavy production, vCore is usually cheaper; for small databases, DTU is simpler and often cheaper. Azure SQL Database offers the same database under two purchasing models, and the choice has real cost consequences \u2014 mostly because only one of them can access the big discounts."
+    },
+    {
+      "title": "prunr.cloudhttps://prunr.cloud \u203a blog \u203a azure-sql-pricingAzure SQL Database Pricing: DTU vs vCore, Serverless, and ...",
+      "url": "https://prunr.cloud/blog/azure-sql-pricing",
+      "snippet": "May 27, 2026 \u00b7  Azure SQL Database has three purchasing models and five service tiers. Here is what each costs, when to use which, and the most common ways teams end up overpaying."
+    }
+  ],
+  "Azure Cosmos DB RU pricing 2026": [
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a en-us \u203a pricingAzure Cosmos DB pricing",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/cosmos-db/autoscale-provisioned/",
+      "snippet": "Get pricing info for the Azure Cosmos DB, fully managed NoSQL database for modern app development. No upfront costs. Pay as you go. FREE trial."
+    },
+    {
+      "title": "microsoftnegotiations.comhttps://microsoftnegotiations.com \u203a blog \u203a azure-cosmos-dbAzure Cosmos DB Pricing: RU/s, Serverless, and Autoscale (2026)",
+      "url": "https://microsoftnegotiations.com/blog/azure-cosmos-db-licensing",
+      "snippet": "May 18, 2026 \u00b7  Azure Cosmos DB pricing decoded: RU/s sizing, provisioned vs serverless vs autoscale, multi-region write cost, and the four levers that cut Cosmos DB spend 30\u201350% without losing SLA."
+    },
+    {
+      "title": "toolradar.comhttps://toolradar.com \u203a tools \u203a azure-cosmos-dbAzure Cosmos DB Pricing 2026: Plans, Hidden Costs & Cheaper ...",
+      "url": "https://toolradar.com/tools/azure-cosmos-db/pricing",
+      "snippet": "Azure Cosmos DB offers a generous Free Tier, making it accessible for initial development. The Serverless option at $0.25 per 1M RUs is competitive for intermittent workloads, while the Provisioned tier at $0.008 per 100 RU/s/hour provides cost-effective reserved capacity."
+    },
+    {
+      "title": "cloudcostkit.comhttps://cloudcostkit.com \u203a guides \u203a azure-cosmos-db-pricingAzure Cosmos DB pricing: a practical estimate (RU/s, storage ...",
+      "url": "https://cloudcostkit.com/guides/azure-cosmos-db-pricing/",
+      "snippet": "Jan 27, 2026 \u00b7   Start with a calculator if you need a first-pass estimate, then use this guide to validate the assumptions and catch the billing traps. Cosmos DB pricing becomes manageable when you separate the drivers: capacity (RU/s), storage, and data movement."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azureEstimate RU/s using the Azure Cosmos DB Cost Estimator ...",
+      "url": "https://learn.microsoft.com/en-us/azure/cosmos-db/estimate-ru-with-capacity-planner",
+      "snippet": "Jul 21, 2026 \u00b7   Learn how to use the Azure Cosmos DB Cost Estimator to estimate the throughput (RU/s) and cost required when planning an Azure Cosmos DB for NoSQL workload."
+    },
+    {
+      "title": "Azure Cosmos DBhttps://cosmos.azure.com \u203a costestimatorAzure Cosmos DB Cost Estimator",
+      "url": "https://cosmos.azure.com/costestimator/",
+      "snippet": "Estimate monthly Azure Cosmos DB costs. Pick a scenario, tune throughput, regions, and storage, and get a transparent breakdown with the math."
+    },
+    {
+      "title": "turbo360.comhttps://turbo360.com \u203a blog \u203a azure-cosmos-db-cost-pricingAzure Cosmos DB Pricing Guide - turbo360.com",
+      "url": "https://turbo360.com/blog/azure-cosmos-db-cost-pricing",
+      "snippet": "May 7, 2026 \u00b7   Learn Azure Cosmos DB pricing in 2025. Compare provisioned, autoscale, and serverless models with tips to cut costs."
+    }
+  ],
+  "Azure OpenAI GPT-4o pricing 2026": [
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a pricing \u203a detailsAzure OpenAI Service - Pricing | Microsoft Azure",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/azure-openai/",
+      "snippet": "Azure OpenAI Service pricing information. Try popular services with a free Azure account, and pay as you go with no upfront costs."
+    },
+    {
+      "title": "Quantumrunhttps://www.quantumrun.com \u203a consulting \u203a azure-openaiAzure OpenAI Pricing And Features 2026 - quantumrun.com",
+      "url": "https://www.quantumrun.com/consulting/azure-openai/",
+      "snippet": "Apr 9, 2026 \u00b7  Azure OpenAI is Microsoft\u2019s managed cloud service for accessing OpenAI models through Azure infrastructure. It gives organizations API-level access to GPT-4o, o-series reasoning models, DALL-E, Whisper, and more, while keeping data inside Azure\u2019s compliance and security boundaries."
+    },
+    {
+      "title": "inference.nethttps://inference.net \u203a content \u203a azure-openai-pricing-explainedAzure OpenAI Pricing Explained (2026) | Hidden Costs ...",
+      "url": "https://inference.net/content/azure-openai-pricing-explained/",
+      "snippet": "Jan 21, 2026 \u00b7   Complete breakdown of Azure OpenAI pricing by model, PTU vs pay-as-you-go comparison, hidden costs that add 15-40%, and cheaper alternatives. Updated for 2026."
+    },
+    {
+      "title": "azure-noob.comhttps://azure-noob.com \u203a blog \u203a azure-openai-pricing-real-costsAzure OpenAI Pricing 2026: $4 Estimate vs $1,906 Real Cost",
+      "url": "https://azure-noob.com/blog/azure-openai-pricing-real-costs/",
+      "snippet": "Nov 25, 2025 \u00b7   Full 2026 GPT-4o rate card, hidden fine-tuning fees, and PTU break-even analysis. Hidden Costs: Fine-tuning hosting adds $1,836-2,160/month per model. Infrastructure overhead adds $35-50/month. A $4 calculator estimate becomes $1,906 in production. Microsoft's calculator only shows token costs."
+    },
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a en-us \u203a pricingFoundry Models Pricing | Microsoft Azure",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/ai-foundry-models/microsoft/",
+      "snippet": "Sign in to the Azure pricing calculator to see pricing based on your current program/offer with Microsoft. Contact an Azure sales specialist for more information on pricing or to request a price quote."
+    },
+    {
+      "title": "amnic.comhttps://amnic.com \u203a blogs \u203a understanding-the-true-cost-ofAzure OpenAI Pricing 2026: Models, PTU & Hidden Costs",
+      "url": "https://amnic.com/blogs/understanding-the-true-cost-of-azure-openai",
+      "snippet": "What is Azure OpenAI pricing in 2026? Azure OpenAI pricing in 2026 uses two models: Pay-As-You-Go bills per million input and output tokens (GPT-4o is $2.50 input and $10.00 output per 1M tokens) and Provisioned Throughput Units (PTU) bill per reserved capacity hour starting around $2,448/month per unit with up to 70% savings on sustained ..."
+    },
+    {
+      "title": "opslyft.comhttps://www.opslyft.com \u203a blog \u203a azure-openai-pricingAzure OpenAI Pricing 2026: Models, PTUs & Hidden Costs",
+      "url": "https://www.opslyft.com/blog/azure-openai-pricing",
+      "snippet": "Jun 11, 2026 \u00b7   This guide breaks down Azure OpenAI pricing for 2026 the way a finance or platform team actually needs it: the model token rates, how PTUs work and when they pay off, the built-in discounts most teams forget to turn on, and the hidden costs that quietly inflate the invoice."
+    }
+  ],
+  "Azure Machine Learning pricing": [
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a details \u203a machine-learningAzure Machine Learning pricing",
+      "url": "https://azure.microsoft.com/en-us/pricing/details/machine-learning/",
+      "snippet": "Learn how to use Azure Machine Learning for the end-to-end machine learning lifecycle with no additional charge. Compare pricing options for compute capacity, including pay as you go, savings plan, and reservations."
+    },
+    {
+      "title": "Microsoft Azurehttps://azure.microsoft.com \u203a details \u203a machine-learningAzure Machine Learning pricing",
+      "url": "https://azure.microsoft.com/en-in/pricing/details/machine-learning/",
+      "snippet": "See pricing details and request a pricing quote for Azure Machine Learning, a cloud platform for building, training and deploying machine learning models faster."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azurePlan to manage costs - Azure Machine Learning | Microsoft Learn",
+      "url": "https://learn.microsoft.com/en-us/azure/machine-learning/concept-plan-manage-cost?view=azureml-api-2",
+      "snippet": "This article describes how to plan and manage costs for Azure Machine Learning. First, you use the Azure pricing calculator to help plan for costs before you add any resources. Next, as you add the Azure resources, review the estimated costs."
+    },
+    {
+      "title": "modern-datatools.comhttps://www.modern-datatools.com \u203a tools \u203a azure-mlAzure Machine Learning Pricing: Compute Costs (2026)",
+      "url": "https://www.modern-datatools.com/tools/azure-ml/pricing",
+      "snippet": "Apr 29, 2026 \u00b7   Azure Machine Learning uses a pure usage-based pricing model, meaning you pay only for the compute and services you actually consume. There is no flat monthly subscription fee."
+    },
+    {
+      "title": "Azure Lessonshttps://azurelessons.com \u203a azure-machine-learning-costAzure Machine Learning pricing",
+      "url": "https://azurelessons.com/azure-machine-learning-cost/",
+      "snippet": "Sep 1, 2025 \u00b7   In this comprehensive article, I\u2019ll break down everything you need to know about Azure Machine Learning pricing, sharing insights from real implementations. Whether you\u2019re a startup or an enterprise, this tutorial will help you optimize your Azure ML costs effectively."
+    },
+    {
+      "title": "Microsoft Learnhttps://learn.microsoft.com \u203a en-us \u203a azureManage and optimize costs - Azure Machine Learning ...",
+      "url": "https://learn.microsoft.com/en-us/azure/machine-learning/how-to-manage-optimize-cost?view=azureml-api-2",
+      "snippet": "Mar 1, 2026 \u00b7   This article shows you how to manage and optimize costs when you train and deploy machine learning models to Azure Machine Learning. Use the following tips to help you manage and optimize your compute resource costs."
+    },
+    {
+      "title": "zoftwarehub.comhttps://zoftwarehub.com \u203a azure-machine-learning \u203a pricingAzure Machine Learning Pricing, Plans &... | Zoftware",
+      "url": "https://zoftwarehub.com/products/azure-machine-learning/pricing",
+      "snippet": "Nov 18, 2025 \u00b7   Users can choose a pay-as-you-go model, paying for compute capacity by the second without long-term commitments, or opt for reserved instances with one-year or three-year terms for significant cost savings."
+    }
+  ]
+}
