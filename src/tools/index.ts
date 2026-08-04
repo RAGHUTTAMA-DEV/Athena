@@ -10,6 +10,7 @@ import { skillManageTool } from './skillManage.js';
 import { semanticMemoryTool } from './semanticMemory.js';
 import { executePythonTool } from './executePython.js';
 import { delegateTaskTool } from './delegateTask.js';
+import { cronjobTool } from './cronjob.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -24,7 +25,8 @@ export const tools: Tool[] = [
   skillManageTool,
   semanticMemoryTool,
   executePythonTool,
-  delegateTaskTool
+  delegateTaskTool,
+  cronjobTool
 ];
 
 export const toolsRegistry = new Map<string, Tool>(

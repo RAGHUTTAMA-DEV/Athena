@@ -3,6 +3,7 @@ import { AgentConfig, Message, Part } from './types.js';
 import { toolsRegistry } from '../tools/index.js';
 import { EpisodicMemory } from './memory.js';
 import { ProceduralMemory } from './procedural.js';
+import { MemoryConsolidator } from './consolidation.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -343,6 +344,11 @@ export class Agent {
           }
         }
 
+        // Trigger background consolidation check
+        this.triggerBackgroundConsolidation().catch(err => {
+          console.error('[Agent Consolidation Error]', err);
+        });
+
         return text;
 
       } catch (err: any) {
@@ -375,7 +381,43 @@ export class Agent {
       }
     }
 
+    // Trigger background consolidation check
+    this.triggerBackgroundConsolidation().catch(err => {
+      console.error('[Agent Consolidation Error]', err);
+    });
+
     return warningText;
+  }
+
+  // Trigger background consolidation if threshold is met
+  private async triggerBackgroundConsolidation(): Promise<void> {
+    if (!this.memory || !this.procedural) return;
+
+    try {
+      const unconsolidatedCount = await this.memory.getUnconsolidatedCount();
+      const threshold = this.config.consolidationThreshold !== undefined ? this.config.consolidationThreshold : 10;
+      
+      if (unconsolidatedCount >= threshold) {
+        const consolidator = new MemoryConsolidator(
+          this.memory,
+          this.procedural,
+          this.ai,
+          this.config.skillsPath || './skills',
+          this.config.modelName
+        );
+
+        // Run asynchronously without awaiting so the agent run returns quickly
+        consolidator.consolidate().then(result => {
+          if (result.factsExtracted > 0 || result.skillsCreated > 0) {
+            console.log(`[Background Consolidation Done] Extracted ${result.factsExtracted} facts, created ${result.skillsCreated} skills.`);
+          }
+        }).catch(err => {
+          console.error('[Background Consolidation Error]', err);
+        });
+      }
+    } catch (err: any) {
+      console.warn(`[Background Consolidation Trigger Failed] ${err.message}`);
+    }
   }
 
   async clearHistory(sessionId: string): Promise<void> {

@@ -3,6 +3,8 @@ import { Gateway } from './index.js';
 import { Agent } from '../core/agent.js';
 import { Message } from '../core/types.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/agentPrompt.js';
+import { Scheduler } from '../core/scheduler.js';
+import { EpisodicMemory } from '../core/memory.js';
 
 export class TelegramGateway implements Gateway {
   private bot: Telegraf;
@@ -201,6 +203,47 @@ export class TelegramGateway implements Gateway {
   async start(): Promise<void> {
     console.log('[Telegram Gateway] Starting Telegram Bot polling...');
     
+    // Wire up and start Scheduler for Telegram Gateway mode
+    try {
+      const dbPath = process.env.DATABASE_PATH || './state.db';
+      const memory = new EpisodicMemory(dbPath);
+      await memory.init();
+
+      const scheduler = Scheduler.getInstance();
+      scheduler.setMemory(memory);
+      
+      scheduler.setRunner(async (prompt, sessionId) => {
+        const agent = new Agent({
+          modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+          maxTurns: 10,
+          systemPrompt: DEFAULT_AGENT_PROMPT,
+          soulPath: './SOUL.md',
+          dbPath: dbPath
+        });
+        await agent.init();
+        const history: Message[] = [];
+        return agent.run(prompt, history, undefined, undefined, sessionId);
+      });
+
+      scheduler.setNotifier(async (sessionId, result) => {
+        if (sessionId.startsWith('telegram_')) {
+          const chatId = parseInt(sessionId.split('_')[1], 10);
+          try {
+            await this.bot.telegram.sendMessage(chatId, `⏰ *[Scheduled task triggered]*\n\n${result}`, { parse_mode: 'Markdown' });
+          } catch (err: any) {
+            console.error(`[Scheduler Telegram Notification Error] Failed to send to chat ${chatId}:`, err.message);
+          }
+        } else {
+          console.log(`\n⏰ [Scheduler Notification] [Session: ${sessionId}]\n${result}\n`);
+        }
+      });
+
+      await scheduler.start();
+      console.log('[Telegram Gateway] Scheduler started successfully.');
+    } catch (err: any) {
+      console.error('[Telegram Gateway] Failed to start Scheduler:', err.message);
+    }
+
     const launchBot = async () => {
       try {
         await this.bot.launch();
@@ -215,7 +258,9 @@ export class TelegramGateway implements Gateway {
   }
 
   async stop(): Promise<void> {
-    console.log('[Telegram Gateway] Stopping Telegram Bot...');
+    console.log('[Telegram Gateway] Stopping Telegram Bot and Scheduler...');
+    const scheduler = Scheduler.getInstance();
+    await scheduler.stop();
     this.bot.stop();
   }
 }

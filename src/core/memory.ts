@@ -97,6 +97,26 @@ export class EpisodicMemory {
       
       CREATE INDEX IF NOT EXISTS idx_semantic_timestamp ON semantic_memory(timestamp);
     `);
+
+    // 5. Upgrade episodic_memory table with consolidated column if not exists
+    try {
+      await this.db.exec(`ALTER TABLE episodic_memory ADD COLUMN consolidated INTEGER DEFAULT 0`);
+    } catch (e) {
+      // Column already exists
+    }
+
+    // 6. Create scheduled_jobs table
+    await this.db.exec(`
+      CREATE TABLE IF NOT EXISTS scheduled_jobs (
+        id TEXT PRIMARY KEY,
+        prompt TEXT NOT NULL,
+        schedule TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        last_run INTEGER,
+        next_run INTEGER NOT NULL,
+        active INTEGER DEFAULT 1
+      );
+    `);
   }
 
   async saveMessage(sessionId: string, role: 'user' | 'model', parts: any[]): Promise<void> {
@@ -246,6 +266,94 @@ export class EpisodicMemory {
       throw new Error('Database not initialized. Call init() first.');
     }
     await this.db.run(`DELETE FROM semantic_memory WHERE id = ?`, id);
+  }
+
+  // --- Consolidation helpers ---
+
+  async getUnconsolidatedCount(): Promise<number> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const row = await this.db.get(`SELECT COUNT(*) as count FROM episodic_memory WHERE consolidated = 0`);
+    return row?.count || 0;
+  }
+
+  async getUnconsolidatedMessages(limit: number = 20): Promise<any[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    return this.db.all(
+      `SELECT id, session_id, role, content, timestamp FROM episodic_memory 
+       WHERE consolidated = 0 
+       ORDER BY timestamp ASC, id ASC 
+       LIMIT ?`,
+      limit
+    );
+  }
+
+  async markAsConsolidated(ids: number[]): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    if (ids.length === 0) return;
+    const placeholders = ids.map(() => '?').join(',');
+    await this.db.run(
+      `UPDATE episodic_memory SET consolidated = 1 WHERE id IN (${placeholders})`,
+      ...ids
+    );
+  }
+
+  // --- Scheduled Jobs helpers ---
+
+  async saveScheduledJob(job: {
+    id: string;
+    prompt: string;
+    schedule: string;
+    sessionId: string;
+    lastRun: number | null;
+    nextRun: number;
+    active: number;
+  }): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    await this.db.run(
+      `INSERT OR REPLACE INTO scheduled_jobs (id, prompt, schedule, session_id, last_run, next_run, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      job.id,
+      job.prompt,
+      job.schedule,
+      job.sessionId,
+      job.lastRun,
+      job.nextRun,
+      job.active
+    );
+  }
+
+  async getScheduledJobs(): Promise<any[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    return this.db.all(`SELECT id, prompt, schedule, session_id as sessionId, last_run as lastRun, next_run as nextRun, active FROM scheduled_jobs`);
+  }
+
+  async deleteScheduledJob(id: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    await this.db.run(`DELETE FROM scheduled_jobs WHERE id = ?`, id);
+  }
+
+  async updateScheduledJobRun(id: string, lastRun: number | null, nextRun: number): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    await this.db.run(
+      `UPDATE scheduled_jobs SET last_run = ?, next_run = ? WHERE id = ?`,
+      lastRun,
+      nextRun,
+      id
+    );
   }
 }
 

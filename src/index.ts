@@ -6,6 +6,7 @@ import { Agent } from './core/agent.js';
 import { Message } from './core/types.js';
 import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';
 import { TelegramGateway } from './gateway/telegram.js';
+import { Scheduler } from './core/scheduler.js';
 import * as readline from 'readline';
 
 // ANSI coloring codes for premium styling
@@ -89,6 +90,21 @@ async function startCli() {
   log(COLORS.fgBlue, 'SYSTEM', 'Initializing agent persona (SOUL.md)...');
   await agent.init();
   log(COLORS.fgGreen, 'SYSTEM', 'Agent initialized and ready to receive prompts.');
+
+  // Wire up and start Scheduler for CLI
+  if ((agent as any).memory) {
+    const scheduler = Scheduler.getInstance();
+    scheduler.setMemory((agent as any).memory);
+    scheduler.setRunner(async (prompt, sessionId) => {
+      const history: Message[] = [];
+      return agent.run(prompt, history, undefined, undefined, sessionId);
+    });
+    scheduler.setNotifier(async (sessionId, result) => {
+      console.log(`\n⏰ [Scheduler Notification] [Session: ${sessionId}]\n${result}\n`);
+    });
+    await scheduler.start();
+  }
+
   console.log(`${COLORS.dim}Type "exit" or "quit" to end the session.${COLORS.reset}\n`);
 
   rl = readline.createInterface({

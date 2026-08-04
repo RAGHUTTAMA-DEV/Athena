@@ -65,4 +65,5 @@ export interface AgentConfig {
   allowedTools?: string[];
   depth?: number;
   taskId?: string;
+  consolidationThreshold?: number;
 }
