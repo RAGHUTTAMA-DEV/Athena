@@ -2,6 +2,8 @@ import * as dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
+import './core/instrumentation.js';
+
 import { Agent } from './core/agent.js';
 import { Message } from './core/types.js';
 import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';

@@ -5,6 +5,9 @@ import { Message } from '../core/types.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/agentPrompt.js';
 import { Scheduler } from '../core/scheduler.js';
 import { EpisodicMemory } from '../core/memory.js';
+import { getActiveTraceId } from '@langfuse/tracing';
+import { Langfuse } from 'langfuse';
+
 
 export class TelegramGateway implements Gateway {
   private bot: Telegraf;
@@ -62,6 +65,43 @@ export class TelegramGateway implements Gateway {
       if (!callbackData) return;
 
       console.log(`[Telegram Debug] callback_query received: ${callbackData}`);
+
+      // Handle user feedback callbacks
+      if (callbackData.startsWith('like_') || callbackData.startsWith('dislike_')) {
+        const parts = callbackData.split('_');
+        const action = parts[0];
+        const traceId = parts.slice(1).join('_');
+
+        try {
+          await ctx.answerCbQuery('Thank you for your feedback!');
+        } catch (e) {}
+
+        try {
+          const langfuse = new Langfuse({
+            publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+            secretKey: process.env.LANGFUSE_SECRET_KEY,
+            baseUrl: process.env.LANGFUSE_BASE_URL,
+          });
+
+          await langfuse.score({
+            traceId,
+            name: 'user-feedback',
+            value: action === 'like' ? 1 : 0,
+            dataType: 'NUMERIC',
+          });
+
+          await langfuse.flushAsync();
+
+          const originalText = (ctx.callbackQuery.message as any).text || '';
+          await ctx.editMessageText(
+            `${originalText}\n\n_${action === 'like' ? '👍 Liked' : '👎 Disliked'} (feedback submitted)_`
+          );
+        } catch (err: any) {
+          console.error('[Telegram Feedback Error]', err.message);
+        }
+        return;
+      }
+
       const [action, confirmId] = callbackData.split('_');
       if (!action || !confirmId) return;
 
@@ -161,12 +201,19 @@ export class TelegramGateway implements Gateway {
       });
     };
 
+    let currentTraceId: string | undefined = undefined;
+
     try {
       const sessionId = `telegram_${chatId}`;
       const reply = await agent.run(
         userText,
         history,
         (status) => {
+          if (!currentTraceId) {
+            try {
+              currentTraceId = getActiveTraceId();
+            } catch (e) {}
+          }
           if (status.type === 'thought') {
             updateStatus(`🧠 ${status.message}`).catch(() => {});
           } else if (status.type === 'memory') {
@@ -189,7 +236,16 @@ export class TelegramGateway implements Gateway {
       } catch (e) {}
 
       const finalReply = (reply && reply.trim() !== '') ? reply : '✅ Operation completed successfully.';
-      await ctx.reply(finalReply);
+      
+      let keyboard = undefined;
+      if (currentTraceId) {
+        keyboard = Markup.inlineKeyboard([
+          Markup.button.callback('👍 Like', `like_${currentTraceId}`),
+          Markup.button.callback('👎 Dislike', `dislike_${currentTraceId}`)
+        ]);
+      }
+
+      await ctx.reply(finalReply, keyboard);
     } catch (err: any) {
       console.error('[Telegram Error]', err);
       try {

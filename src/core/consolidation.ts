@@ -16,7 +16,7 @@ export class MemoryConsolidator {
     procedural: ProceduralMemory,
     ai: GoogleGenAI,
     skillsPath: string,
-    modelName: string = 'gemini-2.5-flash'
+    modelName: string = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
   ) {
     this.memory = memory;
     this.procedural = procedural;

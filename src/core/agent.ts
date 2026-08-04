@@ -6,6 +6,8 @@ import { ProceduralMemory } from './procedural.js';
 import { MemoryConsolidator } from './consolidation.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
+
 
 export class Agent {
   private ai: GoogleGenAI;
@@ -47,9 +49,46 @@ export class Agent {
     }
   }
 
-  // Execute the agent run
-  // Execute the agent run
   async run(
+    userPrompt: string,
+    history: Message[],
+    onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void,
+    confirm?: (toolName: string, args: any) => Promise<boolean>,
+    sessionId?: string
+  ): Promise<string> {
+    return startActiveObservation(
+      this.config.taskId || 'agent-run',
+      async (traceSpan) => {
+        traceSpan.update({
+          input: userPrompt,
+          metadata: {
+            modelName: this.config.modelName,
+            maxTurns: this.config.maxTurns,
+            depth: this.config.depth || 0,
+            taskId: this.config.taskId,
+          }
+        });
+
+        const finalResult = await propagateAttributes(
+          {
+            sessionId: sessionId || 'default-session',
+            tags: [this.config.taskId || 'agent-run'],
+            metadata: {
+              depth: String(this.config.depth || 0)
+            }
+          },
+          async () => {
+            return this.runInternal(userPrompt, history, onUpdate, confirm, sessionId);
+          }
+        );
+
+        traceSpan.update({ output: finalResult });
+        return finalResult;
+      }
+    );
+  }
+
+  private async runInternal(
     userPrompt: string,
     history: Message[],
     onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void,
@@ -182,15 +221,39 @@ export class Agent {
       try {
         safeOnUpdate({ type: 'thought', message: `Thinking (Turn ${turns}/${this.config.maxTurns})...` });
 
-        // Call Gemini API
-        const response = await this.ai.models.generateContent({
-          model: this.config.modelName,
-          contents: currentRunHistory as any,
-          config: {
-            systemInstruction,
-            tools: functionDeclarations.length > 0 ? [{ functionDeclarations } as any] : undefined,
-          }
-        });
+        // Call Gemini API wrapped in a Langfuse generation span
+        const response = await startActiveObservation(
+          `gemini-generation-turn-${turns}`,
+          async (generation) => {
+            generation.update({
+              input: JSON.stringify(currentRunHistory),
+              model: this.config.modelName,
+            });
+
+            const res = await this.ai.models.generateContent({
+              model: this.config.modelName,
+              contents: currentRunHistory as any,
+              config: {
+                systemInstruction,
+                tools: functionDeclarations.length > 0 ? [{ functionDeclarations } as any] : undefined,
+              }
+            });
+
+            const usage = res.usageMetadata ? {
+              input: res.usageMetadata.promptTokenCount || 0,
+              output: res.usageMetadata.candidatesTokenCount || 0,
+              total: res.usageMetadata.totalTokenCount || 0,
+            } : undefined;
+
+            generation.update({
+              output: JSON.stringify(res.candidates?.[0]?.content || {}),
+              usageDetails: usage,
+            });
+
+            return res;
+          },
+          { asType: 'generation' }
+        );
 
         // Add model response to history
         const modelContent = response.candidates?.[0]?.content;
@@ -284,7 +347,22 @@ export class Agent {
                 onUpdate: safeOnUpdate
               };
 
-              const result = await tool.execute(call.args, toolContext);
+              const result = await startActiveObservation(
+                `tool-${call.name}`,
+                async (toolSpan) => {
+                  toolSpan.update({
+                    input: JSON.stringify(call.args),
+                  });
+
+                  const res = await tool.execute(call.args, toolContext);
+
+                  toolSpan.update({
+                    output: JSON.stringify(res),
+                  });
+
+                  return res;
+                }
+              );
               safeOnUpdate({
                 type: 'tool_response',
                 message: `Tool ${call.name} returned: ${JSON.stringify(result)}`
