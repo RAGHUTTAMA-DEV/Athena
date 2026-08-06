@@ -162,6 +162,37 @@ export class EpisodicMemory {
     await this.db.run(`DELETE FROM episodic_memory WHERE session_id = ?`, sessionId);
   }
 
+  async getSessionsList(): Promise<{ sessionId: string; messageCount: number; lastActive: number }[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+
+    return this.db.all(`
+      SELECT session_id as sessionId, count(*) as messageCount, max(timestamp) as lastActive
+      FROM episodic_memory
+      GROUP BY session_id
+      ORDER BY lastActive DESC
+    `);
+  }
+
+  async renameSession(oldSessionId: string, newSessionId: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+
+    await this.db.run(
+      `UPDATE episodic_memory SET session_id = ? WHERE session_id = ?`,
+      newSessionId,
+      oldSessionId
+    );
+
+    await this.db.run(
+      `UPDATE scheduled_jobs SET session_id = ? WHERE session_id = ?`,
+      newSessionId,
+      oldSessionId
+    );
+  }
+
   async close(): Promise<void> {
     if (this.db) {
       await this.db.close();

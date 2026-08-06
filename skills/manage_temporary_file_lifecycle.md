@@ -1,32 +1,33 @@
 ---
 name: "Manage Temporary File Lifecycle"
-description: "This skill allows the agent to create a temporary file with specified content, read its content for verification, and then delete it, ensuring proper file system cleanup. It's useful for testing file system access, temporary data storage, or short-term inter-process communication via files."
-tags: ["file management", "temporary file", "filesystem", "cleanup", "verification"]
+description: "This skill allows the agent to create a temporary file with specified content, verify its contents by reading it back, and then clean up the file system by deleting it. It is useful for testing file system interactions, handling transient data storage during a task, or ensuring a clean state after operations requiring temporary files."
+tags: ["file_system", "temporary_file", "cleanup", "workflow", "testing", "data_management"]
 ---
 # Instructions
-This skill performs a sequence of file system operations to manage the lifecycle of a temporary file.
+This skill involves a sequence of file system operations to create, verify, and then remove a temporary file.
 
-1.  **Create the Temporary File:**
-    *   Determine a unique filename for the temporary file (e.g., `temp_data_YYYYMMDD_HHMMSS.txt`).
-    *   Write the desired content to this file.
-    *   **Tip:** If no specific content is provided, an empty string or a default placeholder can be used.
-    *   **Command Template (Shell):** `echo "YOUR_CONTENT" > YOUR_FILENAME.txt`
-    *   **Command Template (Internal Tool):** `write_file(filename="YOUR_FILENAME.txt", content="YOUR_CONTENT")`
+**Input Parameters:**
+*   `file_name`: The desired name for the temporary file (e.g., `temp_data.txt`).
+*   `file_content`: The string content to be written into the temporary file.
 
-2.  **Verify File Content (Optional but Recommended):**
-    *   Read the content back from the newly created file to confirm that the write operation was successful and the content is as expected.
-    *   **Constraint:** Compare the read content with the original content provided in step 1. If they do not match, an error should be reported.
-    *   **Command Template (Shell):** `cat YOUR_FILENAME.txt`
-    *   **Command Template (Internal Tool):** `read_file(filename="YOUR_FILENAME.txt")`
+**Steps:**
 
-3.  **Delete the Temporary File:**
-    *   Remove the file from the filesystem to ensure proper cleanup and prevent resource accumulation.
-    *   **Constraint:** This step should always be executed, even if errors occurred during creation or verification, unless a specific instruction to keep the file for debugging is given.
-    *   **Command Template (Shell):** `rm YOUR_FILENAME.txt`
-    *   **Command Template (Internal Tool):** `delete_file(filename="YOUR_FILENAME.txt")`
+1.  **Write Content to File:**
+    *   Use the `write_file` tool to create the file with the specified `file_name` and `file_content`.
+    *   **Tool call example:** `write_file(file_path='<file_name>', content='<file_content>')`
+    *   *Constraint:* Ensure the file path is accessible and writable.
 
-**Example Workflow:**
-To write "Hello World" to `test.tmp`, read it, then delete it:
-1.  `write_file(filename="test.tmp", content="Hello World")`
-2.  `read_file(filename="test.tmp")` (Verify output is "Hello World")
-3.  `delete_file(filename="test.tmp")`
+2.  **Read and Verify File Content:**
+    *   Use the `read_file` tool with the `file_name` to retrieve its content.
+    *   **Tool call example:** `read_file(file_path='<file_name>')`
+    *   Compare the read content with the original `file_content` to verify successful writing.
+    *   *Tip:* If verification fails, log the discrepancy and consider retrying the write operation or informing the user of an issue.
+
+3.  **Delete File:**
+    *   Once the content is verified (or the purpose of the temporary file is served), use the `delete_file` tool with the `file_name` to remove it from the file system.
+    *   **Tool call example:** `delete_file(file_path='<file_name>')`
+    *   *Constraint:* Ensure the file exists before attempting deletion to avoid errors.
+
+4.  **Report Outcome:**
+    *   Inform the user of the successful execution of all three steps (writing, reading/verifying, and deleting the file).
+    *   If any step fails, report the specific failure to the user.

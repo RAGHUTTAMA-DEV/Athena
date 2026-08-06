@@ -3,6 +3,7 @@ node_modules/
 jspm_packages/
 web_modules/
 
+
 # Compiled output
 dist/
 out/
@@ -41,3 +42,6 @@ html-report/
 # Temporary / Scratch files
 scratch/
 test_skills/
+.browser-session-data/
+skills/
+

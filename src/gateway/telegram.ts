@@ -16,6 +16,21 @@ export class TelegramGateway implements Gateway {
   private pendingConfirmations: Map<string, (approved: boolean) => void> = new Map();
   // Map of chatId to Map of taskId to current status string
   private chatStatuses: Map<number, Map<string, string>> = new Map();
+  // Map of chatId to active session name
+  private chatActiveSessions: Map<number, string> = new Map();
+
+  private getSessionId(chatId: number): string {
+    const sessionName = this.chatActiveSessions.get(chatId) || 'default';
+    return `telegram_${chatId}_${sessionName}`;
+  }
+
+  private getSessionName(sessionId: string, chatId: number): string | null {
+    const prefix = `telegram_${chatId}_`;
+    if (sessionId.startsWith(prefix)) {
+      return sessionId.substring(prefix.length);
+    }
+    return null;
+  }
 
   constructor() {
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -44,7 +59,8 @@ export class TelegramGateway implements Gateway {
     this.bot.command('clear', async (ctx) => {
       const chatId = ctx.chat.id;
       this.chatHistories.delete(chatId);
-      const sessionId = `telegram_${chatId}`;
+      const sessionId = this.getSessionId(chatId);
+      const sessionName = this.chatActiveSessions.get(chatId) || 'default';
       try {
         const agent = new Agent({
           modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
@@ -55,10 +71,30 @@ export class TelegramGateway implements Gateway {
         });
         await agent.init();
         await agent.clearHistory(sessionId);
-        ctx.reply('🧹 Chat and database history cleared for this session.');
+        ctx.reply(`🧹 Chat and database history cleared for session "${sessionName}".`);
       } catch (err: any) {
         ctx.reply(`🧹 Chat history cleared in-memory, but database failed: ${err.message}`);
       }
+    });
+
+    // Command /sessions (alias for listing)
+    this.bot.command('sessions', async (ctx) => {
+      await this.handleSessionCommand(ctx, 'list');
+    });
+
+    // Command /switch to switch sessions directly
+    this.bot.command('switch', async (ctx) => {
+      const parts = ctx.message.text.trim().split(/\s+/);
+      const sessionName = parts.slice(1).join(' ');
+      await this.handleSessionCommand(ctx, 'switch', sessionName);
+    });
+
+    // Command /session with subcommands
+    this.bot.command('session', async (ctx) => {
+      const parts = ctx.message.text.trim().split(/\s+/);
+      const sub = parts[1]?.toLowerCase() || 'help';
+      const arg = parts.slice(2).join(' ');
+      await this.handleSessionCommand(ctx, sub, arg);
     });
 
     // Handle button clicks for approvals
@@ -143,6 +179,159 @@ export class TelegramGateway implements Gateway {
     });
   }
 
+  private async handleSessionCommand(ctx: any, action: string, arg?: string) {
+    const chatId = ctx.chat.id;
+    const agent = new Agent({
+      modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      maxTurns: 10,
+      systemPrompt: DEFAULT_AGENT_PROMPT,
+      soulPath: './SOUL.md',
+      dbPath: process.env.DATABASE_PATH || './state.db'
+    });
+    await agent.init();
+
+    if (action === 'help') {
+      await ctx.reply(
+        `💬 *Athena Sessions Help:*\n\n` +
+        `• \`/session list\` (or \`/sessions\`) - List all your sessions\n` +
+        `• \`/session switch <name>\` (or \`/switch <name>\`) - Switch to or create a session\n` +
+        `• \`/session rename <new_name>\` - Rename current session\n` +
+        `• \`/session delete <name>\` - Delete a session's history\n` +
+        `• \`/session current\` - Show active session name\n` +
+        `• \`/session help\` - Show this help message`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    if (action === 'list') {
+      try {
+        const list = await agent.getSessionsList();
+        const activeName = this.chatActiveSessions.get(chatId) || 'default';
+        
+        const prefix = `telegram_${chatId}_`;
+        const mySessions = list
+          .filter(s => s.sessionId.startsWith(prefix))
+          .map(s => ({
+            name: s.sessionId.substring(prefix.length),
+            count: s.messageCount,
+            lastActive: s.lastActive
+          }));
+
+        const formatTime = (ts: number) => {
+          const diff = Date.now() - ts;
+          const secs = Math.floor(diff / 1000);
+          const mins = Math.floor(secs / 60);
+          const hrs = Math.floor(mins / 60);
+          const days = Math.floor(hrs / 24);
+          if (secs < 5) return 'just now';
+          if (secs < 60) return `${secs}s ago`;
+          if (mins < 60) return `${mins}m ago`;
+          if (hrs < 24) return `${hrs}h ago`;
+          return `${days}d ago`;
+        };
+
+        let msg = `💬 *Your Chat Sessions:*\n\n`;
+        if (mySessions.length === 0) {
+          msg += `No active sessions found. The default session is \`${activeName}\`.`;
+        } else {
+          mySessions.forEach(s => {
+            const activeMarker = s.name === activeName ? ' 🌟 *(active)*' : '';
+            msg += `• \`${s.name}\` (${s.count} messages, active ${formatTime(s.lastActive)})${activeMarker}\n`;
+          });
+        }
+        await ctx.reply(msg, { parse_mode: 'Markdown' });
+      } catch (err: any) {
+        await ctx.reply(`❌ Failed to list sessions: ${err.message}`);
+      }
+      return;
+    }
+
+    if (action === 'current') {
+      const activeName = this.chatActiveSessions.get(chatId) || 'default';
+      await ctx.reply(`💬 *Active Session:* \`${activeName}\``, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (action === 'switch' || action === 'create') {
+      const sessionName = arg?.trim();
+      if (!sessionName) {
+        await ctx.reply(`⚠️ Please specify a session name. Example: \`/switch development\``, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      this.chatActiveSessions.set(chatId, sessionName);
+      this.chatHistories.delete(chatId);
+
+      await ctx.reply(`✅ Switched to session: \`${sessionName}\``, { parse_mode: 'Markdown' });
+
+      const sessionId = this.getSessionId(chatId);
+      if ((agent as any).memory) {
+        try {
+          const history = await (agent as any).memory.loadHistory(sessionId, 4);
+          if (history.length > 0) {
+            let contextMsg = `⏳ *Recent Session Messages:*\n\n`;
+            history.forEach((msg: any) => {
+              const sender = msg.role === 'user' ? '👤 *You*' : '🤖 *Athena*';
+              const text = msg.parts.map((p: any) => p.text).join(' ');
+              contextMsg += `${sender}: ${text}\n`;
+            });
+            await ctx.reply(contextMsg, { parse_mode: 'Markdown' });
+          } else {
+            await ctx.reply(`✨ Starting a fresh history in this session.`);
+          }
+        } catch (e: any) {
+          console.warn(`[Telegram Session Switch Context Error] ${e.message}`);
+        }
+      }
+      return;
+    }
+
+    if (action === 'rename') {
+      const newName = arg?.trim();
+      if (!newName) {
+        await ctx.reply(`⚠️ Please specify a new session name. Example: \`/session rename project_athena\``, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      try {
+        const oldName = this.chatActiveSessions.get(chatId) || 'default';
+        const oldSessionId = `telegram_${chatId}_${oldName}`;
+        const newSessionId = `telegram_${chatId}_${newName}`;
+
+        await agent.renameSession(oldSessionId, newSessionId);
+        this.chatActiveSessions.set(chatId, newName);
+        await ctx.reply(`✅ Session renamed from \`${oldName}\` to \`${newName}\` successfully.`, { parse_mode: 'Markdown' });
+      } catch (err: any) {
+        await ctx.reply(`❌ Failed to rename session: ${err.message}`);
+      }
+      return;
+    }
+
+    if (action === 'delete') {
+      const targetName = arg?.trim();
+      if (!targetName) {
+        await ctx.reply(`⚠️ Please specify a session name to delete. Example: \`/session delete temp_session\``, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      try {
+        const targetSessionId = `telegram_${chatId}_${targetName}`;
+        await agent.clearHistory(targetSessionId);
+        const currentName = this.chatActiveSessions.get(chatId) || 'default';
+        if (targetName === currentName) {
+          this.chatHistories.delete(chatId);
+        }
+        await ctx.reply(`✅ Session \`${targetName}\` history deleted successfully.`, { parse_mode: 'Markdown' });
+      } catch (err: any) {
+        await ctx.reply(`❌ Failed to delete session: ${err.message}`);
+      }
+      return;
+    }
+
+    await ctx.reply(`❌ Subcommand not recognized. Type \`/session help\` for session commands.`, { parse_mode: 'Markdown' });
+  }
+
   private async runAgentFlow(ctx: any) {
     const chatId = ctx.chat.id;
     const userText = ctx.message.text.trim();
@@ -224,7 +413,7 @@ export class TelegramGateway implements Gateway {
     let currentTraceId: string | undefined = undefined;
 
     try {
-      const sessionId = `telegram_${chatId}`;
+      const sessionId = this.getSessionId(chatId);
       const reply = await agent.run(
         userText,
         history,

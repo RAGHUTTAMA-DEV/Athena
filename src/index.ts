@@ -107,7 +107,23 @@ async function startCli() {
     await scheduler.start();
   }
 
-  console.log(`${COLORS.dim}Type "exit" or "quit" to end the session.${COLORS.reset}\n`);
+  let currentSessionId = 'cli';
+
+  function formatRelativeTime(timestamp: number): string {
+    const diffMs = Date.now() - timestamp;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffSec < 5) return 'just now';
+    if (diffSec < 60) return `${diffSec}s ago`;
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHour < 24) return `${diffHour}h ago`;
+    return `${diffDay}d ago`;
+  }
+
+  console.log(`${COLORS.dim}Type "exit" or "quit" to end the session. Type "/session help" for session commands.${COLORS.reset}\n`);
 
   rl = readline.createInterface({
     input: process.stdin,
@@ -117,7 +133,7 @@ async function startCli() {
   const chatHistory: Message[] = [];
 
   const askPrompt = () => {
-    rl.question(`${COLORS.bright}${COLORS.fgMagenta}You > ${COLORS.reset}`, async (input) => {
+    rl.question(`${COLORS.bright}${COLORS.fgMagenta}[${currentSessionId}] You > ${COLORS.reset}`, async (input) => {
       const trimmed = input.trim();
       if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
         console.log(`\n${COLORS.fgBlue}[SYSTEM] Goodbye!${COLORS.reset}\n`);
@@ -128,11 +144,156 @@ async function startCli() {
       if (trimmed.toLowerCase() === 'clear') {
         chatHistory.length = 0;
         try {
-          await agent.clearHistory('cli');
-          console.log(`\n${COLORS.fgGreen}[SYSTEM] Chat history for the CLI session cleared successfully.${COLORS.reset}\n`);
+          await agent.clearHistory(currentSessionId);
+          console.log(`\n${COLORS.fgGreen}[SYSTEM] Chat history for the session '${currentSessionId}' cleared successfully.${COLORS.reset}\n`);
         } catch (err: any) {
           console.log(`\n${COLORS.fgRed}[SYSTEM] Failed to clear chat history: ${err.message}${COLORS.reset}\n`);
         }
+        askPrompt();
+        return;
+      }
+
+      // Check for session commands
+      const lowerInput = trimmed.toLowerCase();
+      const isSessionCmd = lowerInput.startsWith('/session') || lowerInput.startsWith('/switch') || lowerInput.startsWith('/sessions');
+      if (isSessionCmd) {
+        const parts = trimmed.split(/\s+/);
+        const mainCmd = parts[0].toLowerCase();
+        
+        let action = '';
+        let arg = '';
+
+        if (mainCmd === '/sessions') {
+          action = 'list';
+        } else if (mainCmd === '/switch') {
+          action = 'switch';
+          arg = parts.slice(1).join(' ');
+        } else if (mainCmd === '/session') {
+          const sub = parts[1]?.toLowerCase() || 'help';
+          action = sub;
+          if (sub === 'switch' || sub === 'delete' || sub === 'create') {
+            arg = parts.slice(2).join(' ');
+          } else if (sub === 'rename') {
+            arg = parts.slice(2).join(' ');
+          }
+        }
+
+        if (action === 'help') {
+          console.log(`\n${COLORS.bright}${COLORS.fgCyan}Athena Chat Sessions Help:${COLORS.reset}`);
+          console.log(`  ${COLORS.bright}/session list${COLORS.reset} (or ${COLORS.bright}/sessions${COLORS.reset})     - List all chat sessions`);
+          console.log(`  ${COLORS.bright}/session switch <name>${COLORS.reset} (or ${COLORS.bright}/switch <name>${COLORS.reset}) - Switch to or create a session`);
+          console.log(`  ${COLORS.bright}/session rename <new_name>${COLORS.reset} - Rename current session`);
+          console.log(`  ${COLORS.bright}/session delete <name>${COLORS.reset}     - Delete a session's history`);
+          console.log(`  ${COLORS.bright}/session current${COLORS.reset}           - Print current session name`);
+          console.log(`  ${COLORS.bright}/session help${COLORS.reset}              - Show this help message\n`);
+          askPrompt();
+          return;
+        }
+
+        if (action === 'list') {
+          try {
+            const list = await agent.getSessionsList();
+            console.log(`\n${COLORS.bright}${COLORS.fgCyan}--- Athena Chat Sessions ---${COLORS.reset}`);
+            if (list.length === 0) {
+              console.log(`No active sessions found. The default session is '${currentSessionId}'.`);
+            } else {
+              list.forEach(s => {
+                const activeMarker = s.sessionId === currentSessionId ? `${COLORS.fgGreen}* (active)${COLORS.reset}` : '';
+                console.log(`  - ${COLORS.bright}${s.sessionId}${COLORS.reset} (${s.messageCount} messages, active ${formatRelativeTime(s.lastActive)}) ${activeMarker}`);
+              });
+            }
+            console.log('');
+          } catch (err: any) {
+            console.log(`\n${COLORS.fgRed}[SYSTEM] Failed to list sessions: ${err.message}${COLORS.reset}\n`);
+          }
+          askPrompt();
+          return;
+        }
+
+        if (action === 'current') {
+          console.log(`\n${COLORS.fgBlue}[SYSTEM] Current session:${COLORS.reset} ${COLORS.bright}${currentSessionId}${COLORS.reset}\n`);
+          askPrompt();
+          return;
+        }
+
+        if (action === 'switch' || action === 'create') {
+          const sessionName = arg.trim();
+          if (!sessionName) {
+            console.log(`\n${COLORS.fgRed}[SYSTEM] Please specify a session name. Example: /session switch development${COLORS.reset}\n`);
+            askPrompt();
+            return;
+          }
+
+          currentSessionId = sessionName;
+          chatHistory.length = 0; // Clear memory cache to reload from DB
+          
+          console.log(`\n${COLORS.fgGreen}[SYSTEM] Switched to session: ${COLORS.bright}${currentSessionId}${COLORS.reset}`);
+
+          if ((agent as any).memory) {
+            try {
+              const history = await (agent as any).memory.loadHistory(currentSessionId, 6);
+              if (history.length > 0) {
+                console.log(`\n${COLORS.dim}--- Recent Session Messages ---${COLORS.reset}`);
+                history.forEach((msg: any) => {
+                  const sender = msg.role === 'user' ? 'You' : 'Athena';
+                  const text = msg.parts.map((p: any) => p.text).join(' ');
+                  console.log(`${COLORS.dim}${sender} > ${text}${COLORS.reset}`);
+                });
+                console.log(`${COLORS.dim}-------------------------------${COLORS.reset}`);
+              } else {
+                console.log(`No previous messages in this session. Starting fresh!`);
+              }
+            } catch (e: any) {
+              console.log(`${COLORS.fgYellow}[SYSTEM] Failed to load session context: ${e.message}${COLORS.reset}`);
+            }
+          }
+          console.log('');
+          askPrompt();
+          return;
+        }
+
+        if (action === 'rename') {
+          const newName = arg.trim();
+          if (!newName) {
+            console.log(`\n${COLORS.fgRed}[SYSTEM] Please specify a new session name. Example: /session rename main_session${COLORS.reset}\n`);
+            askPrompt();
+            return;
+          }
+
+          try {
+            const oldName = currentSessionId;
+            await agent.renameSession(oldName, newName);
+            currentSessionId = newName;
+            console.log(`\n${COLORS.fgGreen}[SYSTEM] Session renamed from '${oldName}' to '${newName}' successfully.${COLORS.reset}\n`);
+          } catch (err: any) {
+            console.log(`\n${COLORS.fgRed}[SYSTEM] Failed to rename session: ${err.message}${COLORS.reset}\n`);
+          }
+          askPrompt();
+          return;
+        }
+
+        if (action === 'delete') {
+          const targetName = arg.trim();
+          if (!targetName) {
+            console.log(`\n${COLORS.fgRed}[SYSTEM] Please specify a session name to delete. Example: /session delete old_session${COLORS.reset}\n`);
+            askPrompt();
+            return;
+          }
+
+          try {
+            await agent.clearHistory(targetName);
+            if (targetName === currentSessionId) {
+              chatHistory.length = 0;
+            }
+            console.log(`\n${COLORS.fgGreen}[SYSTEM] Session '${targetName}' history deleted successfully.${COLORS.reset}\n`);
+          } catch (err: any) {
+            console.log(`\n${COLORS.fgRed}[SYSTEM] Failed to delete session: ${err.message}${COLORS.reset}\n`);
+          }
+          askPrompt();
+          return;
+        }
+
+        console.log(`\n${COLORS.fgRed}[SYSTEM] Subcommand not recognized. Type "/session help" for available commands.${COLORS.reset}\n`);
         askPrompt();
         return;
       }
@@ -162,7 +323,7 @@ async function startCli() {
               log(COLORS.fgRed, 'WARNING', status.message);
               break;
           }
-        }, cliConfirm, 'cli');
+        }, cliConfirm, currentSessionId);
 
         console.log(`\n${COLORS.bright}${COLORS.fgCyan}Athena > ${COLORS.reset}${COLORS.fgWhite}${finalAnswer}${COLORS.reset}\n`);
       } catch (err: any) {

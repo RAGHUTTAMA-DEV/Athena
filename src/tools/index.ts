@@ -11,6 +11,7 @@ import { semanticMemoryTool } from './semanticMemory.js';
 import { executePythonTool } from './executePython.js';
 import { delegateTaskTool } from './delegateTask.js';
 import { cronjobTool } from './cronjob.js';
+import { browserNavigateTool, browserActionTool } from './interactiveBrowser.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -26,9 +27,12 @@ export const tools: Tool[] = [
   semanticMemoryTool,
   executePythonTool,
   delegateTaskTool,
-  cronjobTool
+  cronjobTool,
+  browserNavigateTool,
+  browserActionTool
 ];
 
 export const toolsRegistry = new Map<string, Tool>(
   tools.map(t => [t.definition.name, t])
 );
+

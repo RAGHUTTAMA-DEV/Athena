@@ -507,6 +507,19 @@ export class Agent {
       await this.memory.clearHistory(sessionId);
     }
   }
+
+  async getSessionsList(): Promise<{ sessionId: string; messageCount: number; lastActive: number }[]> {
+    if (this.memory) {
+      return this.memory.getSessionsList();
+    }
+    return [];
+  }
+
+  async renameSession(oldSessionId: string, newSessionId: string): Promise<void> {
+    if (this.memory) {
+      await this.memory.renameSession(oldSessionId, newSessionId);
+    }
+  }
 }
 
 async function runWithConcurrencyLimit<T>(
