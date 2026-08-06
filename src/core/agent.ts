@@ -214,12 +214,16 @@ export class Agent {
       .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
       .map(tool => tool.definition);
 
+    let currentMaxTurns = this.config.maxTurns;
     let turns = 0;
-    while (turns < this.config.maxTurns) {
+    while (turns < currentMaxTurns) {
       turns++;
       
+      // Before generation, prune older browser responses in currentRunHistory to free up tokens
+      pruneBrowserHistory(currentRunHistory);
+      
       try {
-        safeOnUpdate({ type: 'thought', message: `Thinking (Turn ${turns}/${this.config.maxTurns})...` });
+        safeOnUpdate({ type: 'thought', message: `Thinking (Turn ${turns}/${currentMaxTurns})...` });
 
         // Call Gemini API wrapped in a Langfuse generation span
         const response = await startActiveObservation(
@@ -304,6 +308,11 @@ export class Agent {
                 }
               };
               return;
+            }
+
+            // Dynamically increase turns if a browser tool is executed
+            if (call.name === 'browserNavigate' || call.name === 'browserAction') {
+              currentMaxTurns = Math.max(currentMaxTurns, 25);
             }
 
             // Check for confirmation for risky actions
@@ -436,7 +445,7 @@ export class Agent {
     }
 
     // If we exit the loop because we hit the maxTurns limit
-    const warningText = `[Guardrail Alert] Max iterations (${this.config.maxTurns}) reached. Stopping run.`;
+    const warningText = `[Guardrail Alert] Max iterations (${currentMaxTurns}) reached. Stopping run.`;
     safeOnUpdate({ type: 'error', message: warningText });
     
     // Add warning as final model turn so the user sees it
@@ -539,4 +548,36 @@ async function runWithConcurrencyLimit<T>(
   const workers = Array.from({ length: Math.min(limit, tasks.length) }, worker);
   await Promise.all(workers);
   return results;
+}
+
+function pruneBrowserHistory(history: Message[]): void {
+  // Find all browser tool response parts in the history
+  const browserResponses: { messageIdx: number; partIdx: number; part: any }[] = [];
+
+  history.forEach((msg, mIdx) => {
+    msg.parts.forEach((part, pIdx) => {
+      if (part && 'functionResponse' in part) {
+        const name = part.functionResponse.name;
+        if (name === 'browserNavigate' || name === 'browserAction') {
+          browserResponses.push({ messageIdx: mIdx, partIdx: pIdx, part });
+        }
+      }
+    });
+  });
+
+  // If we have more than one browser response, prune all except the last one
+  if (browserResponses.length > 1) {
+    for (let i = 0; i < browserResponses.length - 1; i++) {
+      const { part } = browserResponses[i];
+      if (part.functionResponse?.response) {
+        const resp = part.functionResponse.response;
+        if (resp.interactiveElements) {
+          // Replace interactiveElements with a compact placeholder to release token context
+          resp.interactiveElements = [
+            { note: "Interactive elements pruned from older history to save tokens." }
+          ];
+        }
+      }
+    }
+  }
 }
