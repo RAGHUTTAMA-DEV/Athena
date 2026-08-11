@@ -12,6 +12,7 @@ import { executePythonTool } from './executePython.js';
 import { delegateTaskTool } from './delegateTask.js';
 import { cronjobTool } from './cronjob.js';
 import { browserNavigateTool, browserActionTool } from './interactiveBrowser.js';
+import { delegateCodingTaskTool } from './delegateCodingTask.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -29,10 +30,12 @@ export const tools: Tool[] = [
   delegateTaskTool,
   cronjobTool,
   browserNavigateTool,
-  browserActionTool
+  browserActionTool,
+  delegateCodingTaskTool
 ];
 
 export const toolsRegistry = new Map<string, Tool>(
   tools.map(t => [t.definition.name, t])
 );
+
 

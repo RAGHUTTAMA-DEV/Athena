@@ -155,7 +155,7 @@ export class Agent {
     let retrievedSkills: any[] = [];
     if (this.procedural) {
       try {
-        retrievedSkills = await this.procedural.searchSkills(userPrompt, 2);
+        retrievedSkills = await this.procedural.searchSkills(userPrompt, 3);
       } catch (err: any) {
         safeOnUpdate({ type: 'error', message: `Failed to search procedural memory: ${err.message}` });
       }
@@ -196,7 +196,8 @@ export class Agent {
     }
     if (retrievedSkills.length > 0) {
       systemInstruction = `${systemInstruction}\n\n[RELEVANT SKILLS (Procedural Memory)]\n` +
-        retrievedSkills.map(s => `- skill: ${s.name}\n  Instructions:\n  ${s.content}`).join('\n\n');
+        `CRITICAL DIRECTIVE: The user has requested or triggered procedural skill(s). You MUST strictly follow the design principles, workflows, guidelines, and output standards in the skill instructions below:\n\n` +
+        retrievedSkills.map(s => `### Skill: ${s.name}\n${s.content}`).join('\n\n');
     }
 
     // 6. Prepare the session messages

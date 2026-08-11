@@ -9,10 +9,58 @@ export interface Skill {
   content: string;
 }
 
+const STOP_WORDS = new Set([
+  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'aren\'t', 'as', 'at',
+  'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by',
+  'can', 'can\'t', 'cannot', 'could', 'couldn\'t', 'did', 'didn\'t', 'do', 'does', 'doesn\'t', 'doing', 'don\'t', 'down', 'during',
+  'each', 'few', 'for', 'from', 'further', 'had', 'hadn\'t', 'has', 'hasn\'t', 'have', 'haven\'t', 'having', 'he', 'her', 'here',
+  'how', 'i', 'i\'d', 'i\'ll', 'i\'m', 'i\'ve', 'if', 'in', 'into', 'is', 'isn\'t', 'it', 'its', 'just', 'like', 'me', 'more',
+  'most', 'my', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'our', 'out', 'over', 'own', 'same',
+  'she', 'should', 'so', 'some', 'such', 'than', 'that', 'the', 'their', 'them', 'then', 'there', 'these', 'they', 'this',
+  'those', 'through', 'to', 'too', 'under', 'until', 'up', 'very', 'was', 'we', 'were', 'what', 'when', 'where', 'which',
+  'while', 'who', 'whom', 'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves',
+  'good', 'proper', 'take', 'give', 'check', 'out', 'later', 'come', 'back', 'use', 'things'
+]);
+
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+function tokensMatch(t1: string, t2: string): boolean {
+  if (t1 === t2) return true;
+  if (t1.length > 3 && t2.length > 3) {
+    const dist = levenshteinDistance(t1, t2);
+    if (t1.length <= 6 && dist <= 1) return true;
+    if (t1.length > 6 && dist <= 2) return true;
+  }
+  return false;
+}
+
 export function parseFrontmatter(fileContent: string): { data: Record<string, any>; content: string } {
   const match = fileContent.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) {
-    return { data: {}, content: fileContent };
+    const purposeMatch = fileContent.match(/\*\*Purpose:\*\*\s*([^\n\r]+)/i) || fileContent.match(/^#[^\n]*\n+([^\n\r]+)/m);
+    const fallbackDesc = purposeMatch ? purposeMatch[1].trim() : '';
+    return { data: { description: fallbackDesc }, content: fileContent };
   }
   const frontmatterText = match[1];
   const bodyContent = match[2];
@@ -100,19 +148,45 @@ export class ProceduralMemory {
 
   async searchSkills(query: string, limit: number = 2): Promise<Skill[]> {
     const skills = await this.loadAllSkills();
-    const queryTokens = query.toLowerCase().split(/\W+/).filter(Boolean);
+    const cleanQuery = query.toLowerCase();
+    const rawTokens = cleanQuery.split(/\W+/).filter(Boolean);
+    const filteredTokens = rawTokens.filter(t => t.length > 1 && !STOP_WORDS.has(t));
+    
+    const queryTokens = filteredTokens.length > 0 ? filteredTokens : rawTokens.filter(t => t.length > 1);
     if (queryTokens.length === 0) return [];
+
+    const normQuery = cleanQuery.replace(/[-_]/g, ' ');
 
     const scored = skills.map(skill => {
       let score = 0;
+      const normName = skill.name.toLowerCase().replace(/[-_]/g, ' ');
       const nameTokens = skill.name.toLowerCase().split(/\W+/).filter(Boolean);
-      const descTokens = skill.description.toLowerCase().split(/\W+/).filter(Boolean);
-      const tagTokens = skill.tags.map(t => t.toLowerCase());
+      const descTokens = skill.description.toLowerCase().split(/\W+/).filter(Boolean).filter(t => !STOP_WORDS.has(t));
+      const tagTokens = skill.tags.map(t => t.toLowerCase()).filter(t => !STOP_WORDS.has(t));
 
-      for (const token of queryTokens) {
-        if (nameTokens.includes(token)) score += 5;
-        if (descTokens.includes(token)) score += 2;
-        if (tagTokens.includes(token)) score += 3;
+      // 1. Exact or normalized name phrase match bonus
+      if (normQuery.includes(normName)) {
+        score += 100;
+      } else {
+        const matchingParts = nameTokens.filter(nToken => 
+          queryTokens.some(qToken => tokensMatch(qToken, nToken))
+        );
+        if (matchingParts.length === nameTokens.length && nameTokens.length > 0) {
+          score += 80;
+        }
+      }
+
+      // 2. Token-level matching with fuzzy matching
+      for (const qToken of queryTokens) {
+        if (nameTokens.some(nToken => tokensMatch(qToken, nToken))) {
+          score += 15;
+        }
+        if (tagTokens.some(tToken => tokensMatch(qToken, tToken))) {
+          score += 8;
+        }
+        if (descTokens.some(dToken => tokensMatch(qToken, dToken))) {
+          score += 4;
+        }
       }
 
       return { skill, score };
@@ -125,3 +199,4 @@ export class ProceduralMemory {
       .slice(0, limit);
   }
 }
+

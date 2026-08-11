@@ -92,6 +92,9 @@ async function main() {
   // Test 4: Terminal command execution tool (risky)
   await testPrompt(agent, 'Run the shell command "echo Hello from Athena Terminal Test"', 'verify_session');
 
+  // Test 4b: Open File Explorer command test
+  await testPrompt(agent, 'Open the Windows File Explorer at C:\\Users\\raghu\\Desktop using terminal command.', 'verify_session');
+
   // Test 5: Filesystem write and delete tools (risky)
   await testPrompt(agent, 'Write the text "Test content" to a file named verify_temp.txt, then read the file, and then delete it.', 'verify_session');
 
