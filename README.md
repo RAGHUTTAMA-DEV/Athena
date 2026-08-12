@@ -1,12 +1,12 @@
 # 🏛️ Athena: Autonomous Multi-Tool AI Agent System
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
 [![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
 [![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
+[![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blue?style=for-the-badge&logo=probot)](https://modelcontextprotocol.io/)
 [![Langfuse](https://img.shields.io/badge/Langfuse-000000?style=for-the-badge&logo=langfuse&logoColor=white)](https://langfuse.com/)
 
-**Athena** is a state-of-the-art, autonomous, multi-agent AI assistant framework built in TypeScript. Powered by **Google's Gemini 2.5 Flash**, Athena is a **local-first AI agent** with direct access to your local machine (terminal, filesystem, browser, Python execution), persistent SQLite episodic memory, dynamic procedural skill learning ("grows with you"), recursive sub-agent delegation, headless browser automation via Playwright, background cron scheduling, and end-to-end telemetry through Langfuse and OpenTelemetry.
+**Athena** is a state-of-the-art, autonomous, multi-agent AI assistant framework built in TypeScript. Athena is a **local-first AI agent** with direct access to your local machine (terminal, filesystem, browser, Python execution), persistent SQLite episodic memory, dynamic procedural skill learning ("grows with you"), recursive sub-agent delegation, headless browser automation via Playwright, background cron scheduling, and end-to-end telemetry through Langfuse and OpenTelemetry.
 
 ---
 
@@ -48,6 +48,11 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 * **Scheduled Tasks**: Create, list, execute, and cancel one-shot timers or recurring cron jobs (`cronjob` tool).
 * **Background Worker**: Integrates directly with SQLite state to wake up and trigger agent actions automatically.
 
+### 🔌 Model Context Protocol (MCP) Integration
+* **Plug-and-Play MCP Servers**: Dynamically initializes and connects to external MCP tool servers via `stdio`, `sse`, `http`, or `streamable-http` transports.
+* **Automatic Dynamic Tool Registration**: Discovers exposed tools from configured MCP servers (`client.listTools()`) and registers them dynamically with server namespacing (e.g. `[MCP: filesystem]`).
+* **Gemini Schema Sanitization**: Built-in schema cleaner (`cleanGeminiSchema`) converts complex JSON schemas into 100% Gemini-compliant function declarations.
+
 ### 🌐 Headless Web Automation & Search
 * **Playwright Browser Automation**: Full web navigation, clicking, typing, page extraction, and screenshot capturing with Chromium.
 * **Interactive DOM Inspection**: Live page analysis and multi-turn web interaction via `interactiveBrowser`.
@@ -85,9 +90,10 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 ```
 Athena/
 ├── src/
-│   ├── index.ts                   # CLI entrypoint & session controller
+│   ├── index.ts                   # CLI entrypoint, session controller & MCP loader
 │   ├── core/
 │   │   ├── agent.ts               # Main Agent class & tool execution loop
+│   │   ├── mcpManager.ts          # MCP client transport & Gemini schema bridge
 │   │   ├── memory.ts              # SQLite Episodic Memory store
 │   │   ├── consolidation.ts       # Long-term Memory Summarizer & Consolidator
 │   │   ├── procedural.ts          # Procedural Memory (Skills loader)
@@ -113,6 +119,7 @@ Athena/
 │   └── prompts/
 │       └── index.ts               # Default system prompt templates
 ├── skills/                        # Dynamic procedural skills (.md)
+├── mcp_servers.json               # MCP server declarations (stdio, SSE, HTTP)
 ├── state.db                       # SQLite Database (Episodic memory & cron)
 ├── SOUL.md                        # Agent identity & behavioral guidelines
 ├── hermes-agent-build-plan.md    # Multi-phase system build design document
@@ -164,6 +171,76 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 ```bash
 npm run build
 ```
+
+---
+
+## 🔌 Model Context Protocol (MCP) Setup & Configuration
+
+Athena includes full native support for Anthropic's **Model Context Protocol (MCP)**, enabling you to seamlessly connect external tool servers (e.g. Filesystem, Gmail, Notion, Slack, GitHub, PostgreSQL, Brave Search) into Athena's autonomous tool loop without writing custom code.
+
+### 1. Configuration File (`mcp_servers.json`)
+Athena automatically scans for [`mcp_servers.json`](file:///c:/Users/raghu/Documents/Athena/mcp_servers.json) in the root directory upon startup. If present, it initializes connections to all declared servers.
+
+Create or update `mcp_servers.json` in your project root:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Users\\yourname\\Documents"
+      ]
+    },
+    "gmail": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@gongrzhe/server-gmail-autoauth-mcp"
+      ]
+    },
+    "notion": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://mcp.notion.com/sse"
+      ]
+    }
+  }
+}
+```
+
+### 2. Supported Transport Modes
+
+Athena's [`MCPManager`](file:///c:/Users/raghu/Documents/Athena/src/core/mcpManager.ts) supports four transport modes:
+
+| Transport Type | Trigger / Field | Description |
+| :--- | :--- | :--- |
+| **`stdio`** *(Default)* | `"command": "..."` | Launches a local subprocess (`npx`, `node`, `python`, `uvx`, etc.) and communicates over standard input/output streams. |
+| **`sse`** | `"type": "sse"` or `"url": "..."` | Connects to remote HTTP Server-Sent Events (SSE) server endpoints. |
+| **`streamable-http`** | `"type": "streamable-http"` | Connects via streaming HTTP transport. |
+| **`http`** | `"type": "http"` | Standard HTTP request/response transport. |
+
+### 3. Server Configuration Options
+
+| Option | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `command` | `string` | For `stdio` | The command or binary to run (e.g., `npx`, `node`, `python`, `uvx`). |
+| `args` | `string[]` | Optional | Array of CLI arguments passed to the binary. |
+| `url` | `string` | For `sse`/`http` | Target endpoint URL for HTTP or SSE servers. |
+| `env` | `Record<string, string>` | Optional | Custom environment variables passed to the `stdio` child process. |
+| `headers` | `Record<string, string>` | Optional | Custom HTTP headers passed during HTTP / SSE handshakes. |
+| `type` | `string` | Optional | Explicit transport override: `'stdio'`, `'sse'`, `'http'`, or `'streamable-http'`. |
+
+### 4. How MCP Integration Works Under the Hood
+1. **Startup Handshake**: On CLI/Gateway boot, `MCPManager` reads `mcp_servers.json` and connects to all active servers.
+2. **Tool Discovery**: Queries connected servers via `client.listTools()`.
+3. **Gemini Schema Sanitization (`cleanGeminiSchema`)**: Converts JSON schemas into 100% Gemini-compliant function declarations, stripping non-standard fields.
+4. **Dynamic Registration**: Registers tools into Athena's active tool registry with namespaces (e.g., `[MCP: filesystem] read_file`).
+5. **Graceful Teardown**: Intercepts `SIGINT` / `SIGTERM` process signals to safely terminate sub-processes and disconnect clients (`mcpManager.closeAll()`).
 
 ---
 
