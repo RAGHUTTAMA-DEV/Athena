@@ -87,6 +87,12 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 
 ## 🏗️ Architecture & Project Structure
 
+### 📐 System Architecture
+
+![Athena Architecture Diagram](assets/athena_architecture.png)
+
+### 📂 Directory & File Structure
+
 ```
 Athena/
 ├── src/
