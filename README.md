@@ -6,7 +6,24 @@
 [![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
 [![Langfuse](https://img.shields.io/badge/Langfuse-000000?style=for-the-badge&logo=langfuse&logoColor=white)](https://langfuse.com/)
 
-**Athena** is a state-of-the-art, autonomous, multi-agent AI assistant framework built in TypeScript. Powered by **Google's Gemini 2.5 Flash**, Athena features persistent episodic SQLite memory, dynamic procedural skills, recursive sub-agent delegation, headless browser automation via Playwright, background cron scheduling, and end-to-end telemetry through Langfuse and OpenTelemetry.
+**Athena** is a state-of-the-art, autonomous, multi-agent AI assistant framework built in TypeScript. Powered by **Google's Gemini 2.5 Flash**, Athena is a **local-first AI agent** with direct access to your local machine (terminal, filesystem, browser, Python execution), persistent SQLite episodic memory, dynamic procedural skill learning ("grows with you"), recursive sub-agent delegation, headless browser automation via Playwright, background cron scheduling, and end-to-end telemetry through Langfuse and OpenTelemetry.
+
+---
+
+## 💡 Core Philosophy
+
+### 💻 1. Local Machine Access & Native Integration
+Athena operates directly on your local system, giving it hands-on execution capabilities:
+* **Local Terminal Execution**: Runs shell commands, scripts, git workflows, and system commands via the `terminal` tool.
+* **Direct Filesystem Management**: Inspects, reads, writes, and refactors workspace directories and files locally via `filesystem`, `readFile`, and `delegateCodingTask`.
+* **Local Python Sandbox**: Runs Python code locally for data processing, calculations, and automation (`executePython`).
+* **Local Browser Automation**: Controls a local headless Chromium browser using Playwright to inspect websites, extract dynamic DOM elements, and capture screenshots (`browser`, `interactiveBrowser`).
+
+### 🌱 2. Self-Evolving Intelligence ("Grows With You")
+Athena isn't stateless—it learns your environment, adapts to your workflows, and gets smarter over time:
+* **Procedural Skill Learning (`skills/`)**: When Athena discovers a new workflow or solution, it creates and stores reusable skill guides using `skillManage`. Future runs automatically load and build upon these learned skills.
+* **Episodic & Long-Term Memory**: All interactions, past decisions, tool results, and session contexts are stored persistently in SQLite (`state.db`).
+* **Continuous Memory Consolidation**: A background LLM consolidation pipeline periodically analyzes past sessions to extract long-term user preferences, project insights, and coding style, allowing Athena to grow into a personalized AI assistant tailored specifically to you.
 
 ---
 
@@ -22,7 +39,7 @@
 * **Coding Sub-Agent (`delegateCodingTask`)**: Spawns a dedicated CLI process harness for file modifications, code creation, refactoring, and test verification.
 * **Parallel Execution**: Supports parent agents running multiple sub-agent tasks concurrently.
 
-### 💾 Episodic & Procedural Memory
+### 💾 Episodic & Procedural Memory ("Self-Learning")
 * **Episodic Memory (`state.db`)**: SQLite-backed persistent memory storing multi-session chat histories, session states, and tool outcomes.
 * **Procedural Memory (Skills)**: Dynamically loads, reads, and creates reusable skills in the [`skills/`](file:///c:/Users/raghu/Documents/Athena/skills) directory via `skillManage`.
 * **Memory Consolidation**: Periodically condenses historical interactions into structured long-term knowledge and user profiles using background LLM consolidation.
