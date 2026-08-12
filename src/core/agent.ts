@@ -210,7 +210,6 @@ export class Agent {
       parts: [{ text: userPrompt }]
     });
 
-    // 7. Prepare function declarations for Gemini (scoped to allowedTools)
     const functionDeclarations = Array.from(toolsRegistry.values())
       .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
       .map(tool => tool.definition);
@@ -220,7 +219,6 @@ export class Agent {
     while (turns < currentMaxTurns) {
       turns++;
       
-      // Before generation, prune older browser responses in currentRunHistory to free up tokens
       pruneBrowserHistory(currentRunHistory);
       
       try {
@@ -395,8 +393,6 @@ export class Agent {
               };
             }
           });
-
-          // Run tool calls concurrently, capped at 3
           await runWithConcurrencyLimit(tasks, 3);
 
           // Push the tool responses back to the model as a user role message
@@ -404,8 +400,6 @@ export class Agent {
             role: 'user',
             parts: toolResponseParts.filter(Boolean)
           });
-
-          // Continue the loop to let the model process the tool responses
           continue;
         }
 
@@ -552,7 +546,6 @@ async function runWithConcurrencyLimit<T>(
 }
 
 function pruneBrowserHistory(history: Message[]): void {
-  // Find all browser tool response parts in the history
   const browserResponses: { messageIdx: number; partIdx: number; part: any }[] = [];
 
   history.forEach((msg, mIdx) => {
@@ -566,14 +559,12 @@ function pruneBrowserHistory(history: Message[]): void {
     });
   });
 
-  // If we have more than one browser response, prune all except the last one
   if (browserResponses.length > 1) {
     for (let i = 0; i < browserResponses.length - 1; i++) {
       const { part } = browserResponses[i];
       if (part.functionResponse?.response) {
         const resp = part.functionResponse.response;
         if (resp.interactiveElements) {
-          // Replace interactiveElements with a compact placeholder to release token context
           resp.interactiveElements = [
             { note: "Interactive elements pruned from older history to save tokens." }
           ];

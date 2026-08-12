@@ -93,7 +93,7 @@ async function startCli() {
   await agent.init();
   log(COLORS.fgGreen, 'SYSTEM', 'Agent initialized and ready to receive prompts.');
 
-  // Wire up and start Scheduler for CLI
+  // This the for starting the scheduler with the cli 
   if ((agent as any).memory) {
     const scheduler = Scheduler.getInstance();
     scheduler.setMemory((agent as any).memory);
