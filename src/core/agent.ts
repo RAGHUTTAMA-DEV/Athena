@@ -4,6 +4,7 @@ import { toolsRegistry } from '../tools/index.js';
 import { EpisodicMemory } from './memory.js';
 import { ProceduralMemory } from './procedural.js';
 import { MemoryConsolidator } from './consolidation.js';
+import { cleanGeminiSchema } from './mcpManager.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
@@ -212,7 +213,7 @@ export class Agent {
 
     const functionDeclarations = Array.from(toolsRegistry.values())
       .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
-      .map(tool => tool.definition);
+      .map(tool => cleanGeminiSchema(tool.definition));
 
     let currentMaxTurns = this.config.maxTurns;
     let turns = 0;

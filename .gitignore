@@ -45,3 +45,5 @@ test_skills/
 .browser-session-data/
 skills/
 
+client_secret_436741726826-rbdetob9ihhile1tgv6kfhpodkrlvmkn.apps.googleusercontent.com.json
+gcp-oauth.keys.json

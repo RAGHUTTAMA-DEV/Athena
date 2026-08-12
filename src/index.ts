@@ -9,6 +9,8 @@ import { Message } from './core/types.js';
 import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';
 import { TelegramGateway } from './gateway/telegram.js';
 import { Scheduler } from './core/scheduler.js';
+import { MCPManager } from './core/mcpManager.js';
+import { registerDynamicTools } from './tools/index.js';
 import * as readline from 'readline';
 
 // ANSI coloring codes for premium styling
@@ -339,6 +341,26 @@ async function startCli() {
 }
 
 async function main() {
+  const mcpManager = new MCPManager();
+  const mcpTools = await mcpManager.loadAndInitialize('./mcp_servers.json');
+  if (mcpTools.length > 0) {
+    registerDynamicTools(mcpTools);
+  }
+
+  const cleanup = async () => {
+    await mcpManager.closeAll();
+  };
+
+  process.on('SIGINT', async () => {
+    await cleanup();
+    process.exit(0);
+  });
+
+  process.on('SIGTERM', async () => {
+    await cleanup();
+    process.exit(0);
+  });
+
   const args = process.argv.map(arg => arg.toLowerCase());
 
   if (args.includes('telegram')) {

@@ -21,9 +21,11 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@gongrzhe/server-gmail-autoauth-mcp": "^1.1.11",
     "@google/genai": "^2.15.0",
     "@langfuse/otel": "^5.10.0",
     "@langfuse/tracing": "^5.10.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@opentelemetry/sdk-node": "^0.221.0",
     "dotenv": "^17.4.2",
     "langfuse": "^3.38.20",

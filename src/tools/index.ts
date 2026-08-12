@@ -38,4 +38,11 @@ export const toolsRegistry = new Map<string, Tool>(
   tools.map(t => [t.definition.name, t])
 );
 
+export function registerDynamicTools(dynamicTools: Tool[]) {
+  for (const tool of dynamicTools) {
+    tools.push(tool);
+    toolsRegistry.set(tool.definition.name, tool);
+  }
+}
+
 
