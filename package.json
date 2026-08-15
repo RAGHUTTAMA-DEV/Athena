@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
+    "dev:allowAll": "tsc && node dist/index.js --allow-all",
+    "start:allowAll": "node dist/index.js --allow-all",
     "verify": "tsc && node dist/verify.js",
     "test:memory": "tsc && node dist/test_memory.js",
     "test:delegation": "tsc && node dist/test_phase4_delegation.js",

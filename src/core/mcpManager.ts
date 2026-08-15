@@ -166,7 +166,7 @@ export class MCPManager {
           if (!serverConfig.url) {
             throw new Error(`SSE transport requires a "url" property.`);
           }
-          console.log(`[MCP] Connecting to SSE server "${serverName}" at ${serverConfig.url}...`);
+          console.log(`[MCP] Connecting "${serverName}"...`);
           const headers = serverConfig.headers || {};
           transport = new SSEClientTransport(new URL(serverConfig.url), {
             requestInit: { headers }
@@ -175,7 +175,7 @@ export class MCPManager {
           if (!serverConfig.url) {
             throw new Error(`HTTP transport requires a "url" property.`);
           }
-          console.log(`[MCP] Connecting to Streamable HTTP server "${serverName}" at ${serverConfig.url}...`);
+          console.log(`[MCP] Connecting "${serverName}"...`);
           const headers = serverConfig.headers || {};
           transport = new StreamableHTTPClientTransport(new URL(serverConfig.url), {
             requestInit: { headers }
@@ -185,7 +185,7 @@ export class MCPManager {
           if (!serverConfig.command) {
             throw new Error(`Stdio transport requires a "command" property.`);
           }
-          console.log(`[MCP] Launching stdio server "${serverName}" (${serverConfig.command} ${(serverConfig.args || []).join(' ')})...`);
+          console.log(`[MCP] Connecting "${serverName}"...`);
 
           const cleanEnv: Record<string, string> = {};
           for (const [key, val] of Object.entries({ ...process.env, ...(serverConfig.env || {}) })) {
@@ -194,13 +194,15 @@ export class MCPManager {
             }
           }
 
+          const debugMcp = Boolean(process.env.ATHENA_DEBUG);
           const stdioTransport = new StdioClientTransport({
             command: serverConfig.command,
             args: serverConfig.args || [],
-            env: cleanEnv
+            env: cleanEnv,
+            stderr: debugMcp ? 'pipe' : 'ignore'
           });
 
-          if (stdioTransport.stderr) {
+          if (debugMcp && stdioTransport.stderr) {
             stdioTransport.stderr.on('data', (chunk: any) => {
               const msg = chunk.toString().trim();
               if (msg) {
@@ -268,7 +270,9 @@ export class MCPManager {
           };
 
           serverTools.push(athenaTool);
-          console.log(`[MCP] Registered tool: ${namespacedName}`);
+          if (process.env.ATHENA_DEBUG) {
+            console.log(`[MCP] Registered tool: ${namespacedName}`);
+          }
         }
       };
 

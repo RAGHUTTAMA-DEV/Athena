@@ -118,7 +118,7 @@ export class Agent {
 
       confirmChain = confirmChain.then(async () => {
         if (!confirm) {
-          resolveConfirm(false);
+          resolveConfirm(true);
           return;
         }
         try {
@@ -136,11 +136,24 @@ export class Agent {
     let episodicCount = 0;
     if (sessionId && this.memory && history.length === 0) {
       try {
-        const dbHistory = await this.memory.loadHistory(sessionId);
+        const dbHistory = await this.memory.loadHistory(sessionId, 40, { includeTimestamps: true });
         history.push(...dbHistory);
         episodicCount = dbHistory.length;
       } catch (err: any) {
         safeOnUpdate({ type: 'error', message: `Failed to load history from database: ${err.message}` });
+      }
+    }
+
+    // 1b. Cross-session / prior-day archive (session history alone is last-N of this session)
+    let episodicArchive = '';
+    let archiveHits = 0;
+    if (this.memory && isRecallQuery(userPrompt)) {
+      try {
+        const archive = await buildEpisodicArchive(this.memory, sessionId, userPrompt);
+        episodicArchive = archive.text;
+        archiveHits = archive.hits;
+      } catch (err: any) {
+        safeOnUpdate({ type: 'error', message: `Failed to load episodic archive: ${err.message}` });
       }
     }
 
@@ -167,10 +180,15 @@ export class Agent {
     // 4. Fire memory retrieval status update
     const factDetails = retrievedFacts.map(f => `"${f.fact}" [score: ${f.score.toFixed(2)}]`).join(', ') || 'none';
     const skillDetails = retrievedSkills.map(s => s.name).join(', ') || 'none';
+    const workingTurns = history.length;
+    const episodicLine = episodicCount > 0
+      ? `loaded ${episodicCount} past turns for session`
+      : `using ${workingTurns} turns already in working memory`;
     safeOnUpdate({
       type: 'memory',
       message: `Memory retrieved:\n` +
-               `  - Episodic: loaded ${episodicCount} past turns for session.\n` +
+               `  - Episodic: ${episodicLine}` +
+               (archiveHits > 0 ? `; archive matched ${archiveHits} prior messages.\n` : '.\n') +
                `  - Semantic: matched ${retrievedFacts.length} facts (${factDetails})\n` +
                `  - Procedural: matched ${retrievedSkills.length} skills (${skillDetails})`
     });
@@ -192,6 +210,11 @@ export class Agent {
     };
     const currentDateTime = new Date().toLocaleDateString('en-US', options);
     systemInstruction = `${systemInstruction}\n\nCurrent System Date and Time: ${currentDateTime}\nCurrent Working Directory: ${process.cwd()}`;
+    systemInstruction = `${systemInstruction}\n\nMEMORY CONTRACT: You have persistent SQLite episodic memory. Restored chat history (ISO timestamps in brackets) and [EPISODIC ARCHIVE] are real prior interactions. NEVER say your memory resets between sessions. If something is missing, say it is not in the recorded archive.`;
+
+    if (episodicArchive) {
+      systemInstruction = `${systemInstruction}\n\n[EPISODIC ARCHIVE]\n${episodicArchive}`;
+    }
 
     if (retrievedFacts.length > 0) {
       systemInstruction = `${systemInstruction}\n\n[RELEVANT FACTS (Semantic Memory)]\n` + 
@@ -335,10 +358,13 @@ export class Agent {
 
             // Check for confirmation for risky actions
             if (tool.requiresConfirmation) {
-              safeOnUpdate({
-                type: 'thought',
-                message: `Tool "${call.name}" requires confirmation. Awaiting user response...`
-              });
+              const silent = !confirm || (confirm as any).silent;
+              if (!silent) {
+                safeOnUpdate({
+                  type: 'thought',
+                  message: `Tool "${call.name}" requires confirmation. Awaiting user response...`
+                });
+              }
               try {
                 const isApproved = await serializedConfirm(call.name, call.args);
                 if (!isApproved) {
@@ -543,6 +569,80 @@ export class Agent {
       await this.memory.renameSession(oldSessionId, newSessionId);
     }
   }
+}
+
+const RECALL_RE = /\b(yesterday|yesterdays|previous session|last session|last time|the other day|what did we|do you remember|past (session|conversation|chat|turns)|earlier today|last night|across sessions|prior (session|day|days))\b/i;
+
+function isRecallQuery(prompt: string): boolean {
+  return RECALL_RE.test(prompt);
+}
+
+function excerptParts(parts: any[], maxLen: number = 280): string {
+  const texts = (parts || [])
+    .filter((p: any) => p && typeof p.text === 'string')
+    .map((p: any) => p.text.replace(/\s+/g, ' ').trim());
+  const joined = texts.join(' ').trim();
+  if (!joined) return '(non-text turn)';
+  return joined.length > maxLen ? `${joined.slice(0, maxLen)}…` : joined;
+}
+
+function localDayBounds(daysAgo: number): { start: number; end: number; label: string } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - daysAgo);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { start: start.getTime(), end: end.getTime(), label: start.toISOString().slice(0, 10) };
+}
+
+async function buildEpisodicArchive(
+  memory: EpisodicMemory,
+  sessionId: string | undefined,
+  userPrompt: string
+): Promise<{ text: string; hits: number }> {
+  const lines: string[] = [];
+  let hits = 0;
+
+  const sessions = await memory.getSessionsList();
+  if (sessions.length > 0) {
+    lines.push('Known sessions (id · messages · last active):');
+    for (const s of sessions.slice(0, 8)) {
+      const last = new Date(s.lastActive).toISOString();
+      lines.push(`- ${s.sessionId} · ${s.messageCount} · ${last}${s.sessionId === sessionId ? ' (current)' : ''}`);
+    }
+  }
+
+  const wantsYesterday = /\byesterday\b/i.test(userPrompt);
+  const windows = wantsYesterday
+    ? [localDayBounds(1)]
+    : [localDayBounds(1), localDayBounds(0)];
+
+  for (const w of windows) {
+    const msgs = await memory.getMessagesInRange(w.start, w.end, 40);
+    if (msgs.length === 0) continue;
+    hits += msgs.length;
+    lines.push(`\nMessages on ${w.label}:`);
+    for (const m of msgs) {
+      const stamp = new Date(m.timestamp).toISOString();
+      lines.push(`- [${m.sessionId}] [${m.role}] [${stamp}] ${excerptParts(m.parts)}`);
+    }
+  }
+
+  const others = sessions.filter((s) => s.sessionId !== sessionId).slice(0, 3);
+  for (const s of others) {
+    const prior = await memory.loadHistory(s.sessionId, 8, { includeTimestamps: true });
+    if (prior.length === 0) continue;
+    hits += prior.length;
+    lines.push(`\nRecent turns from session "${s.sessionId}":`);
+    for (const msg of prior) {
+      lines.push(`- [${msg.role}] ${excerptParts(msg.parts)}`);
+    }
+  }
+
+  if (lines.length === 0) {
+    return { text: 'No additional episodic archive entries were found outside the current working-memory window.', hits: 0 };
+  }
+  return { text: lines.join('\n'), hits };
 }
 
 async function runWithConcurrencyLimit<T>(

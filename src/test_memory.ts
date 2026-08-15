@@ -33,6 +33,18 @@ async function runTests() {
   }
   console.log('Chronological load order verified.');
 
+  console.log('--- TEST 3b: Timestamps and date range ---');
+  const stamped = await memory.loadHistory('session_test', 4, { includeTimestamps: true });
+  const stampedText = 'text' in stamped[0].parts[0] ? stamped[0].parts[0].text : '';
+  if (!stampedText.startsWith('[') || !stampedText.includes('Who won the World Cup in 2022?')) {
+    throw new Error(`Timestamp prefix missing: ${stampedText}`);
+  }
+  const ranged = await memory.getMessagesInRange(Date.now() - 60_000, Date.now() + 1_000, 10);
+  if (ranged.length !== 4) {
+    throw new Error(`Expected 4 messages in range, got ${ranged.length}`);
+  }
+  console.log('Timestamp prefix and date-range retrieval verified.');
+
   console.log('--- TEST 4: FTS5 Search ---');
   const matches = await memory.search('Argentina');
   console.log('Search matches for "Argentina":', JSON.stringify(matches, null, 2));

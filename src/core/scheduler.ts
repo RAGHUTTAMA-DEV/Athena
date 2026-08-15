@@ -118,7 +118,6 @@ export class Scheduler {
   async start() {
     if (this.timer) return;
     
-    console.log('[Scheduler] Starting background scheduler tick...');
     this.timer = setInterval(() => {
       this.tick().catch(err => {
         console.error('[Scheduler Tick Error]', err);

@@ -133,13 +133,17 @@ export class EpisodicMemory {
     );
   }
 
-  async loadHistory(sessionId: string, limit: number = 20): Promise<Message[]> {
+  async loadHistory(
+    sessionId: string,
+    limit: number = 40,
+    options?: { includeTimestamps?: boolean }
+  ): Promise<Message[]> {
     if (!this.db) {
       throw new Error('Database not initialized. Call init() first.');
     }
 
     const rows = await this.db.all(
-      `SELECT role, content FROM episodic_memory 
+      `SELECT role, content, timestamp FROM episodic_memory 
        WHERE session_id = ? 
        ORDER BY timestamp DESC, id DESC 
        LIMIT ?`,
@@ -148,9 +152,33 @@ export class EpisodicMemory {
     );
 
     // Rows are retrieved newest first, reverse them to restore chronological order
-    return rows.reverse().map((row: any) => ({
+    return rows.reverse().map((row: any) => rowToMessage(row, options?.includeTimestamps === true));
+  }
+
+  async getMessagesInRange(
+    startMs: number,
+    endMs: number,
+    limit: number = 40
+  ): Promise<{ sessionId: string; role: 'user' | 'model'; parts: any[]; timestamp: number }[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+
+    const rows = await this.db.all(
+      `SELECT session_id as sessionId, role, content, timestamp FROM episodic_memory
+       WHERE timestamp >= ? AND timestamp < ?
+       ORDER BY timestamp ASC, id ASC
+       LIMIT ?`,
+      startMs,
+      endMs,
+      limit
+    );
+
+    return rows.map((row: any) => ({
+      sessionId: row.sessionId as string,
       role: row.role as 'user' | 'model',
-      parts: JSON.parse(row.content)
+      parts: JSON.parse(row.content),
+      timestamp: row.timestamp as number
     }));
   }
 
@@ -206,12 +234,21 @@ export class EpisodicMemory {
       throw new Error('Database not initialized. Call init() first.');
     }
 
-    // Query episodic_fts virtual table for matching content
-    return this.db.all(
-      `SELECT rowid as id, session_id, role, content FROM episodic_fts 
-       WHERE episodic_fts MATCH ?`,
-      query
-    );
+    const ftsQuery = buildFtsQuery(query);
+    if (!ftsQuery) {
+      return [];
+    }
+
+    try {
+      return await this.db.all(
+        `SELECT rowid as id, session_id, role, content FROM episodic_fts 
+         WHERE episodic_fts MATCH ?
+         LIMIT 20`,
+        ftsQuery
+      );
+    } catch {
+      return [];
+    }
   }
 
   // --- Semantic Memory Methods (RAG) ---
@@ -386,6 +423,40 @@ export class EpisodicMemory {
       id
     );
   }
+}
+
+function rowToMessage(row: { role: string; content: string; timestamp?: number }, includeTimestamps: boolean): Message {
+  const parts = JSON.parse(row.content);
+  if (includeTimestamps && row.timestamp && Array.isArray(parts)) {
+    const stamp = new Date(row.timestamp).toISOString();
+    const firstText = parts.find((p: any) => p && typeof p.text === 'string');
+    if (firstText) {
+      firstText.text = `[${stamp}] ${firstText.text}`;
+    }
+  }
+  return {
+    role: row.role as 'user' | 'model',
+    parts
+  };
+}
+
+const FTS_STOPWORDS = new Set([
+  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'your', 'what', 'did', 'does',
+  'was', 'were', 'have', 'has', 'had', 'this', 'that', 'with', 'from', 'they',
+  'how', 'when', 'where', 'who', 'why', 'our', 'yesterday', 'today', 'previous',
+  'session', 'sessions', 'last', 'time', 'remember', 'about', 'just', 'been'
+]);
+
+function buildFtsQuery(query: string): string | null {
+  const tokens = query
+    .toLowerCase()
+    .replace(/['"*():^]+/g, ' ')
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3 && !FTS_STOPWORDS.has(t));
+  if (tokens.length === 0) {
+    return null;
+  }
+  return [...new Set(tokens)].slice(0, 8).join(' OR ');
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
