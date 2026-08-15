@@ -10,6 +10,49 @@
 
 ---
 
+## 📹 Demo
+
+> 🎬 **Watch Athena in Action**:
+
+<video src="assets/Athena.mp4" controls width="100%"></video>
+
+[🎥 Open Demo Video (assets/Athena.mp4)](assets/Athena.mp4)
+
+---
+
+## 📋 Table of Contents
+
+- [📹 Demo](#-demo)
+- [💡 Core Philosophy](#-core-philosophy)
+- [✨ Key Features & Capabilities](#-key-features--capabilities)
+- [🏗️ System Architecture & Structure](#️-system-architecture--structure)
+  - [📐 System Architecture Diagram](#-system-architecture-diagram)
+  - [📂 Directory & File Structure](#-directory--file-structure)
+- [⚡ Quick Start & Getting Started](#-quick-start--getting-started)
+  - [Prerequisites](#prerequisites)
+  - [1. Clone & Install Dependencies](#1-clone--install-dependencies)
+  - [2. Configure Environment Variables](#2-configure-environment-variables)
+  - [3. Build the Project](#3-build-the-project)
+- [🔌 Model Context Protocol (MCP) Setup & Configuration](#-model-context-protocol-mcp-setup--configuration)
+  - [1. Configuration File (`mcp_servers.json`)](#1-configuration-file-mcp_serversjson)
+  - [2. Supported Transport Modes](#2-supported-transport-modes)
+  - [3. Server Configuration Options](#3-server-configuration-options)
+  - [4. How MCP Integration Works Under the Hood](#4-how-mcp-integration-works-under-the-hood)
+- [💻 Usage & CLI Commands](#-usage--cli-commands)
+  - [Start the CLI Client](#start-the-cli-client)
+  - [In-CLI Commands](#in-cli-commands)
+  - [Start the Telegram Gateway](#start-the-telegram-gateway)
+- [🧪 Manual Feature Test Prompts](#-manual-feature-test-prompts)
+  - [Flagship prompts](#flagship-prompts)
+  - [Other prompts](#other-prompts)
+- [🧪 Test Suite & Verification](#-test-suite--verification)
+- [🛠️ Advanced Concepts](#️-advanced-concepts)
+  - [1. Sub-Agent Depth & Safety Caps](#1-sub-agent-depth--safety-caps)
+  - [2. Memory Architecture](#2-memory-architecture)
+- [📜 License](#-license)
+
+---
+
 ## 💡 Core Philosophy
 
 ### 💻 1. Local Machine Access & Native Integration
@@ -27,7 +70,7 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 
 ---
 
-## 🌟 Key Features & Capabilities
+## ✨ Key Features & Capabilities
 
 ### 🤖 Core Autonomous Agent Loop
 * **Multi-Turn Reasoning & Tool Calling**: Continuously plans, calls tools, processes feedback, and executes complex goals autonomously up to a configurable turn cap.
@@ -85,9 +128,9 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 
 ---
 
-## 🏗️ Architecture & Project Structure
+## 🏗️ System Architecture & Structure
 
-### 📐 System Architecture
+### 📐 System Architecture Diagram
 
 ![Athena Architecture Diagram](assets/athena_architecture.png)
 
@@ -95,6 +138,9 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 
 ```
 Athena/
+├── assets/                        # Project media & diagrams
+│   ├── Athena.mp4                 # Athena project demonstration video
+│   └── athena_architecture.png    # System architecture diagram
 ├── src/
 │   ├── index.ts                   # CLI entrypoint, session controller & MCP loader
 │   ├── core/
@@ -112,7 +158,7 @@ Athena/
 │   ├── tools/                     # Agent Tool Registry
 │   │   ├── index.ts               # Tools registry export
 │   │   ├── delegateTask.ts        # Sub-agent generic task delegator
-│   │   ├── delegateCodingTask.ts    # Coding process harness delegator
+│   │   ├── delegateCodingTask.ts  # Coding process harness delegator
 │   │   ├── browser.ts             # Playwright browser integration
 │   │   ├── interactiveBrowser.ts  # DOM interaction & screenshot tool
 │   │   ├── executePython.ts       # Python runner
@@ -135,7 +181,7 @@ Athena/
 
 ---
 
-## 🚀 Getting Started
+## ⚡ Quick Start & Getting Started
 
 ### Prerequisites
 * **Node.js**: `v18.0.0` or higher
@@ -358,6 +404,6 @@ Athena enforces strict safety limits when delegating tasks to sub-agents:
 
 ---
 
-## 📄 License
+## 📜 License
 
 Distributed under the ISC License. See `LICENSE` for details.
