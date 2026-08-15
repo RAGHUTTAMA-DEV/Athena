@@ -14,9 +14,9 @@
 
 > 🎬 **Watch Athena in Action**:
 
-<video src="assets/Athena.mp4" controls width="100%"></video>
+<video src="https://raw.githubusercontent.com/RAGHUTTAMA-DEV/Athena/main/assets/Athena.mp4" controls width="100%"></video>
 
-[🎥 Open Demo Video (assets/Athena.mp4)](assets/Athena.mp4)
+[🎥 Watch Demo Video (assets/Athena.mp4)](https://raw.githubusercontent.com/RAGHUTTAMA-DEV/Athena/main/assets/Athena.mp4)
 
 ---
 
