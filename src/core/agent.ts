@@ -1,3 +1,5 @@
+import './dnsFix.js';
+
 import { GoogleGenAI } from '@google/genai';
 import { AgentConfig, Message, Part } from './types.js';
 import { toolsRegistry } from '../tools/index.js';
@@ -189,7 +191,7 @@ export class Agent {
       timeZoneName: 'short'
     };
     const currentDateTime = new Date().toLocaleDateString('en-US', options);
-    systemInstruction = `${systemInstruction}\n\nCurrent System Date and Time: ${currentDateTime}`;
+    systemInstruction = `${systemInstruction}\n\nCurrent System Date and Time: ${currentDateTime}\nCurrent Working Directory: ${process.cwd()}`;
 
     if (retrievedFacts.length > 0) {
       systemInstruction = `${systemInstruction}\n\n[RELEVANT FACTS (Semantic Memory)]\n` + 
@@ -213,10 +215,11 @@ export class Agent {
 
     const functionDeclarations = Array.from(toolsRegistry.values())
       .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
-      .map(tool => cleanGeminiSchema(tool.definition));
+      .map(tool => cleanGeminiSchema(tool.definition, true));
 
     let currentMaxTurns = this.config.maxTurns;
     let turns = 0;
+    let emptyResponseCount = 0;
     while (turns < currentMaxTurns) {
       turns++;
       
@@ -260,10 +263,25 @@ export class Agent {
         );
 
         // Add model response to history
-        const modelContent = response.candidates?.[0]?.content;
-        if (!modelContent) {
-          throw new Error('Model returned an empty response.');
+        const candidate = response.candidates?.[0];
+        const modelContent = candidate?.content;
+        if (!modelContent || !modelContent.parts || modelContent.parts.length === 0) {
+          const finishReason = candidate?.finishReason || 'EMPTY_RESPONSE';
+          safeOnUpdate({
+            type: 'error',
+            message: `Model returned empty content (Finish Reason: ${finishReason}). Prompting model to execute step-by-step...`
+          });
+          emptyResponseCount++;
+          if (emptyResponseCount > 2) {
+            throw new Error(`Model returned an empty response repeatedly (Finish Reason: ${finishReason}).`);
+          }
+          currentRunHistory.push({
+            role: 'user',
+            parts: [{ text: `[System Notice]: Your previous response was empty (Finish Reason: ${finishReason}), which occurs when attempting to generate too many tool calls in one turn. Please proceed step-by-step, executing no more than 3-4 tool calls per turn.` }]
+          });
+          continue;
         }
+        emptyResponseCount = 0;
 
         // Keep the model's message in the current run history
         currentRunHistory.push({

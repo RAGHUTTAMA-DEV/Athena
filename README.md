@@ -279,6 +279,47 @@ npm start -- --gateway telegram
 
 ---
 
+## 🧪 Manual Feature Test Prompts
+
+Use these prompts in the CLI (`npm run dev`) to exercise each capability by hand. Prefer a **fresh session** (`/session new`) when you want a clean trace; reuse the same session when you are testing memory.
+
+Flagship capabilities to verify first: **memory**, **skill managing**, **browser**, **coding sub-agent**, **sub-agent**, **MCP**, **cron**.
+
+### Flagship prompts
+
+| Feature | What it should hit | Prompt | Pass if |
+| :--- | :--- | :--- | :--- |
+| **Memory** | same session, `semanticMemory` | Turn 1: `Remember that my preferred editor is Cursor and my currency is INR.` Turn 2: `What editor and currency do I prefer?` | Second turn answers from memory / session history without you repeating it |
+| **Skill managing** | `skillManage` | `Create a skill named "windows-open-folder" that documents how you open File Explorer to a path on Windows. Then list all skills.` | A new skill markdown appears under `skills/` and shows up in the list |
+| **Interactive browser** | `browserNavigate` + `browserAction` | `Go to https://duckduckgo.com, type "Athena AI agent" into the search box using interactive elements, submit, and tell me the first result title.` | Uses `id=N` selectors; you see navigate → type → click, not a one-shot scrape |
+| **Headless browser** | `browser` | `Open https://example.com in the browser tool and tell me the page title and first heading.` | Playwright runs; title/heading match the live page |
+| **Coding sub-agent** | `delegateCodingTask` | `In this Athena repo, add a one-line comment at the top of src/tools/calculate.ts explaining that it uses Math.js-style evaluation. Do not change behavior. Then summarize the diff.` | Coding harness runs against the repo path; file actually changes |
+| **Generic sub-agent** | `delegate_task` | `Delegate two parallel tasks: (1) search the web for Playwright's latest major version, (2) calculate 2^16. Synthesize both answers.` | Child agents spawn with scoped tools; parent summarizes without redoing the work |
+| **MCP Gmail** | `[MCP: gmail]` | `List my 3 most recent Gmail messages (subjects only). Do not send anything.` | Gmail MCP tools run; subjects come back (needs auth already done) |
+| **MCP Calendar** | `[MCP: calendar]` | `What is on my Google Calendar for today?` | Calendar MCP returns events or an empty day, not a refusal |
+| **MCP Notion** | `[MCP: notion]` | `Search my Notion workspace for pages mentioning "Athena".` | Notion MCP is used; results or a clear empty search |
+| **MCP Excalidraw** | `[MCP: excalidraw]` | `Create a simple Excalidraw diagram with three boxes: Agent, Tools, Memory, and arrows between them.` | Excalidraw MCP runs and produces a diagram / file |
+| **MCP filesystem** | `[MCP: filesystem]` | `Using the MCP filesystem server, list the folders in my Documents directory.` | MCP tool is chosen (not only the built-in `listFiles` on the repo) |
+| **Cron / scheduler** | `cronjob` | `In 15 seconds, remind me in this session to drink water. Create that job and list scheduled jobs.` | Job is stored; ~15s later the scheduler prints a notification in the CLI |
+
+### Other prompts
+
+| Feature | What it should hit | Prompt | Pass if |
+| :--- | :--- | :--- | :--- |
+| **CLI + HITL confirm** | `terminal` + yellow confirmation | `List the files in this repo with a terminal command.` | Confirm prompt appears; after `y` you see a real `dir`/`ls` listing |
+| **Filesystem write/read** | `writeFile` / `readFile` / `listFiles` | `Create a file named demo-note.txt in the project root with the text "Athena demo" and then read it back.` | File appears on disk and contents are echoed |
+| **Python sandbox** | `executePython` | `Use Python to print the first 10 Fibonacci numbers.` | Python runs locally; numbers look correct |
+| **Calculator** | `calculate` | `What is (19.99 * 3) + 8% GST? Show the expression you evaluated.` | Uses `calculate`, not a guess |
+| **System time** | `systemTime` | `What is the current local date and time on this machine?` | Matches your clock, not a hallucinated timezone |
+| **Web search + browse** | `searchWeb` then `browseUrl` | `What is the latest stable Node.js LTS version? Search the web, then open the official Node.js download or blog page and quote the exact version string.` | Search snippets are not treated as enough; it opens a page and cites a version |
+| **Session switching** | `/session` commands | `/session new` then `Who am I talking to?` then `/session list` | New session id; history is isolated from the previous chat |
+| **Open local app** | `terminal` | `Open this Athena project folder in File Explorer.` | Explorer window actually opens |
+| **Telegram gateway** | gateway process | In Telegram: `What time is it on the machine running Athena?` | Bot replies using tools; same agent, different channel |
+
+**Safety notes while testing:** deny (`N`) once on a destructive-looking command to prove HITL works. Do not send real emails or delete files unless that is the point of the take. Skip MCP rows if that server is not authenticated.
+
+---
+
 ## 🧪 Test Suite & Verification
 
 Athena includes comprehensive test scripts for each core sub-system:

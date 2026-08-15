@@ -22,6 +22,18 @@
         "mcp-remote",
         "https://mcp.notion.com/sse"
       ]
+    },
+    "excalidraw" : {
+      "command":"npx",
+      "args": ["-y", "mcp-excalidraw-server"]
+    },
+    "calendar": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@gongrzhe/server-calendar-autoauth-mcp"
+      ]
     }
+    
   }
 }

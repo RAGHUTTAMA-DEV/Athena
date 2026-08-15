@@ -38,13 +38,13 @@ const ALLOWED_GEMINI_FIELDS = new Set([
  * Strictly clean and convert any tool or schema object into a 100% valid Gemini API parameter schema.
  * Prevents array-to-object numeric property keys ("0", "1") and strips all unsupported JSON schema keywords.
  */
-export function cleanGeminiSchema(schema: any): any {
+export function cleanGeminiSchema(schema: any, isRoot: boolean = true): any {
   if (!schema || typeof schema !== 'object') {
     return schema;
   }
 
   if (Array.isArray(schema)) {
-    return schema.map(item => cleanGeminiSchema(item));
+    return schema.map(item => cleanGeminiSchema(item, false));
   }
 
   const cleaned: Record<string, any> = {};
@@ -54,48 +54,73 @@ export function cleanGeminiSchema(schema: any): any {
       continue;
     }
 
+    // Only keep 'required' at the root parameters object level (Gemini OpenAPI forbids nested 'required')
+    if (key === 'required' && !isRoot) {
+      continue;
+    }
+
     if (key === 'properties') {
       if (Array.isArray(value)) {
-        // Convert Array of parameter definitions [{ name: 'x', type: 'string' }] -> { x: { type: 'STRING' } }
         const propObj: Record<string, any> = {};
         for (const item of value) {
           if (item && typeof item === 'object') {
             const propName = item.name || item.key || item.id || `param_${Object.keys(propObj).length}`;
             const { name, key: k, id, ...rest } = item;
-            propObj[propName] = cleanGeminiSchema(rest);
+            propObj[propName] = cleanGeminiSchema(rest, false);
           }
         }
         cleaned.properties = propObj;
       } else if (value && typeof value === 'object') {
         const propObj: Record<string, any> = {};
         for (const [propKey, propVal] of Object.entries(value)) {
-          // If propKey is numeric index ("0", "1"), extract name from propVal if present
           if (/^\d+$/.test(propKey) && propVal && typeof propVal === 'object') {
             const realName = (propVal as any).name || (propVal as any).key || `param_${propKey}`;
             const { name, key: k, ...rest } = propVal as any;
-            propObj[realName] = cleanGeminiSchema(rest);
+            propObj[realName] = cleanGeminiSchema(rest, false);
           } else {
-            propObj[propKey] = cleanGeminiSchema(propVal);
+            propObj[propKey] = cleanGeminiSchema(propVal, false);
           }
         }
         cleaned.properties = propObj;
       } else {
         cleaned.properties = {};
       }
+    } else if (key === 'parameters') {
+      cleaned.parameters = cleanGeminiSchema(value, true);
     } else if (key === 'type') {
       if (Array.isArray(value)) {
-        const validTypes = value.filter(t => t !== 'null');
+        const validTypes = value.filter(t => t !== 'null' && t !== null);
         cleaned.type = (validTypes[0] || 'STRING').toString().toUpperCase();
       } else if (typeof value === 'string') {
         cleaned.type = value.toUpperCase();
       } else {
         cleaned.type = 'STRING';
       }
+    } else if (key === 'enum') {
+      if (Array.isArray(value)) {
+        cleaned.enum = value.filter(v => v !== null && v !== undefined).map(v => String(v));
+      }
+    } else if (key === 'items') {
+      cleaned.items = cleanGeminiSchema(value, false);
+      if (!cleaned.items || typeof cleaned.items !== 'object') {
+        cleaned.items = { type: 'STRING' };
+      }
+    } else if (key === 'required') {
+      if (Array.isArray(value)) {
+        cleaned.required = value.map(v => String(v));
+      }
     } else if (value && typeof value === 'object') {
-      cleaned[key] = cleanGeminiSchema(value);
+      cleaned[key] = cleanGeminiSchema(value, false);
     } else {
       cleaned[key] = value;
     }
+  }
+
+  if (cleaned.type === 'ARRAY' && !cleaned.items) {
+    cleaned.items = { type: 'STRING' };
+  }
+  if (cleaned.type === 'OBJECT' && !cleaned.properties) {
+    cleaned.properties = {};
   }
 
   return cleaned;
@@ -127,9 +152,13 @@ export class MCPManager {
     }
 
     const loadedTools: Tool[] = [];
+    const serverEntries = Object.entries(configFile.mcpServers);
 
-    for (const [serverName, serverConfig] of Object.entries(configFile.mcpServers)) {
-      try {
+    const initPromises = serverEntries.map(async ([serverName, serverConfig]) => {
+      const serverTools: Tool[] = [];
+      const timeoutMs = (serverConfig as any).timeoutMs || 30000;
+
+      const initSingleServer = async () => {
         let transport: any;
         const transportType = serverConfig.type || (serverConfig.url ? 'sse' : 'stdio');
 
@@ -238,14 +267,37 @@ export class MCPManager {
             }
           };
 
-          loadedTools.push(athenaTool);
+          serverTools.push(athenaTool);
           console.log(`[MCP] Registered tool: ${namespacedName}`);
         }
+      };
 
-      } catch (err: any) {
-        console.error(`[MCP Error] Failed to connect to server "${serverName}": ${err.message}`);
+      let timer: any;
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`Connection timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
+
+      try {
+        await Promise.race([initSingleServer(), timeoutPromise]);
+      } finally {
+        if (timer) clearTimeout(timer);
       }
-    }
+
+      return serverTools;
+    });
+
+    const results = await Promise.allSettled(initPromises);
+
+    results.forEach((result, idx) => {
+      const serverName = serverEntries[idx][0];
+      if (result.status === 'fulfilled') {
+        loadedTools.push(...result.value);
+      } else {
+        console.error(`[MCP Warning] Server "${serverName}" failed to initialize: ${result.reason?.message || result.reason}`);
+      }
+    });
 
     return loadedTools;
   }

@@ -15,11 +15,9 @@ const shutdown = () => {
   sdk.shutdown()
     .then(() => {
       console.log('[OTel] SDK shut down successfully.');
-      process.exit(0);
     })
     .catch((err) => {
       console.error('[OTel] Error shutting down SDK', err);
-      process.exit(1);
     });
 };
 

@@ -225,7 +225,7 @@ export class EpisodicMemory {
     let embedding: number[] = [];
     try {
       const response = await ai.models.embedContent({
-        model: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
+        model: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
         contents: fact
       });
       if (response.embeddings && response.embeddings[0]?.values) {
@@ -258,7 +258,7 @@ export class EpisodicMemory {
     let queryEmbedding: number[] = [];
     try {
       const response = await ai.models.embedContent({
-        model: process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-2',
+        model: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
         contents: query
       });
       if (response.embeddings && response.embeddings[0]?.values) {

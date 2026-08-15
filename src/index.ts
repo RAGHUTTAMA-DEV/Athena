@@ -1,3 +1,5 @@
+import './core/dnsFix.js';
+
 import * as dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
@@ -342,9 +344,15 @@ async function startCli() {
 
 async function main() {
   const mcpManager = new MCPManager();
-  const mcpTools = await mcpManager.loadAndInitialize('./mcp_servers.json');
-  if (mcpTools.length > 0) {
-    registerDynamicTools(mcpTools);
+
+  try {
+    const mcpTools = await mcpManager.loadAndInitialize('./mcp_servers.json');
+    if (mcpTools.length > 0) {
+      registerDynamicTools(mcpTools);
+      log(COLORS.fgGreen, 'MCP', `Initialization complete: ${mcpTools.length} tools registered.`);
+    }
+  } catch (err: any) {
+    log(COLORS.fgYellow, 'MCP', `MCP initialization warning: ${err.message}`);
   }
 
   const cleanup = async () => {

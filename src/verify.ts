@@ -1,3 +1,5 @@
+import './core/dnsFix.js';
+
 import * as dotenv from 'dotenv';
 dotenv.config();
 
