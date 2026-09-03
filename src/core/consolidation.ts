@@ -1,26 +1,26 @@
 import { EpisodicMemory } from './memory.js';
 import { ProceduralMemory, parseFrontmatter } from './procedural.js';
-import { GoogleGenAI } from '@google/genai';
+import { LLMProvider } from './llmProvider.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
 export class MemoryConsolidator {
   private memory: EpisodicMemory;
   private procedural: ProceduralMemory;
-  private ai: GoogleGenAI;
+  private provider: LLMProvider;
   private skillsPath: string;
   private modelName: string;
 
   constructor(
     memory: EpisodicMemory,
     procedural: ProceduralMemory,
-    ai: GoogleGenAI,
+    provider: LLMProvider,
     skillsPath: string,
     modelName: string = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
   ) {
     this.memory = memory;
     this.procedural = procedural;
-    this.ai = ai;
+    this.provider = provider;
     this.skillsPath = path.resolve(skillsPath);
     this.modelName = modelName;
   }
@@ -77,9 +77,9 @@ ${transcript}
 
 Return the facts, one per line. Do not include any intro/outro text.`;
 
-      const response = await this.ai.models.generateContent({
+      const response = await this.provider.generateContent({
         model: this.modelName,
-        contents: factPrompt
+        messages: [{ role: 'user', parts: [{ text: factPrompt }] }]
       });
 
       const text = response.text || '';
@@ -119,9 +119,9 @@ NO_SKILL_LEARNED
 Conversation History:
 ${transcript}`;
 
-      const skillResponse = await this.ai.models.generateContent({
+      const skillResponse = await this.provider.generateContent({
         model: this.modelName,
-        contents: skillPrompt
+        messages: [{ role: 'user', parts: [{ text: skillPrompt }] }]
       });
 
       const text = skillResponse.text || '';

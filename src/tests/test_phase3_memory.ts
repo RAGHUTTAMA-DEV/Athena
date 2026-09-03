@@ -1,10 +1,10 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { EpisodicMemory } from './core/memory.js';
-import { ProceduralMemory } from './core/procedural.js';
-import { Agent } from './core/agent.js';
-import { Message } from './core/types.js';
+import { EpisodicMemory } from '../core/memory.js';
+import { ProceduralMemory } from '../core/procedural.js';
+import { Agent } from '../core/agent.js';
+import { Message } from '../core/types.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -100,7 +100,7 @@ Always start messages with semantic prefixes:
   console.log('\n--- TEST 3: Agent Integration ---');
   const agent = new Agent({
     modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxTurns: 10,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: 'You are a test agent. Answer using facts and skills if provided.',
     dbPath: DB_PATH,
     skillsPath: SKILLS_DIR

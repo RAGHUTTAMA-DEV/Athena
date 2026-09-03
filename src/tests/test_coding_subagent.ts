@@ -1,9 +1,9 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { delegateCodingTaskTool } from './tools/delegateCodingTask.js';
-import { Agent } from './core/agent.js';
-import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';
+import { delegateCodingTaskTool } from '../tools/delegateCodingTask.js';
+import { Agent } from '../core/agent.js';
+import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -91,7 +91,7 @@ async function runTests() {
 
   const agent = new Agent({
     modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxTurns: 10,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: DEFAULT_AGENT_PROMPT,
     soulPath: './SOUL.md',
     dbPath

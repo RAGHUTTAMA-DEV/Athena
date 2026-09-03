@@ -4,7 +4,7 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// ANSI coloring codes for premium styling
+// ANSI coloring codes for premium terminal styling
 const COLORS = {
   reset: '\x1b[0m',
   bright: '\x1b[1m',
@@ -19,9 +19,9 @@ const COLORS = {
 };
 
 async function runEvaluator() {
-  console.log('\n' + '='.repeat(60));
-  console.log(`${COLORS.bright}${COLORS.fgMagenta} Langfuse LLM-as-a-Judge Evaluation Runner ${COLORS.reset}`);
-  console.log('='.repeat(60) + '\n');
+  console.log('\n' + '='.repeat(65));
+  console.log(`${COLORS.bright}${COLORS.fgMagenta} Langfuse LLM-as-a-Judge Multi-Metric Evaluator Runner ${COLORS.reset}`);
+  console.log('='.repeat(65) + '\n');
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -41,8 +41,8 @@ async function runEvaluator() {
     baseUrl: process.env.LANGFUSE_BASE_URL,
   });
 
-  console.log(`${COLORS.fgBlue}[System] Fetching recent traces from Langfuse...${COLORS.reset}`);
-  
+  console.log(`${COLORS.fgBlue}[System] Fetching recent production traces from Langfuse...${COLORS.reset}`);
+
   let tracesResponse;
   try {
     tracesResponse = await langfuse.fetchTraces({
@@ -59,11 +59,10 @@ async function runEvaluator() {
   for (const trace of traces) {
     console.log(`${COLORS.bright}Evaluating Trace ID:${COLORS.reset} ${COLORS.fgCyan}${trace.id}${COLORS.reset}`);
     console.log(`${COLORS.bright}Trace Name:${COLORS.reset} ${trace.name}`);
-    
+
     const rawInput = trace.input;
     const rawOutput = trace.output;
 
-    // Convert inputs/outputs to readable strings if they are objects
     const inputStr = typeof rawInput === 'object' ? JSON.stringify(rawInput) : String(rawInput || '');
     const outputStr = typeof rawOutput === 'object' ? JSON.stringify(rawOutput) : String(rawOutput || '');
 
@@ -75,27 +74,31 @@ async function runEvaluator() {
     console.log(`${COLORS.dim}User Prompt: "${inputStr.substring(0, 100)}${inputStr.length > 100 ? '...' : ''}"${COLORS.reset}`);
     console.log(`${COLORS.dim}Response:    "${outputStr.substring(0, 100)}${outputStr.length > 100 ? '...' : ''}"${COLORS.reset}`);
 
-    // Call Gemini as the judge
-    console.log(`${COLORS.fgBlue}Running Gemini LLM-as-a-Judge...${COLORS.reset}`);
-    
-    const judgePrompt = `You are an expert AI evaluator judging the quality of an agent's response to a user prompt.
-Please analyze the prompt and response below and score them.
+    // Call Gemini as the LLM Judge scoring 4 binary metrics
+    console.log(`${COLORS.fgBlue}Running Gemini LLM-as-a-Judge multi-metric scoring...${COLORS.reset}`);
+
+    const judgePrompt = `You are an expert AI agent evaluator judging the quality and safety of an agent execution trace.
+Analyze the user prompt and agent response below.
 
 User Prompt:
 ${inputStr}
 
-Agent Response:
+Agent Response / Execution:
 ${outputStr}
 
-Evaluate based on two metrics:
-1. "goalCompletion": Score 1 if the agent fully answered or resolved the user's request, score 0 if it failed or ignored it.
-2. "clarity": Score 1 if the response is clear, helpful, and logical, score 0 if it is confusing, repetitive, or poorly formatted.
+Score the execution on FOUR binary (0 or 1) metrics:
+1. "goalCompletion": 1 if the agent fully achieved or resolved the user's actual goal, 0 if it failed, gave up, or ignored key requirements.
+2. "clarity": 1 if the final response is clear, helpful, well-structured, and appropriately scoped, 0 if confusing, repetitive, or poorly formatted.
+3. "groundedness": 1 if every claim or data point in the final answer is backed by factual tool execution results or general truths without hallucination, 0 if it contains fabricated data.
+4. "trajectoryEfficiency": 1 if the agent solved the task efficiently without redundant tool loops, duplicate queries, or unnecessary turns, 0 if it suffered from repeating loops or over-tooling.
 
-Return your evaluation ONLY in the following JSON format:
+Return your evaluation strictly in JSON format:
 {
   "goalCompletion": 0 or 1,
   "clarity": 0 or 1,
-  "reasoning": "Provide a 1-2 sentence concise explanation of your scores."
+  "groundedness": 0 or 1,
+  "trajectoryEfficiency": 0 or 1,
+  "reasoning": "Provide a concise 1-2 sentence explanation of your scores."
 }
 `;
 
@@ -105,23 +108,25 @@ Return your evaluation ONLY in the following JSON format:
         contents: judgePrompt,
         config: {
           responseMimeType: 'application/json',
-        }
+        },
       });
 
       const responseText = judgeResponse.text || '';
       const result = JSON.parse(responseText.trim());
 
-      console.log(`${COLORS.bright}Judge Results:${COLORS.reset}`);
-      console.log(`  - Goal Completion: ${result.goalCompletion === 1 ? COLORS.fgGreen + '1 (Pass)' : COLORS.fgRed + '0 (Fail)'}${COLORS.reset}`);
-      console.log(`  - Clarity:         ${result.clarity === 1 ? COLORS.fgGreen + '1 (Pass)' : COLORS.fgRed + '0 (Fail)'}${COLORS.reset}`);
-      console.log(`  - Reasoning:       ${COLORS.fgWhite}${result.reasoning}${COLORS.reset}`);
+      console.log(`${COLORS.bright}Judge Score Summary:${COLORS.reset}`);
+      console.log(`  - Goal Completion:       ${result.goalCompletion === 1 ? COLORS.fgGreen + '1 (Pass)' : COLORS.fgRed + '0 (Fail)'}${COLORS.reset}`);
+      console.log(`  - Clarity:               ${result.clarity === 1 ? COLORS.fgGreen + '1 (Pass)' : COLORS.fgRed + '0 (Fail)'}${COLORS.reset}`);
+      console.log(`  - Groundedness:          ${result.groundedness === 1 ? COLORS.fgGreen + '1 (Pass)' : COLORS.fgRed + '0 (Fail)'}${COLORS.reset}`);
+      console.log(`  - Trajectory Efficiency: ${result.trajectoryEfficiency === 1 ? COLORS.fgGreen + '1 (Pass)' : COLORS.fgRed + '0 (Fail)'}${COLORS.reset}`);
+      console.log(`  - Reasoning:             ${COLORS.fgWhite}${result.reasoning}${COLORS.reset}`);
 
-      // Push scores back to Langfuse
-      console.log(`${COLORS.fgBlue}Uploading scores to Langfuse...${COLORS.reset}`);
-      
+      // Push 4 binary scores to Langfuse
+      console.log(`${COLORS.fgBlue}Uploading 4 scores to Langfuse...${COLORS.reset}`);
+
       await langfuse.score({
         traceId: trace.id,
-        name: 'goal-completion',
+        name: 'goalCompletion',
         value: result.goalCompletion,
         dataType: 'NUMERIC',
       });
@@ -134,18 +139,31 @@ Return your evaluation ONLY in the following JSON format:
         comment: result.reasoning,
       });
 
-      console.log(`${COLORS.fgGreen}✓ Scores successfully uploaded.${COLORS.reset}\n`);
+      await langfuse.score({
+        traceId: trace.id,
+        name: 'groundedness',
+        value: result.groundedness,
+        dataType: 'NUMERIC',
+      });
+
+      await langfuse.score({
+        traceId: trace.id,
+        name: 'trajectoryEfficiency',
+        value: result.trajectoryEfficiency,
+        dataType: 'NUMERIC',
+      });
+
+      console.log(`${COLORS.fgGreen}✓ All 4 scores successfully uploaded to Langfuse.${COLORS.reset}\n`);
     } catch (judgeErr: any) {
-      console.error(`${COLORS.fgRed}Error evaluating trace: ${judgeErr.message}${COLORS.reset}\n`);
+      console.error(`${COLORS.fgRed}Error evaluating trace ${trace.id}: ${judgeErr.message}${COLORS.reset}\n`);
     }
   }
 
-  // Flush to make sure all scores are sent before exiting
   await langfuse.flushAsync();
-  console.log(`${COLORS.bright}${COLORS.fgGreen}Evaluation runner finished successfully! 🎉${COLORS.reset}\n`);
+  console.log(`${COLORS.bright}${COLORS.fgGreen}Multi-Metric LLM-as-a-Judge Evaluation completed! 🎉${COLORS.reset}\n`);
 }
 
 runEvaluator().catch((err) => {
-  console.error(`${COLORS.fgRed}Fatal Error: ${err.message}${COLORS.reset}`);
+  console.error(`${COLORS.fgRed}Fatal Error in Evaluator: ${err.message}${COLORS.reset}`);
   process.exit(1);
 });

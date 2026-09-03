@@ -1,0 +1,34 @@
+name: Evaluation Benchmark Suite
+
+on:
+  pull_request:
+    paths:
+      - 'src/core/**'
+      - 'src/tools/**'
+      - 'src/tests/evals/**'
+  push:
+    branches:
+      - main
+
+jobs:
+  benchmark:
+    name: Run Trajectory & Benchmark Regression Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Benchmark Evaluation Suite
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: npm run eval:benchmark

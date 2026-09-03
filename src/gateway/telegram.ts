@@ -64,7 +64,7 @@ export class TelegramGateway implements Gateway {
       try {
         const agent = new Agent({
           modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-          maxTurns: 10,
+          maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
           systemPrompt: DEFAULT_AGENT_PROMPT,
           soulPath: './SOUL.md',
           dbPath: process.env.DATABASE_PATH || './state.db'
@@ -183,7 +183,7 @@ export class TelegramGateway implements Gateway {
     const chatId = ctx.chat.id;
     const agent = new Agent({
       modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      maxTurns: 10,
+      maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
       systemPrompt: DEFAULT_AGENT_PROMPT,
       soulPath: './SOUL.md',
       dbPath: process.env.DATABASE_PATH || './state.db'
@@ -356,7 +356,7 @@ export class TelegramGateway implements Gateway {
     // Instantiate a new agent run
     const agent = new Agent({
       modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      maxTurns: 10,
+      maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
       systemPrompt: DEFAULT_AGENT_PROMPT,
       soulPath: './SOUL.md',
       dbPath: process.env.DATABASE_PATH || './state.db',
@@ -488,7 +488,7 @@ export class TelegramGateway implements Gateway {
       scheduler.setRunner(async (prompt, sessionId) => {
         const agent = new Agent({
           modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-          maxTurns: 10,
+          maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
           systemPrompt: DEFAULT_AGENT_PROMPT,
           soulPath: './SOUL.md',
           dbPath: dbPath

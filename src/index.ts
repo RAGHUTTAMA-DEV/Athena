@@ -6,7 +6,7 @@ dotenv.config();
 import './core/instrumentation.js';
 
 import { Agent } from './core/agent.js';
-import { Message } from './core/types.js';
+import { Message, ProviderType } from './core/types.js';
 import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';
 import { TelegramGateway } from './gateway/telegram.js';
 import { Scheduler } from './core/scheduler.js';
@@ -58,19 +58,25 @@ async function startGateway(type: string, mcpTools = 0) {
 }
 
 async function startCli(mcpTools = 0) {
-  if (!process.env.GEMINI_API_KEY) {
-    ui.err('GEMINI_API_KEY is not defined in .env');
-    process.exit(1);
-  }
+  let currentProvider: ProviderType = (process.env.LLM_PROVIDER as ProviderType) || 'gemini';
+  let currentModelName = currentProvider === 'nvidia'
+    ? (process.env.NVIDIA_MODEL || 'z-ai/glm-5.2')
+    : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   let currentSessionId = 'cli';
 
-  ui.banner({ model: modelName, session: currentSessionId, mcpTools, allowAll });
+  ui.banner({
+    model: currentModelName,
+    provider: currentProvider,
+    session: currentSessionId,
+    mcpTools,
+    allowAll
+  });
 
-  const agent = new Agent({
-    modelName,
-    maxTurns: 10,
+  let agent = new Agent({
+    provider: currentProvider,
+    modelName: currentModelName,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: DEFAULT_AGENT_PROMPT,
     soulPath: './SOUL.md',
     dbPath: process.env.DATABASE_PATH || './state.db'
@@ -137,6 +143,50 @@ async function startCli(mcpTools = 0) {
       }
 
       const lowerInput = trimmed.toLowerCase();
+      if (lowerInput.startsWith('/provider')) {
+        const parts = trimmed.split(/\s+/);
+        const targetProvider = parts[1]?.toLowerCase();
+        const targetModel = parts.slice(2).join(' ');
+
+        if (!targetProvider) {
+          ui.sys(`Current provider: ${currentProvider} | Model: ${currentModelName}`);
+          ui.sys(`Usage: /provider <gemini|nvidia> [model_name]`);
+          askPrompt();
+          return;
+        }
+
+        if (targetProvider !== 'gemini' && targetProvider !== 'nvidia') {
+          ui.err(`Invalid provider "${targetProvider}". Supported providers: gemini, nvidia`);
+          askPrompt();
+          return;
+        }
+
+        currentProvider = targetProvider as ProviderType;
+        if (targetModel) {
+          currentModelName = targetModel;
+        } else {
+          currentModelName = currentProvider === 'nvidia' ? (process.env.NVIDIA_MODEL || 'z-ai/glm-5.2') : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
+        }
+
+        try {
+          agent = new Agent({
+            provider: currentProvider,
+            modelName: currentModelName,
+            maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
+            systemPrompt: DEFAULT_AGENT_PROMPT,
+            soulPath: './SOUL.md',
+            dbPath: process.env.DATABASE_PATH || './state.db'
+          });
+          await agent.init();
+          ui.ok(`Switched to provider '${currentProvider}' with model '${currentModelName}'`);
+        } catch (err: any) {
+          ui.err(`Failed to switch provider: ${err.message}`);
+        }
+
+        askPrompt();
+        return;
+      }
+
       const isSessionCmd = lowerInput.startsWith('/session') || lowerInput.startsWith('/switch') || lowerInput.startsWith('/sessions');
       if (isSessionCmd) {
         const parts = trimmed.split(/\s+/);

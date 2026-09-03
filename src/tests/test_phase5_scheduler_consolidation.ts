@@ -1,11 +1,11 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { EpisodicMemory } from './core/memory.js';
-import { ProceduralMemory } from './core/procedural.js';
-import { MemoryConsolidator } from './core/consolidation.js';
-import { Scheduler } from './core/scheduler.js';
-import { GoogleGenAI } from '@google/genai';
+import { EpisodicMemory } from '../core/memory.js';
+import { ProceduralMemory } from '../core/procedural.js';
+import { MemoryConsolidator } from '../core/consolidation.js';
+import { Scheduler } from '../core/scheduler.js';
+import { createLLMProvider } from '../core/llmProvider.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -33,7 +33,7 @@ async function runTests() {
   // Initialize directory
   await fs.mkdir(SKILLS_DIR, { recursive: true });
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  const provider = createLLMProvider('gemini');
   const memory = new EpisodicMemory(DB_PATH);
   await memory.init();
   const procedural = new ProceduralMemory(SKILLS_DIR);
@@ -75,7 +75,7 @@ async function runTests() {
   const consolidator = new MemoryConsolidator(
     memory,
     procedural,
-    ai,
+    provider,
     SKILLS_DIR,
     process.env.GEMINI_MODEL || 'gemini-2.5-flash'
   );

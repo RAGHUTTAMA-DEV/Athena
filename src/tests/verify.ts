@@ -1,11 +1,11 @@
-import './core/dnsFix.js';
+import '../core/dnsFix.js';
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { Agent } from './core/agent.js';
-import { Message } from './core/types.js';
-import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';
+import { Agent } from '../core/agent.js';
+import { Message } from '../core/types.js';
+import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 import * as fs from 'fs/promises';
 
 const COLORS = {
@@ -74,7 +74,7 @@ async function main() {
 
   const agent = new Agent({
     modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxTurns: 10,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: DEFAULT_AGENT_PROMPT,
     soulPath: './SOUL.md',
     dbPath
@@ -128,7 +128,7 @@ async function main() {
   // Initialize first agent session and save a secret
   const agent1 = new Agent({
     modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxTurns: 10,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: DEFAULT_AGENT_PROMPT,
     soulPath: './SOUL.md',
     dbPath
@@ -142,7 +142,7 @@ async function main() {
   // Create a brand new agent instance pointing to the same DB and ask what the secret word was
   const agent2 = new Agent({
     modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxTurns: 10,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: DEFAULT_AGENT_PROMPT,
     soulPath: './SOUL.md',
     dbPath

@@ -2,10 +2,10 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // MUST import instrumentation first!
-import './core/instrumentation.js';
+import '../core/instrumentation.js';
 
-import { Agent } from './core/agent.js';
-import { Message } from './core/types.js';
+import { Agent } from '../core/agent.js';
+import { Message } from '../core/types.js';
 import { getActiveTraceId } from '@langfuse/tracing';
 import { Langfuse } from 'langfuse';
 
@@ -23,7 +23,7 @@ async function runTest() {
 
   const agent = new Agent({
     modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-    maxTurns: 10,
+    maxTurns: parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
     systemPrompt: 'You are a parent agent. If asked to run multiple tasks, delegate them to sub-agents.',
     allowedTools: ['calculate', 'delegate_task'],
     depth: 0,

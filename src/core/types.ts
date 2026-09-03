@@ -24,11 +24,11 @@ export interface Message {
 }
 
 export interface ToolParameter {
-  type: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'INTEGER' | 'OBJECT' | 'ARRAY';
-  description?: string;
-  properties?: Record<string, ToolParameter>;
-  required?: string[];
-  items?: ToolParameter;
+    type: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'INTEGER' | 'OBJECT' | 'ARRAY';
+    description?: string;
+    properties?: Record<string, ToolParameter>;
+    required?: string[];
+    items?: ToolParameter;
 }
 
 export interface ToolDefinition {
@@ -55,7 +55,10 @@ export interface ToolContext {
   onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void;
 }
 
+export type ProviderType = 'gemini' | 'nvidia';
+
 export interface AgentConfig {
+  provider?: ProviderType;
   modelName: string;
   maxTurns: number;
   systemPrompt: string;
@@ -66,4 +69,6 @@ export interface AgentConfig {
   depth?: number;
   taskId?: string;
   consolidationThreshold?: number;
+  nvidiaApiKey?: string;
+  nvidiaBaseUrl?: string;
 }

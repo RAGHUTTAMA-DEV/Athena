@@ -26,7 +26,7 @@ export const delegateTaskTool: Tool = {
         },
         maxTurns: {
           type: 'INTEGER',
-          description: 'Optional maximum loop turns for the sub-agent (defaults to 10).'
+          description: 'Optional maximum loop turns for the sub-agent (defaults to 20).'
         }
       },
       required: ['goal', 'context', 'allowedTools']
@@ -61,7 +61,7 @@ Crucial Sub-Agent Rules:
 
     const childAgent = new Agent({
       modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      maxTurns: args.maxTurns || 10,
+      maxTurns: args.maxTurns || parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
       systemPrompt,
       allowedTools,
       depth: childDepth,

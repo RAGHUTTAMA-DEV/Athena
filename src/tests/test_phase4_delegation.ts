@@ -1,10 +1,10 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { Agent } from './core/agent.js';
-import { Message } from './core/types.js';
-import { delegateTaskTool } from './tools/delegateTask.js';
-import { toolsRegistry } from './tools/index.js';
+import { Agent } from '../core/agent.js';
+import { Message } from '../core/types.js';
+import { delegateTaskTool } from '../tools/delegateTask.js';
+import { toolsRegistry } from '../tools/index.js';
 
 async function runTests() {
   console.log('=== STARTING PHASE 4 DELEGATION TESTS ===\n');

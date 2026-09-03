@@ -138,9 +138,16 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 
 ```
 Athena/
-├── assets/                        # Project media & diagrams
-│   ├── Athena.mp4                 # Athena project demonstration video
+├── assets/                        # Project media, videos & diagrams
+│   ├── videos/
+│   │   ├── Athena.mp4             # Athena project demonstration video
+│   │   └── Coding-Harness.mp4     # Harness demo video
 │   └── athena_architecture.png    # System architecture diagram
+├── docs/                          # System documentation & guides
+│   ├── architecture/              # Architecture build plans & design docs
+│   ├── guides/                    # System integration & automation guides
+│   ├── roadmap/                   # Project roadmaps & milestones
+│   └── learnings.md               # Technical learnings & post-mortems
 ├── src/
 │   ├── index.ts                   # CLI entrypoint, session controller & MCP loader
 │   ├── core/
@@ -155,6 +162,9 @@ Athena/
 │   │   └── types.ts               # Core TypeScript interface definitions
 │   ├── gateway/
 │   │   └── telegram.ts            # Telegram Bot Gateway (Telegraf)
+│   ├── tests/                     # Verification harness & integration tests
+│   │   ├── verify.ts              # Core system verification test suite
+│   │   └── test_*.ts              # Phase & module integration tests
 │   ├── tools/                     # Agent Tool Registry
 │   │   ├── index.ts               # Tools registry export
 │   │   ├── delegateTask.ts        # Sub-agent generic task delegator
@@ -174,8 +184,6 @@ Athena/
 ├── mcp_servers.json               # MCP server declarations (stdio, SSE, HTTP)
 ├── state.db                       # SQLite Database (Episodic memory & cron)
 ├── SOUL.md                        # Agent identity & behavioral guidelines
-├── hermes-agent-build-plan.md    # Multi-phase system build design document
-├── coding-subagent-integration.md # Coding sub-agent specification
 └── package.json                   # Build scripts & dependencies
 ```
 

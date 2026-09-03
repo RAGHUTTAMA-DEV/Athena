@@ -178,7 +178,7 @@ const MARK = [
 export const ui = {
   ink,
 
-  banner(opts: { model: string; session: string; mcpTools: number; allowAll?: boolean }) {
+  banner(opts: { model: string; session: string; mcpTools: number; allowAll?: boolean; provider?: string }) {
     const markW = Math.max(...MARK.map(l => vis(l)));
     const inner = hugInner([' '.repeat(markW)]);
     const textW = inner - 4;
@@ -194,12 +194,13 @@ export const ui = {
     }
     row('');
     row(center(`${ink.cream}Temple of memory · skills · tools${ink.reset}`, textW));
+    const providerStr = opts.provider ? ` provider:${opts.provider}` : '';
     row(center(
-      `${ink.stone}${opts.model}  ·  ${opts.session}  ·  ${opts.mcpTools} mcp tools${opts.allowAll ? `  ·  ${ink.amber}auto-allow${ink.reset}` : ''}${ink.reset}`,
+      `${ink.stone}${opts.model}${providerStr}  ·  ${opts.session}  ·  ${opts.mcpTools} mcp tools${opts.allowAll ? `  ·  ${ink.amber}auto-allow${ink.reset}` : ''}${ink.reset}`,
       textW
     ));
     console.log(`${ink.gold}╚${'═'.repeat(inner)}╝${ink.reset}`);
-    console.log(`${ink.night}  exit   clear   /session help${ink.reset}\n`);
+    console.log(`${ink.night}  exit   clear   /provider   /session help${ink.reset}\n`);
   },
 
   sys(msg: string) {

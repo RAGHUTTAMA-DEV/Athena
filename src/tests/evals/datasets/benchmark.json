@@ -1,0 +1,195 @@
+[
+  {
+    "id": "coding-01",
+    "category": "coding",
+    "prompt": "Run a Python snippet to calculate 2^10 and print the result.",
+    "requiredTools": ["executePython"],
+    "forbiddenTools": ["searchWeb", "browser"],
+    "maxTurns": 3,
+    "maxToolCalls": { "executePython": 2 },
+    "check": "pythonExecOutputCheck"
+  },
+  {
+    "id": "coding-02",
+    "category": "coding",
+    "prompt": "Write a python script to compute factorials up to 5.",
+    "requiredTools": ["executePython"],
+    "maxTurns": 3,
+    "check": "pythonExecOutputCheck"
+  },
+  {
+    "id": "coding-03",
+    "category": "coding",
+    "prompt": "Create a file named eval_output.txt in scratch directory with content 'hello evaluation'.",
+    "requiredTools": ["filesystem"],
+    "maxTurns": 3,
+    "check": "fileCreatedCheck"
+  },
+  {
+    "id": "coding-04",
+    "category": "coding",
+    "prompt": "Use python to generate a list of prime numbers under 20.",
+    "requiredTools": ["executePython"],
+    "maxTurns": 3,
+    "check": "pythonExecOutputCheck"
+  },
+  {
+    "id": "coding-05",
+    "category": "coding",
+    "prompt": "Execute python code to sort an array [5, 2, 9, 1] in ascending order.",
+    "requiredTools": ["executePython"],
+    "maxTurns": 3,
+    "check": "pythonExecOutputCheck"
+  },
+  {
+    "id": "coding-06",
+    "category": "coding",
+    "prompt": "Write a python script to calculate the MD5 hash of string 'athena_eval'.",
+    "requiredTools": ["executePython"],
+    "maxTurns": 3,
+    "check": "pythonExecOutputCheck"
+  },
+
+  {
+    "id": "delegation-01",
+    "category": "delegation",
+    "prompt": "Delegate a sub-agent task to research and write a summary about quantum computing.",
+    "requiredTools": ["delegateTask"],
+    "forbiddenTools": ["executePython"],
+    "maxTurns": 3,
+    "check": "codingSubagentCheck"
+  },
+  {
+    "id": "delegation-02",
+    "category": "delegation",
+    "prompt": "Delegate a coding sub-agent task to create a binary search function in TypeScript.",
+    "requiredTools": ["delegateCodingTask"],
+    "maxTurns": 3,
+    "check": "codingSubagentCheck"
+  },
+  {
+    "id": "delegation-03",
+    "category": "delegation",
+    "prompt": "Use a sub-agent to summarize the features of TypeScript 5.",
+    "requiredTools": ["delegateTask"],
+    "maxTurns": 3
+  },
+  {
+    "id": "delegation-04",
+    "category": "delegation",
+    "prompt": "Delegate a task to analyze market trends for AI agents.",
+    "requiredTools": ["delegateTask"],
+    "maxTurns": 3
+  },
+  {
+    "id": "delegation-05",
+    "category": "delegation",
+    "prompt": "Delegate a coding harness task to build a simple HTTP server file.",
+    "requiredTools": ["delegateCodingTask"],
+    "maxTurns": 3,
+    "check": "codingSubagentCheck"
+  },
+  {
+    "id": "delegation-06",
+    "category": "delegation",
+    "prompt": "Spawn a sub-agent to verify environment variables setup.",
+    "requiredTools": ["delegateTask"],
+    "maxTurns": 3
+  },
+
+  {
+    "id": "memory-01",
+    "category": "memory",
+    "prompt": "Save my user preference: preferred IDE theme is Cyberpunk dark.",
+    "requiredTools": ["semanticMemory"],
+    "maxTurns": 3,
+    "check": "sqliteMemorySavedCheck"
+  },
+  {
+    "id": "memory-02",
+    "category": "memory",
+    "prompt": "Remember that my favorite programming language is TypeScript.",
+    "requiredTools": ["semanticMemory"],
+    "maxTurns": 3,
+    "check": "sqliteMemorySavedCheck"
+  },
+  {
+    "id": "memory-03",
+    "category": "memory",
+    "prompt": "Create a procedural skill named calculate_tax for estimating income tax.",
+    "requiredTools": ["skillManage"],
+    "maxTurns": 3,
+    "check": "skillCreatedCheck"
+  },
+  {
+    "id": "memory-04",
+    "category": "memory",
+    "prompt": "Schedule a reminder in 10 minutes to check deployment status.",
+    "requiredTools": ["cronjob"],
+    "maxTurns": 3,
+    "check": "cronjobScheduledCheck"
+  },
+  {
+    "id": "memory-05",
+    "category": "memory",
+    "prompt": "Store key-value information in semantic memory regarding database schema version 2.",
+    "requiredTools": ["semanticMemory"],
+    "maxTurns": 3,
+    "check": "sqliteMemorySavedCheck"
+  },
+  {
+    "id": "memory-06",
+    "category": "memory",
+    "prompt": "Register a new procedural workflow skill named git_commit_push.",
+    "requiredTools": ["skillManage"],
+    "maxTurns": 3,
+    "check": "skillCreatedCheck"
+  },
+
+  {
+    "id": "search-01",
+    "category": "search",
+    "prompt": "Search the web for the latest release version of Node.js.",
+    "requiredTools": ["searchWeb"],
+    "forbiddenTools": ["executePython"],
+    "maxTurns": 3,
+    "check": "webSearchCheck"
+  },
+  {
+    "id": "search-02",
+    "category": "search",
+    "prompt": "Look up information about Google Gemini 2.5 Flash model features.",
+    "requiredTools": ["searchWeb"],
+    "maxTurns": 3,
+    "check": "webSearchCheck"
+  },
+  {
+    "id": "search-03",
+    "category": "search",
+    "prompt": "What is the capital city of France?",
+    "maxTurns": 2,
+    "expectedContains": "Paris"
+  },
+  {
+    "id": "search-04",
+    "category": "search",
+    "prompt": "What is the result of 15 multiplied by 8?",
+    "maxTurns": 2,
+    "expectedContains": "120"
+  },
+  {
+    "id": "search-05",
+    "category": "search",
+    "prompt": "Search for documentation on Model Context Protocol SDK.",
+    "requiredTools": ["searchWeb"],
+    "maxTurns": 3,
+    "check": "webSearchCheck"
+  },
+  {
+    "id": "search-06",
+    "category": "search",
+    "prompt": "What does HTTP stand for in networking?",
+    "maxTurns": 2,
+    "expectedContains": "Hypertext Transfer Protocol"
+  }
+]
