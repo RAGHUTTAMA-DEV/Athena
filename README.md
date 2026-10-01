@@ -33,6 +33,9 @@
   - [1. Clone & Install Dependencies](#1-clone--install-dependencies)
   - [2. Configure Environment Variables](#2-configure-environment-variables)
   - [3. Build the Project](#3-build-the-project)
+- [🧠 Multi-LLM Provider Architecture](#-multi-llm-provider-architecture)
+  - [Supported Providers](#supported-providers)
+  - [Runtime Provider Switching](#runtime-provider-switching)
 - [🔌 Model Context Protocol (MCP) Setup & Configuration](#-model-context-protocol-mcp-setup--configuration)
   - [1. Configuration File (`mcp_servers.json`)](#1-configuration-file-mcp_serversjson)
   - [2. Supported Transport Modes](#2-supported-transport-modes)
@@ -40,11 +43,16 @@
   - [4. How MCP Integration Works Under the Hood](#4-how-mcp-integration-works-under-the-hood)
 - [💻 Usage & CLI Commands](#-usage--cli-commands)
   - [Start the CLI Client](#start-the-cli-client)
+  - [Autonomous Unattended Execution (`--allow-all`)](#autonomous-unattended-execution---allow-all)
   - [In-CLI Commands](#in-cli-commands)
   - [Start the Telegram Gateway](#start-the-telegram-gateway)
 - [🧪 Manual Feature Test Prompts](#-manual-feature-test-prompts)
   - [Flagship prompts](#flagship-prompts)
   - [Other prompts](#other-prompts)
+- [📊 Evaluation & Benchmark Suite](#-evaluation--benchmark-suite)
+  - [Running the Benchmarks](#running-the-benchmarks)
+  - [Trajectory Assertions & Side-Effect Checks](#trajectory-assertions--side-effect-checks)
+  - [Regression Gate & CI/CD](#regression-gate--cicd)
 - [🧪 Test Suite & Verification](#-test-suite--verification)
 - [🛠️ Advanced Concepts](#️-advanced-concepts)
   - [1. Sub-Agent Depth & Safety Caps](#1-sub-agent-depth--safety-caps)
@@ -76,6 +84,12 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 * **Multi-Turn Reasoning & Tool Calling**: Continuously plans, calls tools, processes feedback, and executes complex goals autonomously up to a configurable turn cap.
 * **Persona & SOUL System**: Dynamically loads agent personality, tone, and core identity from [`SOUL.md`](file:///c:/Users/raghu/Documents/Athena/SOUL.md).
 * **Human-in-the-Loop Safety**: Interactive confirmation prompts for high-impact tools (e.g., terminal execution, coding sub-agent tasks).
+* **Unattended Mode (`--allow-all`)**: Support for non-interactive execution for automated benchmarking, CI/CD pipelines, or power-user terminal workflows.
+
+### 🧠 Pluggable Multi-LLM Provider Engine
+* **Multi-Provider Support**: Seamless support for **Google Gemini** (via `@google/genai`) and **NVIDIA NIM / OpenAI-compatible** endpoints (via `openai`).
+* **Dynamic In-CLI Switching**: Switch models and providers on the fly during active conversations using the `/provider <gemini|nvidia> [model]` command.
+* **Unified Schema & Tool Normalization**: Transparently handles function declaration schemas, system instructions, and tool response mapping between Gemini and OpenAI APIs.
 
 ### 🌿 Sub-Agent Hierarchy & Delegation
 * **Generic Task Sub-Agents (`delegate_task`)**: Spawns isolated child agent instances with strict **tool scoping**, task-specific context slicing, and **depth limiting** (strips delegation capability when depth ≥ 3 to prevent infinite recursion).
@@ -118,12 +132,13 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 | `semanticMemory` | Search and record long-term episodic and consolidated memory |
 | `systemTime` | Query current system date and time |
 
-### 📊 Observability & Telemetry
+### 📊 Observability & Evaluation
 * **Langfuse & OpenTelemetry Tracing**: Deep observability tracking token usage, latency, tool call traces, and hierarchical parent-child agent spans ([`instrumentation.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/instrumentation.ts)).
 * **LLM-as-a-Judge Evaluation**: Built-in eval engine ([`eval.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/eval.ts)) for measuring task accuracy and response quality.
+* **Automated Benchmark & Regression Suite**: Multi-run trajectory evaluation harness ([`runBenchmark.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/runBenchmark.ts)) testing tool usage, side-effect checks, turn limits, and tracking regression gates across runs.
 
 ### 💬 Multi-Channel Access Gateways
-* **CLI Client**: Feature-rich terminal interface with ANSI colors, multi-session switching (`/session`), command execution history, and live tool confirmation prompts.
+* **CLI Client**: Feature-rich terminal interface with ANSI colors, multi-session switching (`/session`), runtime provider switching (`/provider`), command history, and interactive tool confirmations.
 * **Telegram Bot Gateway**: Telegraf-based Telegram gateway allowing remote messaging and task delegation directly via Telegram chats.
 
 ---
@@ -138,6 +153,9 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 
 ```
 Athena/
+├── .github/
+│   └── workflows/
+│       └── eval-benchmark.yml     # Automated CI/CD benchmark regression gate
 ├── assets/                        # Project media, videos & diagrams
 │   ├── videos/
 │   │   ├── Athena.mp4             # Athena project demonstration video
@@ -150,8 +168,11 @@ Athena/
 │   └── learnings.md               # Technical learnings & post-mortems
 ├── src/
 │   ├── index.ts                   # CLI entrypoint, session controller & MCP loader
+│   ├── cli/
+│   │   └── ui.ts                  # ANSI terminal UI, spinners & formatters
 │   ├── core/
 │   │   ├── agent.ts               # Main Agent class & tool execution loop
+│   │   ├── llmProvider.ts         # Multi-provider abstraction (Gemini, NVIDIA/OpenAI)
 │   │   ├── mcpManager.ts          # MCP client transport & Gemini schema bridge
 │   │   ├── memory.ts              # SQLite Episodic Memory store
 │   │   ├── consolidation.ts       # Long-term Memory Summarizer & Consolidator
@@ -163,6 +184,11 @@ Athena/
 │   ├── gateway/
 │   │   └── telegram.ts            # Telegram Bot Gateway (Telegraf)
 │   ├── tests/                     # Verification harness & integration tests
+│   │   ├── evals/                 # Benchmark evaluation suite
+│   │   │   ├── runBenchmark.ts    # Multi-run evaluation harness & reporter
+│   │   │   ├── checks.ts          # Deterministic side-effect & tool checks
+│   │   │   ├── datasets/          # Benchmark dataset JSON (coding, memory, delegation, search)
+│   │   │   └── results/           # Saved baseline reports (latest.json)
 │   │   ├── verify.ts              # Core system verification test suite
 │   │   └── test_*.ts              # Phase & module integration tests
 │   ├── tools/                     # Agent Tool Registry
@@ -208,9 +234,20 @@ npm install
 Create a `.env` file in the root directory:
 
 ```env
-# Gemini API Key (Required)
+# LLM Provider: 'gemini' (default) or 'nvidia'
+LLM_PROVIDER=gemini
+
+# Google Gemini API Configuration (Default)
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
+
+# NVIDIA NIM / OpenAI-Compatible Endpoint Configuration (Optional)
+NVIDIA_API_KEY=your_nvidia_api_key_here
+NVIDIA_MODEL=z-ai/glm-5.2
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+
+# Autonomous / Unattended Execution (Optional)
+ATHENA_ALLOW_ALL=0  # Set to 1 to bypass interactive HITL tool confirmations
 
 # System Prompt Override (Optional)
 # GEMINI_SYSTEM_PROMPT=...
@@ -230,6 +267,37 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 ### 3. Build the Project
 ```bash
 npm run build
+```
+
+---
+
+## 🧠 Multi-LLM Provider Architecture
+
+Athena implements a decoupled `LLMProvider` abstraction layer ([`src/core/llmProvider.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/llmProvider.ts)) that standardizes interactions across different model families and API specifications.
+
+### Supported Providers
+
+| Provider | Backend Client | Supported Features | Configuration Keys |
+| :--- | :--- | :--- | :--- |
+| **`gemini`** *(Default)* | `@google/genai` | Native function calling, system instructions, token usage tracking | `GEMINI_API_KEY`, `GEMINI_MODEL` (e.g. `gemini-2.5-flash`, `gemini-2.5-pro`) |
+| **`nvidia`** | `openai` | OpenAI-compatible tool calling, NVIDIA NIM endpoints, token usage | `NVIDIA_API_KEY`, `NVIDIA_MODEL` (e.g. `z-ai/glm-5.2`), `NVIDIA_BASE_URL` |
+
+### Runtime Provider Switching
+
+You can switch the active provider and model on the fly directly from the interactive CLI without restarting Athena:
+
+```bash
+# Check current provider and model
+/provider
+
+# Switch to NVIDIA NIM provider with default model
+/provider nvidia
+
+# Switch to NVIDIA with a custom model
+/provider nvidia meta/llama-3.1-70b-instruct
+
+# Switch back to Google Gemini
+/provider gemini gemini-2.5-pro
 ```
 
 ---
@@ -309,21 +377,42 @@ Athena's [`MCPManager`](file:///c:/Users/raghu/Documents/Athena/src/core/mcpMana
 ### Start the CLI Client
 Run the agent in interactive terminal mode:
 ```bash
+# Standard interactive mode (with Human-in-the-Loop confirmations)
 npm run dev
-# or after build:
+
+# Or after build:
 npm start
 ```
+
+### Autonomous Unattended Execution (`--allow-all`)
+To run Athena autonomously without interactive confirmation prompts for sensitive tools (such as terminal execution, file edits, or coding sub-agent tasks), pass `--allow-all` or use the dedicated scripts:
+
+```bash
+# Run in dev mode with all tool confirmations pre-approved
+npm run dev:allowAll
+
+# Run built distribution with all tool confirmations pre-approved
+npm run start:allowAll
+
+# Or directly with node flag
+node dist/index.js --allow-all
+```
+*You can also set `ATHENA_ALLOW_ALL=1` in your `.env` file.*
 
 ### In-CLI Commands
 | Command | Description |
 | :--- | :--- |
+| `/provider` | View the currently active LLM provider and model |
+| `/provider <gemini\|nvidia> [model]` | Switch LLM provider and model dynamically at runtime |
+| `/session list` (or `/sessions`) | List all stored SQLite sessions, message counts, and last activity |
+| `/session switch <name>` (or `/switch <name>`) | Switch active conversation to a specific session (loads recent turn history) |
+| `/session create <name>` | Create a new isolated conversation session |
+| `/session rename <name>` | Rename the currently active conversation session |
+| `/session delete <name>` | Delete conversation history for a specific session |
+| `/session current` | Print the current active session name |
+| `/session help` | Display session management command help |
+| `clear` | Clear conversation history for the current active session |
 | `exit` / `quit` | Exit the CLI session |
-| `clear` | Clear conversation history for current session |
-| `/session list` | List all stored sessions and activity status |
-| `/session switch <id>` | Switch to a specific session ID |
-| `/session new` | Create and switch to a newly generated session |
-| `/session clear <id>` | Clear memory for a specific session |
-| `/session help` | Display session command help |
 
 ### Start the Telegram Gateway
 To run Athena as a Telegram Bot:
@@ -374,6 +463,54 @@ Flagship capabilities to verify first: **memory**, **skill managing**, **browser
 
 ---
 
+## 📊 Evaluation & Benchmark Suite
+
+Athena includes an automated trajectory benchmarking and regression gating framework ([`src/tests/evals/`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals)) to evaluate agent accuracy, tool selection, trajectory length, and execution constraints across multiple runs.
+
+### 1. Running the Benchmarks
+
+```bash
+# Run standard evaluation benchmark (N=3 runs per test case)
+npm run eval:benchmark
+
+# Run stress-test benchmark with custom repetitions (e.g. N=5 runs)
+npm run eval:benchmark:runs
+```
+
+### 2. Dataset & Categories
+
+The evaluation suite executes standardized test cases defined in [`src/tests/evals/datasets/benchmark.json`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/datasets/benchmark.json) across four core competency categories:
+
+| Category | Competency Assessed |
+| :--- | :--- |
+| **`coding`** | Python execution, local script output verification, and scratchpad filesystem operations |
+| **`delegation`** | Sub-agent spawning via `delegate_task` or `delegateCodingTask`, tool scoping, and synthesis |
+| **`memory`** | Cross-turn episodic retrieval (`semanticMemory`), user profile retention, and skill learning |
+| **`search`** | DuckDuckGo web search (`searchWeb`) and Playwright browser navigation |
+
+### 3. Trajectory Assertions & Side-Effect Checks
+
+For every benchmark run, Athena verifies five strict behavioral layers:
+1. **Turn Limit Efficiency (`maxTurns`)**: Verifies the agent resolves the goal within a bounded number of turns without wasting steps.
+2. **Required Tools (`requiredTools`)**: Validates that mandatory tools for the task were actually invoked.
+3. **Forbidden Tools (`forbiddenTools`)**: Asserts that prohibited or hallucinatory tool paths were avoided.
+4. **Tool Call Cap (`maxToolCalls`)**: Ensures tool execution count stays within permissible thresholds (e.g., preventing runaway search loops).
+5. **Deterministic Side-Effect Checks ([`checks.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/checks.ts))**: Programmatic verification of real system changes:
+   - `fileCreatedCheck`: Confirms targeted files exist on disk with non-empty content.
+   - `pythonExecOutputCheck`: Asserts Python code ran cleanly without syntax or runtime exceptions.
+   - `sqliteMemorySavedCheck`: Verifies SQLite database transactions and memory insertions.
+   - `skillCreatedCheck`: Confirms new procedural skill markdown files were registered in `skills/`.
+   - `codingSubagentCheck`: Confirms dedicated coding sub-agent harness was invoked.
+   - `cronjobScheduledCheck`: Confirms scheduler timers and cron entries were created.
+   - `webSearchCheck`: Verifies web search or browser inspection tools were utilized.
+
+### 4. Regression Gate & CI/CD Pipeline
+
+* **Baseline Tracking (`latest.json`)**: Benchmark outcomes are saved to [`src/tests/evals/results/latest.json`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/results/latest.json). Subsequent runs automatically compute pass rate deltas (`Delta%`) per category and flag any flipped test cases (`Pass -> Fail`).
+* **CI/CD Quality Gate**: Integrated GitHub Actions workflow ([`.github/workflows/eval-benchmark.yml`](file:///c:/Users/raghu/Documents/Athena/.github/workflows/eval-benchmark.yml)) automatically runs the benchmark on pushes and pull requests affecting `src/core/**`, `src/tools/**`, or `src/tests/evals/**`, failing the build if a regression is detected.
+
+---
+
 ## 🧪 Test Suite & Verification
 
 Athena includes comprehensive test scripts for each core sub-system:
@@ -381,6 +518,12 @@ Athena includes comprehensive test scripts for each core sub-system:
 ```bash
 # Build & run full verification suite
 npm run verify
+
+# Run automated evaluation & regression benchmark suite (N=3 runs)
+npm run eval:benchmark
+
+# Run benchmark suite with custom runs (N=5 runs)
+npm run eval:benchmark:runs
 
 # Test SQLite episodic memory storage & retrieval
 npm run test:memory
