@@ -121,15 +121,17 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 | `delegate_task` | Delegate generic tasks to an isolated sub-agent with scoped tools |
 | `delegateCodingTask` | Spawn dedicated coding sub-agent process harness for repository tasks |
 | `browser` / `interactiveBrowser` | Headless Chromium web browsing, navigation, and DOM manipulation |
-| `searchWeb` | Web search powered by DuckDuckGo |
-| `terminal` | Shell command execution in working directory |
-| `filesystem` | File and directory operations (ls, mkdir, rm, read, write) |
-| `readFile` | Utility tool to view raw file contents |
+| `searchWeb` | Web search powered by DuckDuckGo and Yahoo fallback |
+| `terminal` | Shell command execution with execution timeouts, maxBuffer, and cwd support |
+| `filesystem` | File and directory operations (listFiles, writeFile, deleteFile) |
+| `replaceFileContent` | Surgical text/code search-and-replace for existing files without full rewrites |
+| `grepSearch` | Fast recursive codebase search with regex, line numbers, and file filters |
+| `readFile` | Utility tool to view file contents with line slicing (`startLine`, `endLine`) and size limits |
 | `executePython` | Isolated Python code execution sandbox |
-| `calculate` | Mathematical expression evaluation powered by Math.js logic |
+| `calculate` | Mathematical expression evaluation |
 | `cronjob` | Background timer and cron job manager |
 | `skillManage` | Create, list, read, and edit dynamic procedural skill files |
-| `semanticMemory` | Search and record long-term episodic and consolidated memory |
+| `semanticMemory` | Multi-provider semantic facts search and persistent memory |
 | `systemTime` | Query current system date and time |
 
 ### 📊 Observability & Evaluation

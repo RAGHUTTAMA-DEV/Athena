@@ -4,6 +4,8 @@ import { systemTimeTool } from './systemTime.js';
 import { readFileTool } from './readFile.js';
 import { terminalTool } from './terminal.js';
 import { writeFileTool, deleteFileTool, listFilesTool } from './filesystem.js';
+import { replaceFileContentTool } from './editFile.js';
+import { grepSearchTool } from './grepSearch.js';
 import { browserTool } from './browser.js';
 import { searchWebTool } from './searchWeb.js';
 import { skillManageTool } from './skillManage.js';
@@ -18,6 +20,8 @@ export const tools: Tool[] = [
   calculateTool,
   systemTimeTool,
   readFileTool,
+  replaceFileContentTool,
+  grepSearchTool,
   terminalTool,
   writeFileTool,
   deleteFileTool,
@@ -40,7 +44,9 @@ export const toolsRegistry = new Map<string, Tool>(
 
 export function registerDynamicTools(dynamicTools: Tool[]) {
   for (const tool of dynamicTools) {
-    tools.push(tool);
+    if (!toolsRegistry.has(tool.definition.name)) {
+      tools.push(tool);
+    }
     toolsRegistry.set(tool.definition.name, tool);
   }
 }

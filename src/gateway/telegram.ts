@@ -18,6 +18,8 @@ export class TelegramGateway implements Gateway {
   private chatStatuses: Map<number, Map<string, string>> = new Map();
   // Map of chatId to active session name
   private chatActiveSessions: Map<number, string> = new Map();
+  // Map of chatId to sequential execution lock
+  private chatLocks: Map<number, Promise<void>> = new Map();
 
   private getSessionId(chatId: number): string {
     const sessionName = this.chatActiveSessions.get(chatId) || 'default';
@@ -45,6 +47,27 @@ export class TelegramGateway implements Gateway {
   }
 
   private setupHandlers() {
+    // 0. Authorization Middleware: Whitelist authorized users/chats if configured
+    const allowedUsersEnv = process.env.ALLOWED_TELEGRAM_USERS || process.env.ADMIN_CHAT_IDS;
+    const allowedUserIds = allowedUsersEnv
+      ? allowedUsersEnv.split(',').map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    this.bot.use(async (ctx, next) => {
+      if (allowedUserIds.length > 0) {
+        const userId = ctx.from?.id ? String(ctx.from.id) : '';
+        const chatId = ctx.chat?.id ? String(ctx.chat.id) : '';
+        if (!allowedUserIds.includes(userId) && !allowedUserIds.includes(chatId)) {
+          console.warn(`[Telegram Security] Blocked message from unauthorized user: ${userId}, chat: ${chatId}`);
+          if (ctx.message) {
+            await ctx.reply('⛔ Access denied: You are not authorized to interact with this Athena agent.');
+          }
+          return;
+        }
+      }
+      return next();
+    });
+
     // Command /start
     this.bot.start((ctx) => {
       ctx.reply(
@@ -171,11 +194,18 @@ export class TelegramGateway implements Gateway {
       }
     });
 
-    // Handle normal text messages
+    // Handle normal text messages sequentially per chat
     this.bot.on('text', (ctx) => {
-      this.runAgentFlow(ctx).catch(err => {
-        console.error('[Telegram Handler Error]', err);
+      const chatId = ctx.chat.id;
+      const prevLock = this.chatLocks.get(chatId) || Promise.resolve();
+      const nextLock = prevLock.then(async () => {
+        try {
+          await this.runAgentFlow(ctx);
+        } catch (err: any) {
+          console.error('[Telegram Handler Error]', err);
+        }
       });
+      this.chatLocks.set(chatId, nextLock);
     });
   }
 
@@ -368,6 +398,20 @@ export class TelegramGateway implements Gateway {
     // Send initial status message
     const statusMsg = await ctx.reply('🤔 thinking...');
 
+    // Rate-limited status updater: Debounce/throttle to max 1 edit per 1500ms to prevent Telegram 429
+    let lastEditTime = 0;
+    let pendingTimeout: NodeJS.Timeout | null = null;
+    let latestCombinedMsg = '';
+
+    const flushStatusUpdate = async () => {
+      lastEditTime = Date.now();
+      try {
+        await ctx.telegram.editMessageText(chatId, statusMsg.message_id, undefined, latestCombinedMsg, { parse_mode: 'Markdown' });
+      } catch (e) {
+        // Silently catch editMessageText errors (e.g. identical text or deleted message)
+      }
+    };
+
     const updateStatus = async (taskId: string, msg: string) => {
       statuses.set(taskId, msg);
 
@@ -375,12 +419,47 @@ export class TelegramGateway implements Gateway {
       for (const [tid, text] of statuses.entries()) {
         lines.push(`• **[${tid}]**: ${text}`);
       }
-      const combinedMsg = `⏳ *Agent Progress:*\n\n${lines.join('\n')}`;
+      latestCombinedMsg = `⏳ *Agent Progress:*\n\n${lines.join('\n')}`;
 
-      try {
-        await ctx.telegram.editMessageText(chatId, statusMsg.message_id, undefined, combinedMsg, { parse_mode: 'Markdown' });
-      } catch (e) {
-        // Avoid logging spam errors if text is identical
+      const now = Date.now();
+      const elapsed = now - lastEditTime;
+      const THROTTLE_MS = 1500;
+
+      if (elapsed >= THROTTLE_MS) {
+        if (pendingTimeout) {
+          clearTimeout(pendingTimeout);
+          pendingTimeout = null;
+        }
+        await flushStatusUpdate();
+      } else if (!pendingTimeout) {
+        pendingTimeout = setTimeout(async () => {
+          pendingTimeout = null;
+          await flushStatusUpdate();
+        }, THROTTLE_MS - elapsed);
+      }
+    };
+
+    // Helper to send chunked replies when length exceeds Telegram's 4096 character limit
+    const sendChunkedReply = async (text: string, markup?: any) => {
+      const MAX_CHUNK = 4000;
+      if (text.length <= MAX_CHUNK) {
+        await ctx.reply(text, markup);
+        return;
+      }
+
+      let remaining = text;
+      while (remaining.length > 0) {
+        if (remaining.length <= MAX_CHUNK) {
+          await ctx.reply(remaining, markup);
+          break;
+        }
+        let splitIdx = remaining.lastIndexOf('\n', MAX_CHUNK);
+        if (splitIdx === -1 || splitIdx < 2000) {
+          splitIdx = MAX_CHUNK;
+        }
+        const chunk = remaining.substring(0, splitIdx);
+        await ctx.reply(chunk);
+        remaining = remaining.substring(splitIdx).trimStart();
       }
     };
 
@@ -447,6 +526,12 @@ export class TelegramGateway implements Gateway {
         sessionId
       );
 
+      // Clear any pending throttle timeout before deleting status message
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        pendingTimeout = null;
+      }
+
       // Delete the typing/status message and send final answer
       try {
         await ctx.telegram.deleteMessage(chatId, statusMsg.message_id);
@@ -462,13 +547,17 @@ export class TelegramGateway implements Gateway {
         ]);
       }
 
-      await ctx.reply(finalReply, keyboard);
+      await sendChunkedReply(finalReply, keyboard);
     } catch (err: any) {
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        pendingTimeout = null;
+      }
       console.error('[Telegram Error]', err);
       try {
         await updateStatus(parentTaskId, `❌ Failed: ${err.message}`);
       } catch (e) {
-        await ctx.reply(`❌ Failed: ${err.message}`);
+        await sendChunkedReply(`❌ Failed: ${err.message}`);
       }
     }
   }

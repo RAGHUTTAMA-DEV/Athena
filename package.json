@@ -15,6 +15,7 @@
     "test:delegation": "tsc && node dist/tests/test_phase4_delegation.js",
     "test:eval": "tsc && node dist/core/eval.js",
     "test:observability": "tsc && node dist/tests/test_phase6_observability.js",
+    "test:tools": "tsc && node dist/tests/test_tools_phase2.js",
     "eval:benchmark": "tsc && node dist/tests/evals/runBenchmark.js",
     "eval:benchmark:runs": "tsc && node dist/tests/evals/runBenchmark.js --runs=5"
   },
