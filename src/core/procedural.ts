@@ -4,9 +4,13 @@ import * as path from 'path';
 export interface Skill {
   filePath: string;
   name: string;
+  version?: string;
   description: string;
   tags: string[];
+  dependencies?: string[];
   content: string;
+  invocations?: number;
+  successRate?: number;
 }
 
 const STOP_WORDS = new Set([
@@ -132,11 +136,17 @@ export class ProceduralMemory {
         const name = data.name || path.basename(file, '.md');
         const description = data.description || '';
         const tags = data.tags || [];
+        const version = data.version || '1.0.0';
+        const dependencies = Array.isArray(data.dependencies)
+          ? data.dependencies
+          : (typeof data.dependencies === 'string' ? data.dependencies.split(',').map((d: string) => d.trim()).filter(Boolean) : []);
         skills.push({
           filePath: file,
           name,
+          version,
           description,
           tags,
+          dependencies,
           content
         });
       } catch (err: any) {

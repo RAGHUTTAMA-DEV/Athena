@@ -371,6 +371,95 @@ async function startCli(mcpTools = 0) {
         return;
       }
 
+      if (lowerInput.startsWith('/memory')) {
+        const parts = trimmed.split(/\s+/);
+        const sub = parts[1]?.toLowerCase() || 'help';
+
+        if (sub === 'help') {
+          ui.memoryHelp();
+          askPrompt();
+          return;
+        }
+
+        if (sub === 'scopes') {
+          ui.sys('Available memory scopes:\n  • global    - user-wide knowledge across all workspaces\n  • user      - user preferences, profile facts\n  • workspace - repo architecture, file patterns\n  • project   - project goals, conventions, roadmap\n  • session   - conversational context\n  • task      - short-lived task slice');
+          askPrompt();
+          return;
+        }
+
+        if (sub === 'inspect') {
+          const query = parts.slice(2).join(' ') || undefined;
+          const memory = agent.getMemory();
+          if (!memory) {
+            ui.err('Database memory not initialized.');
+          } else {
+            try {
+              const facts = await memory.inspectMemory(query);
+              ui.memoryList(facts.map(f => ({
+                id: f.id,
+                scope: f.scope,
+                fact: f.fact,
+                confidence: f.confidence,
+                lifecycle: f.lifecycle,
+                source: f.provenance.source
+              })));
+            } catch (err: any) {
+              ui.err(`inspect failed: ${err.message}`);
+            }
+          }
+          askPrompt();
+          return;
+        }
+
+        if (sub === 'forget') {
+          const id = parseInt(parts[2], 10);
+          if (isNaN(id)) {
+            ui.err('usage: /memory forget <id>');
+            askPrompt();
+            return;
+          }
+          const memory = agent.getMemory();
+          if (!memory) {
+            ui.err('Database memory not initialized.');
+          } else {
+            try {
+              await memory.deleteScopedMemory(id);
+              ui.ok(`Memory fact #${id} marked deleted.`);
+            } catch (err: any) {
+              ui.err(`forget failed: ${err.message}`);
+            }
+          }
+          askPrompt();
+          return;
+        }
+
+        if (sub === 'purge') {
+          const targetScope = parts[2]?.toLowerCase() as any;
+          if (!targetScope) {
+            ui.err('usage: /memory purge <global|user|workspace|project|session|task>');
+            askPrompt();
+            return;
+          }
+          const memory = agent.getMemory();
+          if (!memory) {
+            ui.err('Database memory not initialized.');
+          } else {
+            try {
+              const purged = await memory.purgeScope(targetScope);
+              ui.ok(`Purged ${purged} facts from [${targetScope}] scope.`);
+            } catch (err: any) {
+              ui.err(`purge failed: ${err.message}`);
+            }
+          }
+          askPrompt();
+          return;
+        }
+
+        ui.err('unknown memory command — /memory help');
+        askPrompt();
+        return;
+      }
+
       if (!trimmed) {
         askPrompt();
         return;

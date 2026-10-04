@@ -5,6 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 import { RunState } from './runState.js';
 import { AgentEvent } from './events.js';
+import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry } from './memoryTypes.js';
 
 export interface SemanticFact {
   id?: number;
@@ -191,6 +192,45 @@ export class EpisodicMemory {
       );
 
       CREATE INDEX IF NOT EXISTS idx_run_events_run_id ON run_events(run_id);
+
+      -- 8. Create scoped_memory table for Phase 2 Context + Memory
+      CREATE TABLE IF NOT EXISTS scoped_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scope TEXT NOT NULL,
+        fact TEXT NOT NULL,
+        tags TEXT,
+        confidence REAL DEFAULT 1.0,
+        lifecycle TEXT DEFAULT 'active',
+        source TEXT NOT NULL,
+        timestamp INTEGER NOT NULL,
+        run_id TEXT,
+        session_id TEXT,
+        evidence TEXT,
+        superseded_by INTEGER,
+        embedding TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_scoped_scope ON scoped_memory(scope);
+      CREATE INDEX IF NOT EXISTS idx_scoped_lifecycle ON scoped_memory(lifecycle);
+      CREATE INDEX IF NOT EXISTS idx_scoped_session ON scoped_memory(session_id);
+      CREATE INDEX IF NOT EXISTS idx_scoped_timestamp ON scoped_memory(timestamp);
+
+      -- 9. Create skill_registry table for tracking skill versions and success metrics
+      CREATE TABLE IF NOT EXISTS skill_registry (
+        name TEXT PRIMARY KEY,
+        version TEXT DEFAULT '1.0.0',
+        description TEXT,
+        tags TEXT,
+        dependencies TEXT,
+        invocations INTEGER DEFAULT 0,
+        successes INTEGER DEFAULT 0,
+        failures INTEGER DEFAULT 0,
+        last_invoked INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
     `);
   }
 
@@ -622,6 +662,359 @@ export class EpisodicMemory {
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));
+  }
+
+  // --- Phase 2: Scoped Memory Methods ---
+
+  async saveScopedMemory(params: {
+    scope: MemoryScope;
+    fact: string;
+    tags?: string[];
+    confidence?: number;
+    provenance: MemoryProvenance;
+    embedding?: number[];
+  }): Promise<number> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+
+    let embedding = params.embedding || null;
+    if (!embedding) {
+      try {
+        embedding = await this.generateEmbedding(params.fact);
+      } catch (err: any) {
+        // Soft fallback if embedding API key is absent in local unit test
+      }
+    }
+
+    const now = Date.now();
+    const tagsStr = params.tags && params.tags.length > 0 ? params.tags.join(',') : null;
+    const confidence = params.confidence !== undefined ? Math.max(0.0, Math.min(1.0, params.confidence)) : 1.0;
+
+    const result = await this.db.run(
+      `INSERT INTO scoped_memory (
+        scope, fact, tags, confidence, lifecycle, source, timestamp,
+        run_id, session_id, evidence, embedding, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      params.scope,
+      params.fact,
+      tagsStr,
+      confidence,
+      params.provenance.source,
+      params.provenance.timestamp || now,
+      params.provenance.runId || null,
+      params.provenance.sessionId || null,
+      params.provenance.evidence || null,
+      embedding ? JSON.stringify(embedding) : null,
+      now,
+      now
+    );
+
+    return result.lastID!;
+  }
+
+  async searchScopedMemory(params: {
+    query: string;
+    scope?: MemoryScope | MemoryScope[];
+    limit?: number;
+    threshold?: number;
+    minConfidence?: number;
+    lifecycles?: MemoryLifecycle[];
+    sessionId?: string;
+  }): Promise<ScopedMemoryItem[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+
+    const lifecycles = params.lifecycles || ['active', 'confirmed'];
+    const minConfidence = params.minConfidence ?? 0.0;
+    const limit = params.limit ?? 5;
+    const threshold = params.threshold ?? 0.50;
+
+    let querySql = `SELECT * FROM scoped_memory WHERE confidence >= ?`;
+    const sqlParams: any[] = [minConfidence];
+
+    // Filter by lifecycles
+    const lifecyclePlaceholders = lifecycles.map(() => '?').join(',');
+    querySql += ` AND lifecycle IN (${lifecyclePlaceholders})`;
+    sqlParams.push(...lifecycles);
+
+    // Filter by scope
+    if (params.scope) {
+      const scopes = Array.isArray(params.scope) ? params.scope : [params.scope];
+      const scopePlaceholders = scopes.map(() => '?').join(',');
+      querySql += ` AND scope IN (${scopePlaceholders})`;
+      sqlParams.push(...scopes);
+    }
+
+    // Filter by session if task or session scoped
+    if (params.sessionId) {
+      querySql += ` AND (session_id IS NULL OR session_id = ?)`;
+      sqlParams.push(params.sessionId);
+    }
+
+    const rows = await this.db.all(querySql, ...sqlParams);
+    if (rows.length === 0) return [];
+
+    let queryEmbedding: number[] | null = null;
+    try {
+      queryEmbedding = await this.generateEmbedding(params.query);
+    } catch (e) {}
+
+    const results: ScopedMemoryItem[] = [];
+    const queryTokens = params.query.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 2);
+
+    for (const row of rows) {
+      let score = 0;
+      if (queryEmbedding && row.embedding) {
+        const dbEmb = JSON.parse(row.embedding) as number[];
+        score = cosineSimilarity(queryEmbedding, dbEmb);
+      } else {
+        // Fallback token match
+        const factLower = row.fact.toLowerCase();
+        const matches = queryTokens.filter(t => factLower.includes(t));
+        score = queryTokens.length > 0 ? (matches.length / queryTokens.length) * 0.8 : 0.5;
+      }
+
+      if (score >= threshold) {
+        results.push({
+          id: row.id,
+          scope: row.scope as MemoryScope,
+          fact: row.fact,
+          tags: row.tags ? row.tags.split(',') : [],
+          confidence: row.confidence,
+          lifecycle: row.lifecycle as MemoryLifecycle,
+          provenance: {
+            source: row.source,
+            timestamp: row.timestamp,
+            runId: row.run_id || undefined,
+            sessionId: row.session_id || undefined,
+            evidence: row.evidence || undefined
+          },
+          supersededBy: row.superseded_by || undefined,
+          score,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        });
+      }
+    }
+
+    // Sort by confidence-weighted relevance: (score * confidence)
+    return results.sort((a, b) => (b.score! * b.confidence) - (a.score! * a.confidence)).slice(0, limit);
+  }
+
+  async getScopedMemory(id: number): Promise<ScopedMemoryItem | null> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const row = await this.db.get(`SELECT * FROM scoped_memory WHERE id = ?`, id);
+    if (!row) return null;
+    return {
+      id: row.id,
+      scope: row.scope as MemoryScope,
+      fact: row.fact,
+      tags: row.tags ? row.tags.split(',') : [],
+      confidence: row.confidence,
+      lifecycle: row.lifecycle as MemoryLifecycle,
+      provenance: {
+        source: row.source,
+        timestamp: row.timestamp,
+        runId: row.run_id || undefined,
+        sessionId: row.session_id || undefined,
+        evidence: row.evidence || undefined
+      },
+      supersededBy: row.superseded_by || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  async updateMemoryLifecycle(id: number, lifecycle: MemoryLifecycle, supersededBy?: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    await this.db.run(
+      `UPDATE scoped_memory SET lifecycle = ?, superseded_by = ?, updated_at = ? WHERE id = ?`,
+      lifecycle,
+      supersededBy || null,
+      Date.now(),
+      id
+    );
+  }
+
+  async reinforceMemory(id: number, delta: number = 0.1): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const row = await this.db.get(`SELECT confidence FROM scoped_memory WHERE id = ?`, id);
+    if (!row) return;
+    const newConf = Math.min(1.0, row.confidence + delta);
+    await this.db.run(
+      `UPDATE scoped_memory SET confidence = ?, lifecycle = 'confirmed', updated_at = ? WHERE id = ?`,
+      newConf,
+      Date.now(),
+      id
+    );
+  }
+
+  async contradictMemory(id: number, evidence?: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    await this.db.run(
+      `UPDATE scoped_memory SET lifecycle = 'contradicted', confidence = MAX(0.0, confidence - 0.5), evidence = COALESCE(?, evidence), updated_at = ? WHERE id = ?`,
+      evidence || null,
+      Date.now(),
+      id
+    );
+  }
+
+  async resolveContradiction(existingId: number, newFact: string, provenance: MemoryProvenance): Promise<number> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const existing = await this.getScopedMemory(existingId);
+    if (!existing) throw new Error(`Memory fact ${existingId} not found.`);
+
+    // 1. Save new fact
+    const newId = await this.saveScopedMemory({
+      scope: existing.scope,
+      fact: newFact,
+      tags: existing.tags,
+      confidence: 1.0,
+      provenance
+    });
+
+    // 2. Mark older fact as superseded
+    await this.updateMemoryLifecycle(existingId, 'superseded', newId);
+    return newId;
+  }
+
+  async deleteScopedMemory(id: number): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    await this.db.run(`UPDATE scoped_memory SET lifecycle = 'deleted', updated_at = ? WHERE id = ?`, Date.now(), id);
+  }
+
+  async purgeScope(scope: MemoryScope, sessionId?: string): Promise<number> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    let query = `DELETE FROM scoped_memory WHERE scope = ?`;
+    const params: any[] = [scope];
+    if (sessionId) {
+      query += ` AND session_id = ?`;
+      params.push(sessionId);
+    }
+    const result = await this.db.run(query, ...params);
+    return result.changes || 0;
+  }
+
+  async inspectMemory(query?: string, scope?: MemoryScope, limit: number = 30): Promise<ScopedMemoryItem[]> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    let sql = `SELECT * FROM scoped_memory WHERE lifecycle != 'deleted'`;
+    const params: any[] = [];
+    if (scope) {
+      sql += ` AND scope = ?`;
+      params.push(scope);
+    }
+    if (query) {
+      sql += ` AND fact LIKE ?`;
+      params.push(`%${query}%`);
+    }
+    sql += ` ORDER BY updated_at DESC LIMIT ?`;
+    params.push(limit);
+
+    const rows = await this.db.all(sql, ...params);
+    return rows.map((row: any) => ({
+      id: row.id,
+      scope: row.scope as MemoryScope,
+      fact: row.fact,
+      tags: row.tags ? row.tags.split(',') : [],
+      confidence: row.confidence,
+      lifecycle: row.lifecycle as MemoryLifecycle,
+      provenance: {
+        source: row.source,
+        timestamp: row.timestamp,
+        runId: row.run_id || undefined,
+        sessionId: row.session_id || undefined,
+        evidence: row.evidence || undefined
+      },
+      supersededBy: row.superseded_by || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  }
+
+  // --- Phase 2: Skill Registry Tracking Methods ---
+
+  async registerSkillMetadata(skill: {
+    name: string;
+    version?: string;
+    description?: string;
+    tags?: string[];
+    dependencies?: string[];
+  }): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const now = Date.now();
+    await this.db.run(
+      `INSERT OR REPLACE INTO skill_registry (
+        name, version, description, tags, dependencies, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, COALESCE((SELECT created_at FROM skill_registry WHERE name = ?), ?), ?)`,
+      skill.name,
+      skill.version || '1.0.0',
+      skill.description || '',
+      skill.tags ? skill.tags.join(',') : '',
+      skill.dependencies ? JSON.stringify(skill.dependencies) : '[]',
+      skill.name,
+      now,
+      now
+    );
+  }
+
+  async recordSkillInvocation(name: string, success: boolean): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const now = Date.now();
+    await this.db.run(
+      `UPDATE skill_registry SET
+        invocations = invocations + 1,
+        successes = successes + ?,
+        failures = failures + ?,
+        last_invoked = ?,
+        updated_at = ?
+      WHERE name = ?`,
+      success ? 1 : 0,
+      success ? 0 : 1,
+      now,
+      now,
+      name
+    );
+  }
+
+  async getSkillRegistry(): Promise<SkillRegistryEntry[]> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const rows = await this.db.all(`SELECT * FROM skill_registry ORDER BY invocations DESC`);
+    return rows.map((r: any) => ({
+      name: r.name,
+      version: r.version,
+      description: r.description,
+      tags: r.tags ? r.tags.split(',') : [],
+      dependencies: r.dependencies ? JSON.parse(r.dependencies) : [],
+      invocations: r.invocations,
+      successes: r.successes,
+      failures: r.failures,
+      successRate: r.invocations > 0 ? r.successes / r.invocations : 1.0,
+      lastInvoked: r.last_invoked || undefined,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
+  }
+
+  async getSkillEntry(name: string): Promise<SkillRegistryEntry | null> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    const row = await this.db.get(`SELECT * FROM skill_registry WHERE name = ?`, name);
+    if (!row) return null;
+    return {
+      name: row.name,
+      version: row.version,
+      description: row.description,
+      tags: row.tags ? row.tags.split(',') : [],
+      dependencies: row.dependencies ? JSON.parse(row.dependencies) : [],
+      invocations: row.invocations,
+      successes: row.successes,
+      failures: row.failures,
+      successRate: row.invocations > 0 ? row.successes / row.invocations : 1.0,
+      lastInvoked: row.last_invoked || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   }
 }
 

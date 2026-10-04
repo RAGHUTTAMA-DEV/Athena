@@ -1,89 +1,207 @@
 import { Tool, ToolContext } from '../core/types.js';
 import { EpisodicMemory } from '../core/memory.js';
+import { MemoryScope } from '../core/memoryTypes.js';
 
 export const semanticMemoryTool: Tool = {
   definition: {
     name: 'semantic_memory_manage',
-    description: 'Perform CRUD operations on semantic memory (durable facts and knowledge about the user, profile, or environment). Use this to store information that should persist across sessions.',
+    description: 'Perform scoped memory operations across multiple scopes (global, user, workspace, project, session, task). Supports storing facts with calibrated confidence and provenance evidence, searching, contradicting obsolete knowledge, resolving conflicts, and inspecting durable memory.',
     parameters: {
       type: 'OBJECT',
       properties: {
         action: {
           type: 'STRING',
-          description: 'The action to perform: "store", "query", or "delete"'
+          description: 'Action to perform: "store", "query", "delete", "inspect", "reinforce", "contradict", "resolve", or "purge".'
+        },
+        scope: {
+          type: 'STRING',
+          description: 'Memory scope: "global", "user", "workspace", "project", "session", or "task" (defaults to "user").'
         },
         fact: {
           type: 'STRING',
-          description: 'The fact or knowledge to store (required for "store")'
+          description: 'The fact or knowledge string (required for "store").'
         },
         tags: {
           type: 'ARRAY',
           items: { type: 'STRING' },
-          description: 'Tags indicating categories or topics (for "store")'
+          description: 'Tags indicating categories or topics (for "store").'
+        },
+        confidence: {
+          type: 'NUMBER',
+          description: 'Confidence score between 0.0 and 1.0 (defaults to 1.0 for verified facts).'
+        },
+        evidence: {
+          type: 'STRING',
+          description: 'Citation, quote, or file reference proving where this fact was learned from.'
         },
         query: {
           type: 'STRING',
-          description: 'The search query to match facts against using concept similarity (required for "query")'
+          description: 'Search query for semantic or keyword matching.'
         },
         limit: {
           type: 'INTEGER',
-          description: 'Max number of facts to return (for "query", default: 3)'
+          description: 'Max number of facts to return (default: 5).'
         },
         threshold: {
           type: 'NUMBER',
-          description: 'Cosine similarity score threshold between 0.0 and 1.0 (for "query", default: 0.65)'
+          description: 'Similarity threshold between 0.0 and 1.0 (default: 0.50).'
         },
         id: {
           type: 'INTEGER',
-          description: 'ID of the fact to delete (required for "delete")'
+          description: 'ID of the fact to delete, reinforce, contradict, or resolve.'
+        },
+        newFact: {
+          type: 'STRING',
+          description: 'Replacement fact when resolving a contradiction.'
         }
       },
       required: ['action']
     }
   },
   execute: async (args: {
-    action: 'store' | 'query' | 'delete';
+    action: 'store' | 'query' | 'delete' | 'inspect' | 'reinforce' | 'contradict' | 'resolve' | 'purge';
+    scope?: MemoryScope;
     fact?: string;
     tags?: string[];
+    confidence?: number;
+    evidence?: string;
     query?: string;
     limit?: number;
     threshold?: number;
     id?: number;
+    newFact?: string;
   }, context?: ToolContext) => {
     if (!context || !context.memory) {
       throw new Error('Database memory context is missing.');
     }
 
     const memory = context.memory as EpisodicMemory;
-    const { action, fact, tags, query, limit, threshold, id } = args;
+    const scope: MemoryScope = args.scope || 'user';
+    const sessionId = context.parentRunId || undefined;
 
-    switch (action) {
+    switch (args.action) {
       case 'store': {
-        if (!fact) {
-          throw new Error('Fact is required for store action.');
+        if (!args.fact) {
+          throw new Error('Field "fact" is required for "store" action.');
         }
-        const lastId = await memory.saveSemanticFact(fact, tags);
-        return { success: true, message: `Fact stored successfully with ID: ${lastId}.`, id: lastId };
+
+        const id = await memory.saveScopedMemory({
+          scope,
+          fact: args.fact,
+          tags: args.tags,
+          confidence: args.confidence,
+          provenance: {
+            source: 'tool_result',
+            timestamp: Date.now(),
+            runId: context.runId,
+            sessionId,
+            evidence: args.evidence
+          }
+        });
+
+        return {
+          success: true,
+          id,
+          scope,
+          confidence: args.confidence ?? 1.0,
+          message: `Fact stored successfully in [${scope}] memory with ID: ${id}.`
+        };
       }
 
       case 'query': {
-        if (!query) {
-          throw new Error('Query string is required for query action.');
+        if (!args.query) {
+          throw new Error('Field "query" is required for "query" action.');
         }
-        const facts = await memory.searchSemanticFacts(query, limit ?? 3, threshold ?? 0.65);
-        return { success: true, facts };
+
+        const facts = await memory.searchScopedMemory({
+          query: args.query,
+          scope: args.scope,
+          limit: args.limit ?? 5,
+          threshold: args.threshold ?? 0.50,
+          sessionId
+        });
+
+        return {
+          success: true,
+          count: facts.length,
+          facts
+        };
+      }
+
+      case 'inspect': {
+        const facts = await memory.inspectMemory(args.query, args.scope, args.limit ?? 20);
+        return {
+          success: true,
+          count: facts.length,
+          facts
+        };
+      }
+
+      case 'reinforce': {
+        if (args.id === undefined) {
+          throw new Error('Field "id" is required for "reinforce" action.');
+        }
+        await memory.reinforceMemory(args.id, 0.15);
+        return {
+          success: true,
+          id: args.id,
+          message: `Fact ${args.id} reinforced and marked confirmed.`
+        };
+      }
+
+      case 'contradict': {
+        if (args.id === undefined) {
+          throw new Error('Field "id" is required for "contradict" action.');
+        }
+        await memory.contradictMemory(args.id, args.evidence);
+        return {
+          success: true,
+          id: args.id,
+          message: `Fact ${args.id} marked contradicted with reduced confidence.`
+        };
+      }
+
+      case 'resolve': {
+        if (args.id === undefined || !args.newFact) {
+          throw new Error('Fields "id" and "newFact" are required for "resolve" action.');
+        }
+        const newId = await memory.resolveContradiction(args.id, args.newFact, {
+          source: 'tool_result',
+          timestamp: Date.now(),
+          runId: context.runId,
+          sessionId,
+          evidence: args.evidence
+        });
+        return {
+          success: true,
+          oldFactId: args.id,
+          newFactId: newId,
+          message: `Fact ${args.id} superseded by updated fact ${newId}.`
+        };
       }
 
       case 'delete': {
-        if (id === undefined) {
-          throw new Error('Fact ID is required for delete action.');
+        if (args.id === undefined) {
+          throw new Error('Field "id" is required for "delete" action.');
         }
-        await memory.deleteSemanticFact(id);
-        return { success: true, message: `Fact with ID ${id} deleted successfully.` };
+        await memory.deleteScopedMemory(args.id);
+        return {
+          success: true,
+          message: `Fact ${args.id} marked deleted.`
+        };
+      }
+
+      case 'purge': {
+        const deleted = await memory.purgeScope(scope, sessionId);
+        return {
+          success: true,
+          purgedCount: deleted,
+          message: `Purged ${deleted} facts from [${scope}] scope.`
+        };
       }
 
       default:
-        throw new Error(`Invalid action: ${action}`);
+        throw new Error(`Invalid action: "${args.action}". Allowed: store, query, inspect, reinforce, contradict, resolve, delete, purge.`);
     }
   }
 };

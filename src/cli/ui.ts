@@ -376,4 +376,34 @@ export const ui = {
     frame(lines, ink.gold, hugInner(lines), true);
     console.log('');
   },
+
+  memoryHelp() {
+    const lines = [
+      'Memory Controls (Phase 2 Scoped Memory)',
+      '',
+      '/memory inspect [query]     inspect active facts',
+      '/memory scopes              list scopes (global/user/workspace/project/session/task)',
+      '/memory forget <id>         delete a specific memory fact',
+      '/memory purge <scope>       purge all facts from a scope',
+    ];
+    console.log('');
+    frame(lines, ink.gold, hugInner(lines), true);
+    console.log('');
+  },
+
+  memoryList(facts: { id: number; scope: string; fact: string; confidence: number; lifecycle: string; source: string }[]) {
+    const lines = ['Scoped Memory', ''];
+    if (facts.length === 0) {
+      lines.push('no memory facts found');
+    } else {
+      for (const f of facts) {
+        const conf = Math.round(f.confidence * 100);
+        const preview = f.fact.length > 45 ? f.fact.substring(0, 45) + '…' : f.fact;
+        lines.push(`#${f.id} [${f.scope}|${f.lifecycle}|${conf}%] "${preview}"`);
+      }
+    }
+    console.log('');
+    frame(lines, ink.sky, hugInner(lines), true);
+    console.log('');
+  },
 };

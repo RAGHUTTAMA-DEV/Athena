@@ -11,6 +11,7 @@ import { cleanGeminiSchema } from './mcpManager.js';
 import { RunState, RunStatus, RunBudget, createInitialRunState, StructuredFailure } from './runState.js';
 import { CancellationToken } from './cancellation.js';
 import { AgentEvent, AgentEventEmitter } from './events.js';
+import { ContextEngine } from './contextEngine.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
@@ -240,74 +241,35 @@ export class Agent {
         }
       }
 
-      // 2. Retrieve Semantic Memory (RAG)
-      let retrievedFacts: any[] = [];
-      if (this.memory) {
-        try {
-          retrievedFacts = await this.memory.searchSemanticFacts(userPrompt, 3, 0.65);
-        } catch (err: any) {
-          safeOnUpdate({ type: 'error', message: `Failed to search semantic memory: ${err.message}` });
-        }
-      }
-
-      // 3. Retrieve Procedural Memory (Skills)
-      let retrievedSkills: any[] = [];
-      if (this.procedural) {
-        try {
-          retrievedSkills = await this.procedural.searchSkills(userPrompt, 3);
-        } catch (err: any) {
-          safeOnUpdate({ type: 'error', message: `Failed to search procedural memory: ${err.message}` });
-        }
-      }
-
-      // 4. Fire memory retrieval status update
-      const factDetails = retrievedFacts.map(f => `"${f.fact}" [score: ${f.score.toFixed(2)}]`).join(', ') || 'none';
-      const skillDetails = retrievedSkills.map(s => s.name).join(', ') || 'none';
-      const workingTurns = history.length;
-      const episodicLine = episodicCount > 0
-        ? `loaded ${episodicCount} past turns for session`
-        : `using ${workingTurns} turns already in working memory`;
-      safeOnUpdate({
-        type: 'memory',
-        message: `Memory retrieved:\n` +
-                `  - Episodic: ${episodicLine}` +
-                (archiveHits > 0 ? `; archive matched ${archiveHits} prior messages.\n` : '.\n') +
-                `  - Semantic: matched ${retrievedFacts.length} facts (${factDetails})\n` +
-                `  - Procedural: matched ${retrievedSkills.length} skills (${skillDetails})`
+      // 2. Assemble Context via Phase 2 ContextEngine
+      const contextEngine = new ContextEngine();
+      const assembled = await contextEngine.assemble({
+        userPrompt,
+        history,
+        systemPrompt: this.config.systemPrompt,
+        soul: this.soul,
+        sessionId,
+        memory: this.memory,
+        procedural: this.procedural
       });
 
-      // 5. Build system instruction (System Prompt + SOUL.md + Date/Time + Semantic/Procedural context)
-      let systemInstruction = this.config.systemPrompt;
-      if (this.soul) {
-        systemInstruction = `${this.soul}\n\nOperational Instructions:\n${systemInstruction}`;
-      }
-      const dateOptions: Intl.DateTimeFormatOptions = { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZoneName: 'short'
-      };
-      const currentDateTime = new Date().toLocaleDateString('en-US', dateOptions);
-      systemInstruction = `${systemInstruction}\n\nCurrent System Date and Time: ${currentDateTime}\nCurrent Working Directory: ${process.cwd()}`;
-      systemInstruction = `${systemInstruction}\n\nMEMORY CONTRACT: You have persistent SQLite episodic memory. Restored chat history (ISO timestamps in brackets) and [EPISODIC ARCHIVE] are real prior interactions. NEVER say your memory resets between sessions. If something is missing, say it is not in the recorded archive.`;
-
+      let systemInstruction = assembled.systemInstruction;
       if (episodicArchive) {
         systemInstruction = `${systemInstruction}\n\n[EPISODIC ARCHIVE]\n${episodicArchive}`;
       }
 
-      if (retrievedFacts.length > 0) {
-        systemInstruction = `${systemInstruction}\n\n[RELEVANT FACTS (Semantic Memory)]\n` + 
-          retrievedFacts.map(f => `- ${f.fact}`).join('\n');
-      }
-      if (retrievedSkills.length > 0) {
-        systemInstruction = `${systemInstruction}\n\n[RELEVANT SKILLS (Procedural Memory)]\n` +
-          `CRITICAL DIRECTIVE: The user has requested or triggered procedural skill(s). You MUST strictly follow the design principles, workflows, guidelines, and output standards in the skill instructions below:\n\n` +
-          retrievedSkills.map(s => `### Skill: ${s.name}\n${s.content}`).join('\n\n');
-      }
+      // Memory event reporting with provenance, confidence, and token estimates
+      const factDetails = assembled.includedFacts.map(f => `"${f.fact}" [${f.scope}, conf: ${(f.confidence * 100).toFixed(0)}%]`).join(', ') || 'none';
+      const skillDetails = assembled.includedSkills.map(s => s.name).join(', ') || 'none';
+      safeOnUpdate({
+        type: 'memory',
+        message: `Memory retrieved:\n` +
+                `  - Episodic: ${episodicCount > 0 ? `loaded ${episodicCount} past turns for session` : `using ${history.length} turns in memory`}` +
+                (archiveHits > 0 ? `; archive matched ${archiveHits} prior messages.\n` : '.\n') +
+                `  - Scoped Facts: matched ${assembled.includedFacts.length} facts (${factDetails})\n` +
+                `  - Procedural: matched ${assembled.includedSkills.length} skills (${skillDetails})\n` +
+                `  - Context Tokens: ~${assembled.tokenEstimate.total} (system: ${assembled.tokenEstimate.system}, memory: ${assembled.tokenEstimate.memory}, skills: ${assembled.tokenEstimate.skills})`
+      });
 
       // 6. Prepare the session messages
       // Working Memory = User Prompt + Chat History + System Prompt
