@@ -200,7 +200,7 @@ export const ui = {
       textW
     ));
     console.log(`${ink.gold}╚${'═'.repeat(inner)}╝${ink.reset}`);
-    console.log(`${ink.night}  exit   clear   /provider   /session help${ink.reset}\n`);
+    console.log(`${ink.night}  exit   clear   /runs   /resume   /provider   /session help${ink.reset}\n`);
   },
 
   sys(msg: string) {
@@ -344,6 +344,36 @@ export const ui = {
       'Recent turns',
       messages.slice(-4).map(m => `${m.role === 'user' ? 'You' : 'Athena'}  ${m.text}`)
     );
+    console.log('');
+  },
+
+  runsHelp() {
+    const lines = [
+      'Runs (Phase 1 Runtime)',
+      '',
+      '/runs                      list runs in current session',
+      '/runs all                  list runs across all sessions',
+      '/runs <sessionId>          list runs for specific session',
+      '/resume <runId>            resume an interrupted or prior run',
+    ];
+    console.log('');
+    frame(lines, ink.gold, hugInner(lines), true);
+    console.log('');
+  },
+
+  runList(rows: { runId: string; status: string; turns: number; task: string; terminationReason?: string }[]) {
+    const lines = ['Runs', ''];
+    if (rows.length === 0) {
+      lines.push('no runs recorded');
+    } else {
+      for (const r of rows) {
+        const reason = r.terminationReason ? ` (${r.terminationReason})` : '';
+        const preview = r.task.length > 40 ? r.task.substring(0, 40) + '…' : r.task;
+        lines.push(`${r.runId}  ·  [${r.status}${reason}]  turn ${r.turns}  ·  "${preview}"`);
+      }
+    }
+    console.log('');
+    frame(lines, ink.gold, hugInner(lines), true);
     console.log('');
   },
 };

@@ -1,13 +1,16 @@
 
       import './dnsFix.js';
 
-import { AgentConfig, Message, Part } from './types.js';
+import { AgentConfig, Message, Part, RunOptions } from './types.js';
 import { LLMProvider, createLLMProvider, LLMResponse } from './llmProvider.js';
 import { toolsRegistry } from '../tools/index.js';
 import { EpisodicMemory } from './memory.js';
 import { ProceduralMemory } from './procedural.js';
 import { MemoryConsolidator } from './consolidation.js';
 import { cleanGeminiSchema } from './mcpManager.js';
+import { RunState, RunStatus, RunBudget, createInitialRunState, StructuredFailure } from './runState.js';
+import { CancellationToken } from './cancellation.js';
+import { AgentEvent, AgentEventEmitter } from './events.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
@@ -54,12 +57,28 @@ export class Agent {
     async run(
       userPrompt: string,
       history: Message[],
-      onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void,
+      optionsOrOnUpdate?: ((status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void) | RunOptions,
       confirm?: (toolName: string, args: any) => Promise<boolean>,
       sessionId?: string
     ): Promise<string> {
+      let options: RunOptions;
+      if (typeof optionsOrOnUpdate === 'function') {
+        options = {
+          onUpdate: optionsOrOnUpdate,
+          confirm,
+          sessionId
+        };
+      } else {
+        options = { ...(optionsOrOnUpdate || {}) };
+        if (confirm && !options.confirm) options.confirm = confirm;
+        if (sessionId && !options.sessionId) options.sessionId = sessionId;
+      }
+
+      const activeSessionId = options.sessionId || 'default-session';
+      const taskId = options.runId || this.config.taskId || 'agent-run';
+
       return startActiveObservation(
-        this.config.taskId || 'agent-run',
+        taskId,
         async (traceSpan) => {
           traceSpan.update({
             input: userPrompt,
@@ -67,20 +86,25 @@ export class Agent {
               modelName: this.config.modelName,
               maxTurns: this.config.maxTurns,
               depth: this.config.depth || 0,
-              taskId: this.config.taskId,
+              taskId,
+              runId: options.runId,
+              parentRunId: options.parentRunId,
+              rootRunId: options.rootRunId
             }
           });
 
           const finalResult = await propagateAttributes(
             {
-              sessionId: sessionId || 'default-session',
-              tags: [this.config.taskId || 'agent-run'],
+              sessionId: activeSessionId,
+              tags: [taskId],
               metadata: {
-                depth: String(this.config.depth || 0)
+                depth: String(this.config.depth || 0),
+                runId: options.runId || '',
+                parentRunId: options.parentRunId || ''
               }
             },
             async () => {
-              return this.runInternal(userPrompt, history, onUpdate, confirm, sessionId);
+              return this.runInternal(userPrompt, history, options);
             }
           );
 
@@ -93,10 +117,18 @@ export class Agent {
     private async runInternal(
       userPrompt: string,
       history: Message[],
-      onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void,
-      confirm?: (toolName: string, args: any) => Promise<boolean>,
-      sessionId?: string
+      options: RunOptions
     ): Promise<string> {
+      const runId = options.runId || `run_${Math.random().toString(36).substring(2, 10)}`;
+      const parentRunId = options.parentRunId;
+      const rootRunId = options.rootRunId || (parentRunId ? parentRunId : runId);
+      const sessionId = options.sessionId || 'default-session';
+      const events = options.events || new AgentEventEmitter();
+      const cancellationToken = options.cancellationToken;
+      const onUpdate = options.onUpdate;
+      const confirm = options.confirm;
+      const startTime = Date.now();
+
       const logPrefix = this.config.taskId ? `[${this.config.taskId}] ` : '';
       const safeOnUpdate = (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => {
         if (onUpdate) {
@@ -130,6 +162,58 @@ export class Agent {
 
         return confirmPromise;
       };
+
+      // 0. Initialize or Load Authoritative RunState (Phase 1 Agent Runtime)
+      let runState: RunState | null = null;
+      if (this.memory) {
+        try {
+          runState = await this.memory.getRunState(runId);
+        } catch (e) {}
+      }
+
+      if (!runState) {
+        runState = createInitialRunState({
+          runId,
+          parentRunId,
+          rootRunId,
+          sessionId,
+          task: userPrompt,
+          budget: {
+            maxTurns: this.config.maxTurns,
+            ...options.budget
+          }
+        });
+        if (this.memory) {
+          try {
+            await this.memory.saveRunState(runState);
+          } catch (e) {}
+        }
+      }
+
+      const prevStatus = runState.status;
+      runState.status = 'running';
+      runState.updatedAt = Date.now();
+      if (this.memory) {
+        try {
+          await this.memory.saveRunState(runState);
+          await this.memory.saveRunEvent({
+            type: 'status_change',
+            runId,
+            parentRunId,
+            from: prevStatus,
+            to: 'running',
+            timestamp: Date.now()
+          });
+        } catch (e) {}
+      }
+      events.emit({
+        type: 'status_change',
+        runId,
+        parentRunId,
+        from: prevStatus,
+        to: 'running',
+        timestamp: Date.now()
+      });
 
       // 1. Load Episodic History if sessionId is provided and local history is empty
       let episodicCount = 0;
@@ -197,7 +281,7 @@ export class Agent {
       if (this.soul) {
         systemInstruction = `${this.soul}\n\nOperational Instructions:\n${systemInstruction}`;
       }
-      const options: Intl.DateTimeFormatOptions = { 
+      const dateOptions: Intl.DateTimeFormatOptions = { 
         weekday: 'long', 
         year: 'numeric', 
         month: 'long', 
@@ -207,7 +291,7 @@ export class Agent {
         second: '2-digit',
         timeZoneName: 'short'
       };
-      const currentDateTime = new Date().toLocaleDateString('en-US', options);
+      const currentDateTime = new Date().toLocaleDateString('en-US', dateOptions);
       systemInstruction = `${systemInstruction}\n\nCurrent System Date and Time: ${currentDateTime}\nCurrent Working Directory: ${process.cwd()}`;
       systemInstruction = `${systemInstruction}\n\nMEMORY CONTRACT: You have persistent SQLite episodic memory. Restored chat history (ISO timestamps in brackets) and [EPISODIC ARCHIVE] are real prior interactions. NEVER say your memory resets between sessions. If something is missing, say it is not in the recorded archive.`;
 
@@ -239,12 +323,136 @@ export class Agent {
         .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
         .map(tool => cleanGeminiSchema(tool.definition, true));
 
-      let currentMaxTurns = this.config.maxTurns;
+      let currentMaxTurns = runState.budget.maxTurns || this.config.maxTurns;
       let turns = 0;
       let emptyResponseCount = 0;
       while (turns < currentMaxTurns) {
         turns++;
-        
+        runState.currentTurn = turns;
+        runState.usage.turnsCount = turns;
+        runState.usage.elapsedTimeMs = Date.now() - startTime;
+
+        // Check cancellation token before every turn
+        if (cancellationToken?.isCancelled) {
+          runState.status = 'cancelled';
+          runState.terminationReason = 'user_cancelled';
+          runState.error = {
+            category: 'policy',
+            code: 'CANCELLED',
+            message: cancellationToken.reason || 'Operation cancelled by user/parent request.',
+            retryable: false
+          };
+          runState.updatedAt = Date.now();
+          if (this.memory) {
+            try {
+              await this.memory.saveRunState(runState);
+              await this.memory.saveRunEvent({
+                type: 'status_change',
+                runId,
+                parentRunId,
+                from: 'running',
+                to: 'cancelled',
+                timestamp: Date.now()
+              });
+              await this.memory.saveRunEvent({
+                type: 'completed',
+                runId,
+                parentRunId,
+                status: 'cancelled',
+                terminationReason: 'user_cancelled',
+                timestamp: Date.now()
+              });
+            } catch (e) {}
+          }
+          events.emit({
+            type: 'status_change',
+            runId,
+            parentRunId,
+            from: 'running',
+            to: 'cancelled',
+            timestamp: Date.now()
+          });
+          events.emit({
+            type: 'completed',
+            runId,
+            parentRunId,
+            status: 'cancelled',
+            terminationReason: 'user_cancelled',
+            timestamp: Date.now()
+          });
+          const cancelErr = new Error(runState.error.message);
+          cancelErr.name = 'CancellationError';
+          throw cancelErr;
+        }
+
+        // Check time budget
+        const elapsed = Date.now() - startTime;
+        if (runState.budget.maxTimeMs && elapsed > runState.budget.maxTimeMs) {
+          runState.status = 'failed';
+          runState.terminationReason = 'timeout';
+          runState.error = {
+            category: 'timeout',
+            code: 'TIME_BUDGET_EXCEEDED',
+            message: `Execution time (${elapsed}ms) exceeded maximum time budget (${runState.budget.maxTimeMs}ms).`,
+            retryable: false
+          };
+          runState.updatedAt = Date.now();
+          if (this.memory) {
+            try {
+              await this.memory.saveRunState(runState);
+            } catch (e) {}
+          }
+          events.emit({
+            type: 'completed',
+            runId,
+            parentRunId,
+            status: 'failed',
+            terminationReason: 'timeout',
+            timestamp: Date.now()
+          });
+          const timeoutMsg = `[Budget Alert] Execution time limit (${runState.budget.maxTimeMs}ms) exceeded. Stopping run.`;
+          safeOnUpdate({ type: 'error', message: timeoutMsg });
+          return timeoutMsg;
+        }
+
+        // Check tool call budget
+        if (runState.budget.maxToolCalls !== undefined && runState.usage.toolCallsCount >= runState.budget.maxToolCalls) {
+          runState.status = 'failed';
+          runState.terminationReason = 'budget_exceeded';
+          runState.error = {
+            category: 'budget',
+            code: 'TOOL_BUDGET_EXCEEDED',
+            message: `Tool call count (${runState.usage.toolCallsCount}) reached budget limit (${runState.budget.maxToolCalls}).`,
+            retryable: false
+          };
+          runState.updatedAt = Date.now();
+          if (this.memory) {
+            try {
+              await this.memory.saveRunState(runState);
+            } catch (e) {}
+          }
+          events.emit({
+            type: 'completed',
+            runId,
+            parentRunId,
+            status: 'failed',
+            terminationReason: 'budget_exceeded',
+            timestamp: Date.now()
+          });
+          const toolBudgetMsg = `[Budget Alert] Max tool calls (${runState.budget.maxToolCalls}) reached. Stopping run.`;
+          safeOnUpdate({ type: 'error', message: toolBudgetMsg });
+          return toolBudgetMsg;
+        }
+
+        events.emit({
+          type: 'turn_start',
+          runId,
+          parentRunId,
+          turn: turns,
+          maxTurns: currentMaxTurns,
+          timestamp: Date.now()
+        });
+
         pruneBrowserHistory(currentRunHistory);
         
         try {
@@ -270,6 +478,15 @@ export class Agent {
                 output: JSON.stringify(res.parts || {}),
                 usageDetails: res.usageMetadata,
               });
+
+              if (res.usageMetadata) {
+                const inT = res.usageMetadata.input || 0;
+                const outT = res.usageMetadata.output || 0;
+                const totT = res.usageMetadata.total || (inT + outT);
+                runState!.usage.tokens.input += inT;
+                runState!.usage.tokens.output += outT;
+                runState!.usage.tokens.total += totT;
+              }
 
               return res;
             },
@@ -305,6 +522,34 @@ export class Agent {
           // Check for function calls
           const functionCalls = response.functionCalls;
           if (functionCalls && functionCalls.length > 0) {
+            if (runState.budget.maxToolCalls !== undefined && runState.usage.toolCallsCount >= runState.budget.maxToolCalls) {
+              runState.status = 'failed';
+              runState.terminationReason = 'budget_exceeded';
+              runState.error = {
+                category: 'budget',
+                code: 'TOOL_BUDGET_EXCEEDED',
+                message: `Tool call count (${runState.usage.toolCallsCount}) reached budget limit (${runState.budget.maxToolCalls}).`,
+                retryable: false
+              };
+              runState.updatedAt = Date.now();
+              if (this.memory) {
+                try {
+                  await this.memory.saveRunState(runState);
+                } catch (e) {}
+              }
+              events.emit({
+                type: 'completed',
+                runId,
+                parentRunId,
+                status: 'failed',
+                terminationReason: 'budget_exceeded',
+                timestamp: Date.now()
+              });
+              const toolBudgetMsg = `[Budget Alert] Max tool calls (${runState.budget.maxToolCalls}) reached. Stopping run.`;
+              safeOnUpdate({ type: 'error', message: toolBudgetMsg });
+              return toolBudgetMsg;
+            }
+
             // Model wants to call tools concurrently
             const toolResponseParts: Part[] = new Array(functionCalls.length);
 
@@ -385,12 +630,47 @@ export class Agent {
                 }
               }
 
+              // Idempotency check for tool execution
+              const idempotencyKey = call.args?.idempotencyKey || `${call.name}:${JSON.stringify(call.args)}`;
+              if (runState!.idempotencyKeys.includes(idempotencyKey)) {
+                safeOnUpdate({
+                  type: 'tool_call',
+                  message: `[Idempotent Replay] Skipping repeated tool "${call.name}" with idempotencyKey "${idempotencyKey}"`
+                });
+                toolResponseParts[idx] = {
+                  functionResponse: {
+                    id: call.id,
+                    name: call.name,
+                    response: { success: true, idempotent: true, note: 'Skipped repeated execution via idempotency key.' }
+                  }
+                };
+                return;
+              }
+
+              events.emit({
+                type: 'tool_call',
+                runId,
+                parentRunId,
+                turn: turns,
+                callId: call.id,
+                toolName: call.name,
+                args: call.args,
+                idempotencyKey,
+                timestamp: Date.now()
+              });
+
               try {
                 const toolContext = {
                   confirm,
                   memory: this.memory || undefined,
                   depth: this.config.depth || 0,
-                  parentRunId: sessionId,
+                  runId,
+                  parentRunId: runId,
+                  rootRunId,
+                  cancellationToken,
+                  budget: runState!.budget,
+                  events,
+                  idempotencyKey,
                   onUpdate: safeOnUpdate,
                   provider: this.config.provider,
                   modelName: this.config.modelName,
@@ -398,6 +678,7 @@ export class Agent {
                   nvidiaBaseUrl: this.config.nvidiaBaseUrl
                 };
 
+                const toolStartTime = Date.now();
                 const result = await startActiveObservation(
                   `tool-${call.name}`,
                   async (toolSpan) => {
@@ -414,6 +695,24 @@ export class Agent {
                     return res;
                   }
                 );
+                const toolDuration = Date.now() - toolStartTime;
+
+                runState!.idempotencyKeys.push(idempotencyKey);
+                runState!.usage.toolCallsCount++;
+
+                events.emit({
+                  type: 'tool_result',
+                  runId,
+                  parentRunId,
+                  turn: turns,
+                  callId: call.id,
+                  toolName: call.name,
+                  success: true,
+                  result,
+                  durationMs: toolDuration,
+                  timestamp: Date.now()
+                });
+
                 safeOnUpdate({
                   type: 'tool_response',
                   message: `Tool ${call.name} returned: ${JSON.stringify(result)}`
@@ -428,6 +727,18 @@ export class Agent {
                 };
               } catch (toolErr: any) {
                 const errMsg = `Tool ${call.name} execution failed: ${toolErr.message}`;
+                events.emit({
+                  type: 'tool_result',
+                  runId,
+                  parentRunId,
+                  turn: turns,
+                  callId: call.id,
+                  toolName: call.name,
+                  success: false,
+                  error: errMsg,
+                  durationMs: 0,
+                  timestamp: Date.now()
+                });
                 safeOnUpdate({ type: 'error', message: errMsg });
                 toolResponseParts[idx] = {
                   functionResponse: {
@@ -476,6 +787,38 @@ export class Agent {
             console.error('[Agent Consolidation Error]', err);
           });
 
+          // Finalize RunState on success
+          runState.status = 'completed';
+          runState.terminationReason = 'goal_achieved';
+          runState.result = text;
+          runState.currentTurn = turns;
+          runState.usage.turnsCount = turns;
+          runState.usage.elapsedTimeMs = Date.now() - startTime;
+          runState.updatedAt = Date.now();
+          if (this.memory) {
+            try {
+              await this.memory.saveRunState(runState);
+              await this.memory.saveRunEvent({
+                type: 'completed',
+                runId,
+                parentRunId,
+                status: 'completed',
+                terminationReason: 'goal_achieved',
+                result: text,
+                timestamp: Date.now()
+              });
+            } catch (e) {}
+          }
+          events.emit({
+            type: 'completed',
+            runId,
+            parentRunId,
+            status: 'completed',
+            terminationReason: 'goal_achieved',
+            result: text,
+            timestamp: Date.now()
+          });
+
           return text;
 
         } catch (err: any) {
@@ -507,6 +850,41 @@ export class Agent {
           safeOnUpdate({ type: 'error', message: `Failed to save guardrail alert to database: ${err.message}` });
         }
       }
+
+      // Finalize RunState on max turns failure
+      runState.status = 'failed';
+      runState.terminationReason = 'max_turns';
+      runState.error = {
+        category: 'budget',
+        code: 'MAX_TURNS_EXCEEDED',
+        message: `Max turns (${currentMaxTurns}) reached without reaching goal.`,
+        retryable: true
+      };
+      runState.currentTurn = turns;
+      runState.usage.turnsCount = turns;
+      runState.usage.elapsedTimeMs = Date.now() - startTime;
+      runState.updatedAt = Date.now();
+      if (this.memory) {
+        try {
+          await this.memory.saveRunState(runState);
+          await this.memory.saveRunEvent({
+            type: 'completed',
+            runId,
+            parentRunId,
+            status: 'failed',
+            terminationReason: 'max_turns',
+            timestamp: Date.now()
+          });
+        } catch (e) {}
+      }
+      events.emit({
+        type: 'completed',
+        runId,
+        parentRunId,
+        status: 'failed',
+        terminationReason: 'max_turns',
+        timestamp: Date.now()
+      });
 
       // Trigger background consolidation check
       this.triggerBackgroundConsolidation().catch(err => {
@@ -568,6 +946,50 @@ export class Agent {
       if (this.memory) {
         await this.memory.renameSession(oldSessionId, newSessionId);
       }
+    }
+
+    getMemory(): EpisodicMemory | null {
+      return this.memory;
+    }
+
+    async getRunState(runId: string): Promise<RunState | null> {
+      if (this.memory) {
+        return this.memory.getRunState(runId);
+      }
+      return null;
+    }
+
+    async listRuns(sessionId?: string, limit: number = 50): Promise<RunState[]> {
+      if (this.memory) {
+        return this.memory.listRuns(sessionId, limit);
+      }
+      return [];
+    }
+
+    async resumeRun(runId: string, options?: Partial<RunOptions>): Promise<string> {
+      if (!this.memory) {
+        throw new Error('Episodic memory must be initialized to resume runs.');
+      }
+      const state = await this.memory.getRunState(runId);
+      if (!state) {
+        throw new Error(`Run "${runId}" not found in persisted state.`);
+      }
+      if (state.status === 'completed') {
+        return state.result || 'Run already completed.';
+      }
+      const history = await this.memory.loadHistory(state.sessionId, 40);
+      return this.run(
+        state.task,
+        history,
+        {
+          runId: state.runId,
+          parentRunId: state.parentRunId,
+          rootRunId: state.rootRunId,
+          sessionId: state.sessionId,
+          budget: state.budget,
+          ...options
+        }
+      );
     }
   }
 

@@ -80,7 +80,8 @@ Crucial Sub-Agent Rules:
     await childAgent.init();
 
     const parentConfirm = context?.confirm;
-    const parentRunId = context?.parentRunId || 'parent';
+    const parentRunId = context?.runId || context?.parentRunId || 'parent';
+    const rootRunId = context?.rootRunId || parentRunId;
     const childSessionId = `${parentRunId}_${taskId}`;
 
     // Forward updates to parent onUpdate callback if present
@@ -90,18 +91,49 @@ Crucial Sub-Agent Rules:
       }
     };
 
+    if (context?.events && context?.runId) {
+      context.events.emit({
+        type: 'subagent_spawn',
+        runId: context.runId,
+        parentRunId: context.parentRunId,
+        childRunId: taskId,
+        goal: args.goal,
+        allowedTools,
+        timestamp: Date.now()
+      });
+    }
+
     try {
-      // Execute the sub-agent. Empty history since we want context isolation.
+      // Execute the sub-agent with full RunOptions
       const summaryResult = await childAgent.run(
         `Please accomplish your goal and summarize the result.`,
         [],
-        childOnUpdate,
-        undefined, // Sub-agent runs autonomously without prompting for tool confirmation
-        childSessionId
+        {
+          runId: taskId,
+          parentRunId,
+          rootRunId,
+          sessionId: childSessionId,
+          budget: context?.budget?.childAgentBudget,
+          cancellationToken: context?.cancellationToken,
+          events: context?.events,
+          onUpdate: childOnUpdate
+        }
       );
 
+      if (context?.events && context?.runId) {
+        context.events.emit({
+          type: 'subagent_finish',
+          runId: context.runId,
+          parentRunId: context.parentRunId,
+          childRunId: taskId,
+          status: 'completed',
+          result: summaryResult,
+          timestamp: Date.now()
+        });
+      }
+
       // Explicitly close database handle of sub-agent if initialized
-      const childMemory = (childAgent as any).memory;
+      const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
       if (childMemory) {
         await childMemory.close();
       }
@@ -112,8 +144,20 @@ Crucial Sub-Agent Rules:
         output: summaryResult
       };
     } catch (err: any) {
+      if (context?.events && context?.runId) {
+        context.events.emit({
+          type: 'subagent_finish',
+          runId: context.runId,
+          parentRunId: context.parentRunId,
+          childRunId: taskId,
+          status: 'failed',
+          error: err.message,
+          timestamp: Date.now()
+        });
+      }
+
       // Make sure database handle is closed on failure too
-      const childMemory = (childAgent as any).memory;
+      const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
       if (childMemory) {
         try {
           await childMemory.close();

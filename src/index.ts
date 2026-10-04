@@ -13,7 +13,10 @@ import { Scheduler } from './core/scheduler.js';
 import { MCPManager } from './core/mcpManager.js';
 import { registerDynamicTools } from './tools/index.js';
 import { ui } from './cli/ui.js';
+import { CancellationTokenSource } from './core/cancellation.js';
 import * as readline from 'readline';
+
+let currentActiveCts: CancellationTokenSource | null = null;
 
 const allowAll =
   process.argv.some(a => a.toLowerCase() === '--allow-all') ||
@@ -309,6 +312,65 @@ async function startCli(mcpTools = 0) {
         return;
       }
 
+      if (lowerInput.startsWith('/runs')) {
+        const parts = trimmed.split(/\s+/);
+        const sub = parts[1]?.toLowerCase();
+        if (sub === 'help') {
+          ui.runsHelp();
+          askPrompt();
+          return;
+        }
+
+        const targetSession = sub === 'all' ? undefined : (parts[1] || currentSessionId);
+        try {
+          const runs = await agent.listRuns(targetSession, 20);
+          ui.runList(runs.map(r => ({
+            runId: r.runId,
+            status: r.status,
+            turns: r.currentTurn,
+            task: r.task,
+            terminationReason: r.terminationReason
+          })));
+        } catch (err: any) {
+          ui.err(`Failed to list runs: ${err.message}`);
+        }
+        askPrompt();
+        return;
+      }
+
+      if (lowerInput.startsWith('/resume')) {
+        const parts = trimmed.split(/\s+/);
+        const targetRunId = parts[1]?.trim();
+        if (!targetRunId) {
+          ui.err('usage: /resume <runId>');
+          askPrompt();
+          return;
+        }
+
+        try {
+          ui.sys(`resuming run "${targetRunId}"...`);
+          console.log('');
+          currentActiveCts = new CancellationTokenSource();
+          const resumedAnswer = await agent.resumeRun(targetRunId, {
+            cancellationToken: currentActiveCts.token,
+            onUpdate: (status) => ui.event(status),
+            confirm: cliConfirm
+          });
+          ui.reply(resumedAnswer);
+        } catch (err: any) {
+          if (err.name === 'CancellationError' || err.message.includes('cancelled')) {
+            ui.err('Run cancelled by user.');
+          } else {
+            ui.err(`resume failed: ${err.message}`);
+          }
+          console.log('');
+        } finally {
+          currentActiveCts = null;
+        }
+        askPrompt();
+        return;
+      }
+
       if (!trimmed) {
         askPrompt();
         return;
@@ -316,17 +378,27 @@ async function startCli(mcpTools = 0) {
 
       try {
         console.log('');
+        currentActiveCts = new CancellationTokenSource();
         const finalAnswer = await agent.run(
           trimmed,
           chatHistory,
-          (status) => ui.event(status),
-          cliConfirm,
-          currentSessionId
+          {
+            sessionId: currentSessionId,
+            cancellationToken: currentActiveCts.token,
+            onUpdate: (status) => ui.event(status),
+            confirm: cliConfirm
+          }
         );
         ui.reply(finalAnswer);
       } catch (err: any) {
-        ui.err(`execution failed: ${err.message}`);
+        if (err.name === 'CancellationError' || err.message.includes('cancelled')) {
+          ui.err('Run cancelled by user.');
+        } else {
+          ui.err(`execution failed: ${err.message}`);
+        }
         console.log('');
+      } finally {
+        currentActiveCts = null;
       }
 
       askPrompt();
@@ -355,6 +427,12 @@ async function main() {
   };
 
   process.on('SIGINT', async () => {
+    if (currentActiveCts) {
+      ui.sys('cancelling active run...');
+      currentActiveCts.cancel('User cancelled with Ctrl+C');
+      currentActiveCts = null;
+      return;
+    }
     await cleanup();
     process.exit(0);
   });

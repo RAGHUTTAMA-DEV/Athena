@@ -3,6 +3,8 @@ import sqlite3 from 'sqlite3';
 import { Message } from './types.js';
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
+import { RunState } from './runState.js';
+import { AgentEvent } from './events.js';
 
 export interface SemanticFact {
   id?: number;
@@ -153,6 +155,42 @@ export class EpisodicMemory {
         next_run INTEGER NOT NULL,
         active INTEGER DEFAULT 1
       );
+    `);
+
+    // 7. Create runs and run_events tables for authoritative RunState (Phase 1)
+    await this.db.exec(`
+      CREATE TABLE IF NOT EXISTS runs (
+        run_id TEXT PRIMARY KEY,
+        parent_run_id TEXT,
+        root_run_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        task TEXT NOT NULL,
+        status TEXT NOT NULL,
+        current_turn INTEGER DEFAULT 0,
+        budget TEXT,
+        usage TEXT,
+        idempotency_keys TEXT,
+        termination_reason TEXT,
+        error TEXT,
+        result TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_runs_session ON runs(session_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_parent ON runs(parent_run_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_root ON runs(root_run_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
+
+      CREATE TABLE IF NOT EXISTS run_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_run_events_run_id ON run_events(run_id);
     `);
   }
 
@@ -454,6 +492,136 @@ export class EpisodicMemory {
       nextRun,
       id
     );
+  }
+
+  // --- RunState Persistence (Phase 1) ---
+
+  async saveRunState(state: RunState): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    await this.db.run(
+      `INSERT OR REPLACE INTO runs (
+        run_id, parent_run_id, root_run_id, session_id, task, status,
+        current_turn, budget, usage, idempotency_keys, termination_reason,
+        error, result, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      state.runId,
+      state.parentRunId || null,
+      state.rootRunId,
+      state.sessionId,
+      state.task,
+      state.status,
+      state.currentTurn,
+      JSON.stringify(state.budget),
+      JSON.stringify(state.usage),
+      JSON.stringify(state.idempotencyKeys),
+      state.terminationReason || null,
+      state.error ? JSON.stringify(state.error) : null,
+      state.result || null,
+      state.createdAt,
+      state.updatedAt
+    );
+  }
+
+  async getRunState(runId: string): Promise<RunState | null> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const row = await this.db.get(`SELECT * FROM runs WHERE run_id = ?`, runId);
+    if (!row) return null;
+
+    return {
+      runId: row.run_id,
+      parentRunId: row.parent_run_id || undefined,
+      rootRunId: row.root_run_id,
+      sessionId: row.session_id,
+      task: row.task,
+      status: row.status,
+      currentTurn: row.current_turn,
+      budget: row.budget ? JSON.parse(row.budget) : {},
+      usage: row.usage ? JSON.parse(row.usage) : { elapsedTimeMs: 0, tokens: { input: 0, output: 0, total: 0 }, costUsd: 0, toolCallsCount: 0, turnsCount: 0 },
+      idempotencyKeys: row.idempotency_keys ? JSON.parse(row.idempotency_keys) : [],
+      terminationReason: row.termination_reason || undefined,
+      error: row.error ? JSON.parse(row.error) : undefined,
+      result: row.result || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  async updateRunState(runId: string, updates: Partial<RunState>): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const existing = await this.getRunState(runId);
+    if (!existing) {
+      throw new Error(`Cannot update non-existent run "${runId}"`);
+    }
+
+    const merged: RunState = {
+      ...existing,
+      ...updates,
+      updatedAt: Date.now()
+    };
+    await this.saveRunState(merged);
+  }
+
+  async saveRunEvent(event: AgentEvent): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    await this.db.run(
+      `INSERT INTO run_events (run_id, event_type, payload, timestamp) VALUES (?, ?, ?, ?)`,
+      event.runId,
+      event.type,
+      JSON.stringify(event),
+      event.timestamp
+    );
+  }
+
+  async getRunEvents(runId: string): Promise<AgentEvent[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const rows = await this.db.all(
+      `SELECT payload FROM run_events WHERE run_id = ? ORDER BY id ASC`,
+      runId
+    );
+    return rows.map((r: any) => JSON.parse(r.payload));
+  }
+
+  async listRuns(sessionId?: string, limit: number = 50): Promise<RunState[]> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    let query = `SELECT * FROM runs`;
+    const params: any[] = [];
+    if (sessionId) {
+      query += ` WHERE session_id = ?`;
+      params.push(sessionId);
+    }
+    query += ` ORDER BY created_at DESC LIMIT ?`;
+    params.push(limit);
+
+    const rows = await this.db.all(query, ...params);
+    return rows.map((row: any) => ({
+      runId: row.run_id,
+      parentRunId: row.parent_run_id || undefined,
+      rootRunId: row.root_run_id,
+      sessionId: row.session_id,
+      task: row.task,
+      status: row.status,
+      currentTurn: row.current_turn,
+      budget: row.budget ? JSON.parse(row.budget) : {},
+      usage: row.usage ? JSON.parse(row.usage) : { elapsedTimeMs: 0, tokens: { input: 0, output: 0, total: 0 }, costUsd: 0, toolCallsCount: 0, turnsCount: 0 },
+      idempotencyKeys: row.idempotency_keys ? JSON.parse(row.idempotency_keys) : [],
+      terminationReason: row.termination_reason || undefined,
+      error: row.error ? JSON.parse(row.error) : undefined,
+      result: row.result || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
   }
 }
 

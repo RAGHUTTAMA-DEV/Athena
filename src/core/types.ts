@@ -49,16 +49,38 @@ export interface Tool {
   requiresConfirmation?: boolean;
 }
 
+import { CancellationToken } from './cancellation.js';
+import { RunBudget } from './runState.js';
+import { AgentEventEmitter } from './events.js';
+
 export interface ToolContext {
   confirm?: (toolName: string, args: any) => Promise<boolean>;
   memory?: any;
   depth?: number;
+  runId?: string;
   parentRunId?: string;
+  rootRunId?: string;
+  cancellationToken?: CancellationToken;
+  budget?: RunBudget;
+  events?: AgentEventEmitter;
+  idempotencyKey?: string;
   onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void;
   provider?: ProviderType;
   modelName?: string;
   nvidiaApiKey?: string;
   nvidiaBaseUrl?: string;
+}
+
+export interface RunOptions {
+  runId?: string;
+  parentRunId?: string;
+  rootRunId?: string;
+  sessionId?: string;
+  budget?: RunBudget;
+  cancellationToken?: CancellationToken;
+  events?: AgentEventEmitter;
+  onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void;
+  confirm?: (toolName: string, args: any) => Promise<boolean>;
 }
 
 export type ProviderType = 'gemini' | 'nvidia';
