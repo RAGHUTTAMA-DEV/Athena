@@ -144,14 +144,19 @@ flowchart TD
 
 ---
 
-## Phase 6: BACKGROUND + EVENT RUNTIME — [QUEUED]
+## Phase 6: BACKGROUND + EVENT RUNTIME — [COMPLETED]
 
-- [ ] **Durable Task Scheduler**: Persistent cron and timer engine stored in SQLite (survives restarts).
-- [ ] **Timezone Support**: Schedule jobs with IANA timezone awareness (`America/New_York`, `Asia/Kolkata`, etc.).
-- [ ] **Job Leases / Distributed Locks**: Prevent duplicate execution when multiple worker processes or gateway instances run.
-- [ ] **Event Bus**: Ingest events from webhooks, GitHub notifications, local file watchers, and system timers.
-- [ ] **Priority Queue & Worker Pool**: Run background tasks asynchronously with concurrency limits without blocking interactive chat.
-- [ ] **Idempotent Event Handlers**: Deduplicate incoming webhooks and retry missed background triggers.
+- [x] **Durable Task Scheduler**: Persistent cron and timer engine stored in SQLite (survives restarts) ([`src/core/scheduler.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/scheduler.ts)).
+- [x] **Timezone Support**: Schedule jobs with full IANA timezone awareness (`America/New_York`, `Asia/Kolkata`, `UTC`, etc.) using standard `Intl.DateTimeFormat`.
+- [x] **Job Leases / Distributed Locks**: Atomic SQLite leases with auto-heartbeat renewal and expiration takeover ([`src/core/jobLease.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/jobLease.ts)) preventing split-brain or duplicate execution across worker processes.
+- [x] **Decoupled Event Bus**: Ingest events from webhooks, file watchers, system timers, and scheduler triggers with wildcard subscription patterns (`*`, `timer:*`, `webhook:*`) ([`src/core/eventBus.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/eventBus.ts)).
+- [x] **Idempotent Event Handlers**: Deduplicates incoming webhooks and triggers via idempotency keys and sliding time windows (`dedupWindowMs`), with audit trail in SQLite `event_log`.
+- [x] **Priority Queue & Worker Pool**: Run background tasks asynchronously with configurable concurrency limits (`ATHENA_WORKER_CONCURRENCY`, default 2) and prioritized dispatch (`critical` > `high` > `normal` > `low`) ([`src/core/workerPool.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/workerPool.ts)).
+- [x] **Tool Updates**: `cronjob` tool updated with optional `timezone` and `priority` parameters ([`src/tools/cronjob.ts`](file:///c:/Users/raghu/Documents/Athena/src/tools/cronjob.ts)).
+
+**Verification**:
+* Test file: [`src/tests/test_phase6_background_runtime.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_phase6_background_runtime.ts)
+* Command: `npm run test:background` (5/5 passing)
 
 ---
 

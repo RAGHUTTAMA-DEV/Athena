@@ -28,6 +28,10 @@ export class EpisodicMemory {
     this.apiKey = apiKey || process.env.GEMINI_API_KEY;
   }
 
+  getDb(): Database | null {
+    return this.db;
+  }
+
   private getAI(): GoogleGenAI {
     if (!this.ai) {
       const key = this.apiKey || process.env.GEMINI_API_KEY;
@@ -145,7 +149,7 @@ export class EpisodicMemory {
       // Column already exists
     }
 
-    // 6. Create scheduled_jobs table
+    // 6. Create scheduled_jobs table (Phase 6 durable background tasks)
     await this.db.exec(`
       CREATE TABLE IF NOT EXISTS scheduled_jobs (
         id TEXT PRIMARY KEY,
@@ -154,8 +158,43 @@ export class EpisodicMemory {
         session_id TEXT NOT NULL,
         last_run INTEGER,
         next_run INTEGER NOT NULL,
-        active INTEGER DEFAULT 1
+        active INTEGER DEFAULT 1,
+        timezone TEXT DEFAULT 'UTC',
+        locked_by TEXT,
+        locked_at INTEGER,
+        lease_timeout_ms INTEGER DEFAULT 60000,
+        priority TEXT DEFAULT 'normal'
       );
+    `);
+
+    // Migrations for existing scheduled_jobs tables
+    for (const migration of [
+      "ALTER TABLE scheduled_jobs ADD COLUMN timezone TEXT DEFAULT 'UTC'",
+      "ALTER TABLE scheduled_jobs ADD COLUMN locked_by TEXT",
+      "ALTER TABLE scheduled_jobs ADD COLUMN locked_at INTEGER",
+      "ALTER TABLE scheduled_jobs ADD COLUMN lease_timeout_ms INTEGER DEFAULT 60000",
+      "ALTER TABLE scheduled_jobs ADD COLUMN priority TEXT DEFAULT 'normal'"
+    ]) {
+      try {
+        await this.db.exec(migration);
+      } catch {
+        // Column already exists
+      }
+    }
+
+    // 6b. Create event_log table for Event Bus audit and deduplication (Phase 6)
+    await this.db.exec(`
+      CREATE TABLE IF NOT EXISTS event_log (
+        id TEXT PRIMARY KEY,
+        topic TEXT NOT NULL,
+        idempotency_key TEXT,
+        payload TEXT,
+        status TEXT DEFAULT 'processed',
+        source TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_event_log_topic ON event_log(topic);
+      CREATE INDEX IF NOT EXISTS idx_event_log_idempotency ON event_log(idempotency_key);
     `);
 
     // 7. Create runs and run_events tables for authoritative RunState (Phase 1)
@@ -533,20 +572,30 @@ export class EpisodicMemory {
     lastRun: number | null;
     nextRun: number;
     active: number;
+    timezone?: string;
+    lockedBy?: string | null;
+    lockedAt?: number | null;
+    leaseTimeoutMs?: number;
+    priority?: string;
   }): Promise<void> {
     if (!this.db) {
       throw new Error('Database not initialized. Call init() first.');
     }
     await this.db.run(
-      `INSERT OR REPLACE INTO scheduled_jobs (id, prompt, schedule, session_id, last_run, next_run, active)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO scheduled_jobs (id, prompt, schedule, session_id, last_run, next_run, active, timezone, locked_by, locked_at, lease_timeout_ms, priority)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       job.id,
       job.prompt,
       job.schedule,
       job.sessionId,
       job.lastRun,
       job.nextRun,
-      job.active
+      job.active,
+      job.timezone || 'UTC',
+      job.lockedBy || null,
+      job.lockedAt || null,
+      job.leaseTimeoutMs ?? 60000,
+      job.priority || 'normal'
     );
   }
 
@@ -554,7 +603,7 @@ export class EpisodicMemory {
     if (!this.db) {
       throw new Error('Database not initialized. Call init() first.');
     }
-    return this.db.all(`SELECT id, prompt, schedule, session_id as sessionId, last_run as lastRun, next_run as nextRun, active FROM scheduled_jobs`);
+    return this.db.all(`SELECT id, prompt, schedule, session_id as sessionId, last_run as lastRun, next_run as nextRun, active, timezone, locked_by as lockedBy, locked_at as lockedAt, lease_timeout_ms as leaseTimeoutMs, priority FROM scheduled_jobs`);
   }
 
   async deleteScheduledJob(id: string): Promise<void> {
@@ -573,6 +622,102 @@ export class EpisodicMemory {
       lastRun,
       nextRun,
       id
+    );
+  }
+
+  // --- Job Leases / Distributed Locks (Phase 6) ---
+
+  async acquireJobLease(jobId: string, workerId: string, leaseTimeoutMs: number = 60000): Promise<boolean> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const now = Date.now();
+    const result = await this.db.run(
+      `UPDATE scheduled_jobs
+       SET locked_by = ?, locked_at = ?, lease_timeout_ms = ?
+       WHERE id = ? AND (
+         locked_by IS NULL 
+         OR locked_at IS NULL 
+         OR (locked_at + COALESCE(lease_timeout_ms, 60000)) < ?
+         OR locked_by = ?
+       )`,
+      workerId,
+      now,
+      leaseTimeoutMs,
+      jobId,
+      now,
+      workerId
+    );
+    return (result.changes ?? 0) > 0;
+  }
+
+  async renewJobLease(jobId: string, workerId: string, leaseTimeoutMs: number = 60000): Promise<boolean> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const now = Date.now();
+    const result = await this.db.run(
+      `UPDATE scheduled_jobs
+       SET locked_at = ?, lease_timeout_ms = ?
+       WHERE id = ? AND locked_by = ?`,
+      now,
+      leaseTimeoutMs,
+      jobId,
+      workerId
+    );
+    return (result.changes ?? 0) > 0;
+  }
+
+  async releaseJobLease(jobId: string, workerId: string): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    await this.db.run(
+      `UPDATE scheduled_jobs
+       SET locked_by = NULL, locked_at = NULL
+       WHERE id = ? AND locked_by = ?`,
+      jobId,
+      workerId
+    );
+  }
+
+  // --- Event Log & Deduplication (Phase 6) ---
+
+  async recordEventLog(event: {
+    id: string;
+    topic: string;
+    idempotencyKey?: string;
+    payload?: string;
+    status?: string;
+    source?: string;
+  }): Promise<void> {
+    if (!this.db) return;
+    await this.db.run(
+      `INSERT OR REPLACE INTO event_log (id, topic, idempotency_key, payload, status, source, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      event.id,
+      event.topic,
+      event.idempotencyKey || null,
+      event.payload || null,
+      event.status || 'processed',
+      event.source || 'system',
+      Date.now()
+    );
+  }
+
+  async getEventByIdempotencyKey(key: string, windowMs?: number): Promise<any | null> {
+    if (!this.db) return null;
+    if (windowMs) {
+      const minTimestamp = Date.now() - windowMs;
+      return this.db.get(
+        `SELECT * FROM event_log WHERE idempotency_key = ? AND created_at >= ? LIMIT 1`,
+        key,
+        minTimestamp
+      );
+    }
+    return this.db.get(
+      `SELECT * FROM event_log WHERE idempotency_key = ? LIMIT 1`,
+      key
     );
   }
 

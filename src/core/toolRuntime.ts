@@ -537,7 +537,8 @@ export class ToolSelector {
     'calculate',
     'systemTime',
     'readFile',
-    'semantic_memory_manage'
+    'semantic_memory_manage',
+    'cronjob'
   ]);
 
   private static INTENT_KEYWORDS: Record<string, string[]> = {
@@ -546,7 +547,7 @@ export class ToolSelector {
     web: ['web', 'search', 'google', 'url', 'site', 'browser', 'scrape', 'news', 'find online', 'http', 'https'],
     python: ['python', 'script', 'data', 'plot', 'numpy', 'pandas', 'calculate'],
     agent: ['subagent', 'delegate', 'worker', 'hire', 'team', 'spawn', 'background'],
-    cron: ['cron', 'schedule', 'remind', 'timer', 'alarm', 'recurring']
+    cron: ['cron', 'schedule', 'remind', 'reminder', 'timer', 'alarm', 'recurring', 'interval', 'every', 'secs', 'sec', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'daily', 'weekly', 'monthly', 'delay', 'job', 'jobs', 'cronjob']
   };
 
   private static TOOL_GROUPS: Record<string, string[]> = {
@@ -559,15 +560,16 @@ export class ToolSelector {
   };
 
   /**
-   * Filter available tools based on user prompt/task keywords.
+   * Filter available tools based on user prompt/task keywords and recent conversation context.
    * If intent is ambiguous or tools count is <= 8, returns all permitted tools.
    */
-  static selectRelevantTools(userPrompt: string, availableTools: Tool[]): Tool[] {
+  static selectRelevantTools(userPrompt: string, availableTools: Tool[], context?: string): Tool[] {
     if (availableTools.length <= 8) {
       return availableTools;
     }
 
-    const promptLower = userPrompt.toLowerCase();
+    const combinedText = context ? `${context} ${userPrompt}` : userPrompt;
+    const promptLower = combinedText.toLowerCase();
     const promptTokens = new Set(promptLower.split(/[^a-z0-9_-]+/).filter(Boolean));
     const activeToolNames = new Set<string>(ToolSelector.CORE_TOOLS);
 

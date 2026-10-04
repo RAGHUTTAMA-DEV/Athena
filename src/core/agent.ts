@@ -18,6 +18,21 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
 
+const TOOL_ALIASES: Record<string, string> = {
+  'jobs_schedule': 'cronjob',
+  'schedule_job': 'cronjob',
+  'scheduleJob': 'cronjob',
+  'cron_job': 'cronjob',
+  'cronJob': 'cronjob',
+  'manage_cron': 'cronjob',
+  'scheduler': 'cronjob',
+  'schedule': 'cronjob',
+  'read_file': 'readFile',
+  'write_file': 'writeFile',
+  'execute_command': 'executeCommand',
+  'run_command': 'executeCommand'
+};
+
 export class Agent {
   private provider: LLMProvider;
   private config: AgentConfig;
@@ -290,7 +305,10 @@ export class Agent {
 
       const allAllowedTools = Array.from(toolsRegistry.values())
         .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name));
-      const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools);
+      const recentContext = history.slice(-4)
+        .map(m => m.parts?.map((p: any) => p.text || '').join(' ') || '')
+        .join(' ');
+      const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools, recentContext);
       const functionDeclarations = activeTools.map(tool => cleanGeminiSchema(tool.definition, true));
 
       // Adaptive Orchestration: classify task complexity and initialize plan if complex
@@ -569,9 +587,10 @@ export class Agent {
                 message: `Calling tool: ${call.name} with args: ${JSON.stringify(call.args)}`
               });
 
-              // Enforce tool scoping
-              const isAllowed = !this.config.allowedTools || this.config.allowedTools.includes(call.name);
-              const tool = isAllowed ? toolsRegistry.get(call.name) : null;
+              // Enforce tool scoping with alias resolution
+              const canonicalName = TOOL_ALIASES[call.name] || call.name;
+              const isAllowed = !this.config.allowedTools || this.config.allowedTools.includes(canonicalName);
+              const tool = isAllowed ? toolsRegistry.get(canonicalName) : null;
               if (!tool) {
                 const errMsg = !isAllowed
                   ? `Tool "${call.name}" is not permitted for this agent run.`
