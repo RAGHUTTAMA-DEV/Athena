@@ -4,7 +4,7 @@ import { Message, Part, ProviderType } from './types.js';
 
 export interface LLMResponse {
   text?: string;
-  functionCalls?: Array<{ name: string; args: any }>;
+  functionCalls?: Array<{ id?: string; name: string; args: any }>;
   parts?: Part[];
   finishReason?: string;
   usageMetadata?: {
@@ -50,9 +50,33 @@ export class GeminiProvider implements LLMProvider {
       config.tools = [{ functionDeclarations: params.tools }];
     }
 
+    // Sanitize messages for Gemini to ensure clean structure without extra metadata fields
+    const sanitizedMessages = params.messages.map(msg => ({
+      role: msg.role,
+      parts: msg.parts.map(p => {
+        if ('functionResponse' in p && p.functionResponse) {
+          return {
+            functionResponse: {
+              name: p.functionResponse.name,
+              response: p.functionResponse.response
+            }
+          };
+        }
+        if ('functionCall' in p && p.functionCall) {
+          return {
+            functionCall: {
+              name: p.functionCall.name,
+              args: p.functionCall.args
+            }
+          };
+        }
+        return p;
+      })
+    }));
+
     const response = await this.ai.models.generateContent({
       model: params.model,
-      contents: params.messages as any,
+      contents: sanitizedMessages as any,
       config,
     });
 
@@ -64,6 +88,7 @@ export class GeminiProvider implements LLMProvider {
       ? response.functionCalls
           .filter((call): call is { name: string; args?: any } => typeof call.name === 'string')
           .map((call) => ({
+            id: (call as any).id,
             name: call.name,
             args: call.args || {},
           }))
@@ -117,11 +142,14 @@ export class NvidiaProvider implements LLMProvider {
     }
 
     // Convert Athena Messages to OpenAI ChatCompletionMessageParam array
-    let callCounter = 0;
-    for (const msg of params.messages) {
+    // Maintain a queue of pending tool calls to correlate with tool responses
+    const pendingToolCalls: Array<{ id: string; name: string }> = [];
+
+    for (let msgIdx = 0; msgIdx < params.messages.length; msgIdx++) {
+      const msg = params.messages[msgIdx];
       if (msg.role === 'user') {
         const textParts: string[] = [];
-        const toolResponses: Array<{ name: string; response: any }> = [];
+        const toolResponses: Array<{ id?: string; name: string; response: any }> = [];
 
         for (const p of msg.parts) {
           if ('text' in p && p.text) {
@@ -138,16 +166,34 @@ export class NvidiaProvider implements LLMProvider {
           });
         }
 
-        for (const tr of toolResponses) {
+        for (let trIdx = 0; trIdx < toolResponses.length; trIdx++) {
+          const tr = toolResponses[trIdx];
+          let toolCallId = tr.id;
+          if (!toolCallId) {
+            const pendingIdx = pendingToolCalls.findIndex(ptc => ptc.name === tr.name);
+            if (pendingIdx !== -1) {
+              toolCallId = pendingToolCalls.splice(pendingIdx, 1)[0].id;
+            } else if (pendingToolCalls.length > 0) {
+              toolCallId = pendingToolCalls.shift()!.id;
+            } else {
+              toolCallId = `call_${msgIdx}_${trIdx}`;
+            }
+          } else {
+            const pendingIdx = pendingToolCalls.findIndex(ptc => ptc.id === toolCallId);
+            if (pendingIdx !== -1) {
+              pendingToolCalls.splice(pendingIdx, 1);
+            }
+          }
+
           openAiMessages.push({
             role: 'tool',
-            tool_call_id: `call_${callCounter++}`,
+            tool_call_id: toolCallId,
             content: typeof tr.response === 'string' ? tr.response : JSON.stringify(tr.response),
           });
         }
       } else if (msg.role === 'model') {
         const textParts: string[] = [];
-        const functionCalls: Array<{ name: string; args: any }> = [];
+        const functionCalls: Array<{ id?: string; name: string; args: any }> = [];
 
         for (const p of msg.parts) {
           if ('text' in p && p.text) {
@@ -158,14 +204,18 @@ export class NvidiaProvider implements LLMProvider {
         }
 
         if (functionCalls.length > 0) {
-          const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = functionCalls.map((fc) => ({
-            id: `call_${callCounter++}`,
-            type: 'function',
-            function: {
-              name: fc.name,
-              arguments: JSON.stringify(fc.args || {}),
-            },
-          }));
+          const tool_calls: OpenAI.Chat.ChatCompletionMessageToolCall[] = functionCalls.map((fc, fcIdx) => {
+            const callId = fc.id || `call_${msgIdx}_${fcIdx}`;
+            pendingToolCalls.push({ id: callId, name: fc.name });
+            return {
+              id: callId,
+              type: 'function',
+              function: {
+                name: fc.name,
+                arguments: JSON.stringify(fc.args || {}),
+              },
+            };
+          });
 
           openAiMessages.push({
             role: 'assistant',
@@ -209,7 +259,7 @@ export class NvidiaProvider implements LLMProvider {
     const finishReason = choice?.finish_reason || 'stop';
 
     let text: string | undefined = undefined;
-    let functionCalls: Array<{ name: string; args: any }> | undefined = undefined;
+    let functionCalls: Array<{ id?: string; name: string; args: any }> | undefined = undefined;
     const parts: Part[] = [];
 
     if (message?.content) {
@@ -228,11 +278,13 @@ export class NvidiaProvider implements LLMProvider {
             parsedArgs = {};
           }
           functionCalls.push({
+            id: tc.id,
             name: tc.function.name,
             args: parsedArgs,
           });
           parts.push({
             functionCall: {
+              id: tc.id,
               name: tc.function.name,
               args: parsedArgs,
             },

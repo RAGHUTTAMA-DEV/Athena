@@ -2,6 +2,7 @@ import { open, Database } from 'sqlite';
 import sqlite3 from 'sqlite3';
 import { Message } from './types.js';
 import { GoogleGenAI } from '@google/genai';
+import OpenAI from 'openai';
 
 export interface SemanticFact {
   id?: number;
@@ -15,7 +16,9 @@ export class EpisodicMemory {
   private db: Database | null = null;
   private dbPath: string;
   private ai: GoogleGenAI | null = null;
+  private openAIClient: OpenAI | null = null;
   private apiKey?: string;
+  private hasWarnedNoEmbeddingKey: boolean = false;
 
   constructor(dbPath: string, apiKey?: string) {
     this.dbPath = dbPath;
@@ -31,6 +34,40 @@ export class EpisodicMemory {
       this.ai = new GoogleGenAI({ apiKey: key });
     }
     return this.ai;
+  }
+
+  private async generateEmbedding(text: string): Promise<number[] | null> {
+    const geminiKey = this.apiKey || process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+      const ai = this.getAI();
+      const response = await ai.models.embedContent({
+        model: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
+        contents: text
+      });
+      if (response.embeddings && response.embeddings[0]?.values) {
+        return response.embeddings[0].values;
+      }
+      throw new Error('Gemini embedding values missing from response');
+    }
+
+    const openaiKey = process.env.OPENAI_API_KEY || process.env.NVIDIA_API_KEY;
+    if (openaiKey) {
+      if (!this.openAIClient) {
+        const baseURL = process.env.OPENAI_BASE_URL || (process.env.NVIDIA_API_KEY && !process.env.OPENAI_API_KEY ? (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1') : undefined);
+        this.openAIClient = new OpenAI({ apiKey: openaiKey, baseURL });
+      }
+      const model = process.env.EMBEDDING_MODEL || (process.env.OPENAI_API_KEY ? 'text-embedding-3-small' : 'nvidia/nv-embedqa-e5-v5');
+      const response = await this.openAIClient.embeddings.create({
+        model,
+        input: text
+      });
+      if (response.data && response.data[0]?.embedding) {
+        return response.data[0].embedding;
+      }
+      throw new Error('OpenAI embedding values missing from response');
+    }
+
+    return null;
   }
 
   async init(): Promise<void> {
@@ -258,20 +295,15 @@ export class EpisodicMemory {
       throw new Error('Database not initialized. Call init() first.');
     }
 
-    const ai = this.getAI();
-    let embedding: number[] = [];
+    let embedding: number[] | null = null;
     try {
-      const response = await ai.models.embedContent({
-        model: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
-        contents: fact
-      });
-      if (response.embeddings && response.embeddings[0]?.values) {
-        embedding = response.embeddings[0].values;
-      } else {
-        throw new Error('Embedding values missing from response');
-      }
+      embedding = await this.generateEmbedding(fact);
     } catch (err: any) {
       throw new Error(`Failed to generate embedding for fact: ${err.message}`);
+    }
+
+    if (!embedding) {
+      throw new Error('No embedding API key configured (set GEMINI_API_KEY, OPENAI_API_KEY, or NVIDIA_API_KEY).');
     }
 
     const tagsStr = tags && tags.length > 0 ? tags.join(',') : null;
@@ -291,20 +323,20 @@ export class EpisodicMemory {
       throw new Error('Database not initialized. Call init() first.');
     }
 
-    const ai = this.getAI();
-    let queryEmbedding: number[] = [];
+    let queryEmbedding: number[] | null = null;
     try {
-      const response = await ai.models.embedContent({
-        model: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
-        contents: query
-      });
-      if (response.embeddings && response.embeddings[0]?.values) {
-        queryEmbedding = response.embeddings[0].values;
-      } else {
-        throw new Error('Embedding values missing from response');
-      }
+      queryEmbedding = await this.generateEmbedding(query);
     } catch (err: any) {
-      throw new Error(`Failed to generate embedding for query: ${err.message}`);
+      console.warn(`[Semantic Memory Warning] Embedding generation failed: ${err.message}`);
+      return [];
+    }
+
+    if (!queryEmbedding) {
+      if (!this.hasWarnedNoEmbeddingKey) {
+        console.warn('[Semantic Memory] No embedding provider configured. Semantic search disabled.');
+        this.hasWarnedNoEmbeddingKey = true;
+      }
+      return [];
     }
 
     // Retrieve all facts from database

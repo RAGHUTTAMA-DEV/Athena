@@ -4,6 +4,7 @@ export interface TextPart {
 
 export interface FunctionCallPart {
   functionCall: {
+    id?: string;
     name: string;
     args: Record<string, any>;
   };
@@ -11,6 +12,7 @@ export interface FunctionCallPart {
 
 export interface FunctionResponsePart {
   functionResponse: {
+    id?: string;
     name: string;
     response: Record<string, any>;
   };
@@ -53,6 +55,10 @@ export interface ToolContext {
   depth?: number;
   parentRunId?: string;
   onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void;
+  provider?: ProviderType;
+  modelName?: string;
+  nvidiaApiKey?: string;
+  nvidiaBaseUrl?: string;
 }
 
 export type ProviderType = 'gemini' | 'nvidia';

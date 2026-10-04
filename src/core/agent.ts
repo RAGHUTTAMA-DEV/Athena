@@ -312,6 +312,7 @@ export class Agent {
               if (!call.name) {
                 toolResponseParts[idx] = {
                   functionResponse: {
+                    id: call.id,
                     name: '',
                     response: { success: false, error: 'Empty function call name.' }
                   }
@@ -334,6 +335,7 @@ export class Agent {
                 safeOnUpdate({ type: 'error', message: errMsg });
                 toolResponseParts[idx] = {
                   functionResponse: {
+                    id: call.id,
                     name: call.name,
                     response: { success: false, error: errMsg }
                   }
@@ -362,6 +364,7 @@ export class Agent {
                     safeOnUpdate({ type: 'error', message: deniedMsg });
                     toolResponseParts[idx] = {
                       functionResponse: {
+                        id: call.id,
                         name: call.name,
                         response: { success: false, error: 'Permission denied by user.' }
                       }
@@ -373,6 +376,7 @@ export class Agent {
                   safeOnUpdate({ type: 'error', message: errMsg });
                   toolResponseParts[idx] = {
                     functionResponse: {
+                      id: call.id,
                       name: call.name,
                       response: { success: false, error: errMsg }
                     }
@@ -387,7 +391,11 @@ export class Agent {
                   memory: this.memory || undefined,
                   depth: this.config.depth || 0,
                   parentRunId: sessionId,
-                  onUpdate: safeOnUpdate
+                  onUpdate: safeOnUpdate,
+                  provider: this.config.provider,
+                  modelName: this.config.modelName,
+                  nvidiaApiKey: this.config.nvidiaApiKey,
+                  nvidiaBaseUrl: this.config.nvidiaBaseUrl
                 };
 
                 const result = await startActiveObservation(
@@ -413,6 +421,7 @@ export class Agent {
 
                 toolResponseParts[idx] = {
                   functionResponse: {
+                    id: call.id,
                     name: call.name,
                     response: result
                   }
@@ -422,6 +431,7 @@ export class Agent {
                 safeOnUpdate({ type: 'error', message: errMsg });
                 toolResponseParts[idx] = {
                   functionResponse: {
+                    id: call.id,
                     name: call.name,
                     response: { success: false, error: errMsg }
                   }

@@ -59,13 +59,22 @@ Crucial Sub-Agent Rules:
 3. Complete your task in as few turns as possible (aim for 2-4 turns maximum).
 4. When you are done, output your final findings clearly and concisely. Do NOT ask for additional user confirmation. Focus on the sub-task.`;
 
+    const childProvider = context?.provider || (process.env.LLM_PROVIDER as any) || 'gemini';
+    const defaultModel = childProvider === 'nvidia'
+      ? (process.env.NVIDIA_MODEL || 'z-ai/glm-5.2')
+      : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
+    const childModelName = context?.modelName || defaultModel;
+
     const childAgent = new Agent({
-      modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+      provider: childProvider,
+      modelName: childModelName,
       maxTurns: args.maxTurns || parseInt(process.env.MAX_TURNS || process.env.MAX_ITERATIONS || '20', 10),
       systemPrompt,
       allowedTools,
       depth: childDepth,
-      taskId
+      taskId,
+      nvidiaApiKey: context?.nvidiaApiKey,
+      nvidiaBaseUrl: context?.nvidiaBaseUrl
     });
 
     await childAgent.init();
