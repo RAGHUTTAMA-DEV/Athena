@@ -12,8 +12,8 @@
 | **Phase 2** | **Context + Memory** | Athena Core | **100%** | `npm run test:context_memory` | ✅ **Completed & Verified** |
 | **Phase 3** | **Tool Runtime** | Athena Core | **100%** | `npm run test:tools` | ✅ **Completed & Verified** |
 | **Phase 4** | **Adaptive Orchestration** | Athena Core | **100%** | `npm run test:orchestration` | ✅ **Completed & Verified** |
-| **Phase 5** | **Coding Harness Integration** | Harness Bridge | **0%** | `npm run test:eval` | 🟡 **Next Up** |
-| **Phase 6** | **Background + Event Runtime** | Athena Core | **0%** | `npm run test:evolution` | ⏳ Queued |
+| **Phase 5** | **Coding Harness Integration** | Harness Bridge | **100%** | `npm run test:harness` | ✅ **Completed & Verified** |
+| **Phase 6** | **Background + Event Runtime** | Athena Core | **0%** | `npm run test:evolution` | 🟡 **Next Up** |
 | **Phase 7** | **Reliability + Security** | Athena Core | **0%** | `npm run test:security` | ⏳ Queued |
 | **Phase 8** | **Observability + Evaluation** | Athena Core | **0%** | `npm run test:observability` | ⏳ Queued |
 | **Phase 9** | **Platform / Production** | Athena Core | **0%** | `npm run test:production` | ⏳ Queued |
@@ -125,17 +125,22 @@ flowchart TD
 
 ---
 
-## Phase 5: CODING HARNESS INTEGRATION — [QUEUED]
+## Phase 5: CODING HARNESS INTEGRATION — [100% COMPLETE]
 
-- [ ] **Zero Duplicate Architecture**: Do **NOT** build a secondary sandbox, rollback engine, or checkpoint system in Athena. Harness owns coding execution.
-- [ ] **Typed Protocol**:
-  - `CodingTaskRequest`: `{ runId, task, cwd, constraints, allowedCapabilities, budget }`
-  - `CodingTaskResult`: `{ status, summary, filesChanged, tests, diff, checkpointId, verification, artifacts, errors }`
-- [ ] **Shared Run ID**: Athena `runId` propagated directly through the Coding Harness and evaluation logs.
-- [ ] **Harness Lifecycle Streaming**: Stream events (`inspecting`, `editing`, `testing`, `repairing`, `verifying`, `completed`) into Athena's `AgentEventStream`.
-- [ ] **Repository Intelligence**: Query Harness for project tech stack, package manager, test scripts, and git status.
-- [ ] **Checkpoint & Rollback Coordination**: Athena requests Harness checkpoints before risky refactors and issues rollbacks on test failure.
-- [ ] **Final Acceptance Gate**: Git diff + automated tests + verification pass before marking task complete.
+- [x] **Zero Duplicate Architecture**: Athena orchestrates coding execution via the external Coding Harness without duplicate sandboxes or rollback engines.
+- [x] **Typed Protocol**:
+  - `CodingTaskRequest`: `{ runId, task, cwd, traceId, maxIterations, timeoutSec, constraints, autoSnapshot }` ([`src/core/codingHarnessTypes.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/codingHarnessTypes.ts)).
+  - `CodingTaskResult`: `{ status, summary, filesChanged, testsPassed, diff, checkpointId, stdout, stderr, error, durationMs }`.
+- [x] **Shared Run ID**: Athena `runId` passed to Harness via `--trace-id` for linked observability and telemetry.
+- [x] **Live Progress Event Streaming**: Streams stderr and stdout thoughts and progress from the child process directly into Athena's `AgentEventEmitter` and CLI.
+- [x] **Repository Intelligence**: `inspectRepo()` discovers workspace package manager (`npm`, `yarn`, `pnpm`, `bun`, `pip`, `cargo`), test scripts, and git branch status.
+- [x] **Checkpoint & Rollback Coordination**: Coordinates pre-execution snapshots (`createSnapshot`) and rolls back automatically (`rollbackSnapshot`) if automated tests fail.
+- [x] **Final Acceptance Gate**: `CodingAcceptanceGate.verify()` validates that status is successful, required files were modified, and tests passed.
+- [x] **Hardened Tool Definition**: `delegateCodingTaskTool` wrapped with `ToolManifest` (`riskLevel: 'confirm'`, timeout: 300s, permissions: `cmd:exec`, `system`).
+
+**Verification**:
+* Test file: [`src/tests/test_phase5_coding_harness.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_phase5_coding_harness.ts)
+* Command: `npm run test:harness` (5/5 passing)
 
 ---
 

@@ -1,5 +1,5 @@
 import { Tool, ToolContext } from '../core/types.js';
-import { spawn } from 'child_process';
+import { CodingHarnessBridge } from '../core/codingHarness.js';
 
 export const delegateCodingTaskTool: Tool = {
   definition: {
@@ -15,87 +15,48 @@ export const delegateCodingTaskTool: Tool = {
         cwd: {
           type: 'STRING',
           description: 'Absolute path to the repo/project directory to work in.'
+        },
+        autoSnapshot: {
+          type: 'BOOLEAN',
+          description: 'Whether to create an automatic checkpoint/snapshot before applying modifications (default: true).'
+        },
+        maxIterations: {
+          type: 'INTEGER',
+          description: 'Optional maximum iterations for the coding sub-agent.'
         }
       },
       required: ['task', 'cwd']
     }
   },
+  manifest: {
+    name: 'delegateCodingTask',
+    version: '1.2.0',
+    description: 'Delegates coding execution to the external Coding Harness with checkpointing, tests, and diff tracking.',
+    riskLevel: 'confirm',
+    parallelSafe: false,
+    timeoutMs: 300000,
+    permissions: ['cmd:exec', 'system'],
+    tags: ['coding_harness', 'code', 'delegation']
+  },
   requiresConfirmation: true,
-  execute: async (args: { task: string; cwd: string }, context?: ToolContext) => {
-    return new Promise((resolve) => {
-      try {
-        const traceId = context?.parentRunId || '';
-        const execArgs = ['--task', args.task, '--cwd', args.cwd];
-        if (traceId) {
-          execArgs.push('--trace-id', traceId);
-        }
-
-        // Spawn harness command using cmd.exe on Windows or directly on other platforms to avoid quoting/path issues
-        const child = process.platform === 'win32'
-          ? spawn('cmd.exe', ['/c', 'harness', ...execArgs], { timeout: 5 * 60 * 1000, shell: false })
-          : spawn('harness', execArgs, { timeout: 5 * 60 * 1000, shell: false });
-
-
-
-        let stdout = '';
-        let stderr = '';
-
-        child.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-
-        child.stderr.on('data', (data) => {
-          const str = data.toString();
-          stderr += str;
-          // Clean up progress/thinking logs and forward to onUpdate
-          if (context?.onUpdate && str.trim()) {
-            context.onUpdate({ type: 'thought', message: `[Harness] ${str.trim()}` });
-          }
-        });
-
-        child.on('close', (code) => {
-          if (code === 0) {
-            try {
-              const parsed = JSON.parse(stdout.trim());
-              resolve(parsed);
-            } catch (err: any) {
-              resolve({
-                status: 'failed',
-                error: `Failed to parse harness JSON output: ${err.message}`,
-                stdout: stdout.trim(),
-                stderr: stderr.trim()
-              });
-            }
-          } else {
-            // Check if stdout has JSON even with non-zero exit code
-            try {
-              const parsed = JSON.parse(stdout.trim());
-              resolve(parsed);
-            } catch (err) {
-              resolve({
-                status: 'failed',
-                error: `Harness exited with code ${code}`,
-                stdout: stdout.trim(),
-                stderr: stderr.trim()
-              });
-            }
-          }
-        });
-
-        child.on('error', (err) => {
-          resolve({
-            status: 'failed',
-            error: err.message,
-            stdout: stdout.trim(),
-            stderr: stderr.trim()
-          });
-        });
-      } catch (err: any) {
-        resolve({
-          status: 'failed',
-          error: err.message
-        });
+  execute: async (args: { task: string; cwd: string; autoSnapshot?: boolean; maxIterations?: number }, context?: ToolContext) => {
+    const bridge = CodingHarnessBridge.getInstance();
+    const result = await bridge.executeTask(
+      {
+        runId: context?.runId || `task_${Date.now()}`,
+        task: args.task,
+        cwd: args.cwd,
+        traceId: context?.parentRunId || context?.runId,
+        autoSnapshot: args.autoSnapshot ?? true,
+        maxIterations: args.maxIterations
+      },
+      {
+        cancellationToken: context?.cancellationToken,
+        events: context?.events,
+        onUpdate: context?.onUpdate
       }
-    });
+    );
+
+    return result;
   }
 };
