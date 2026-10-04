@@ -1,6 +1,7 @@
 import { Tool } from '../core/types.js';
 import { chromium, BrowserContext, Page } from 'playwright';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 
 // Global session state to persist the browser session across tool calls
 let activeBrowser: { context: BrowserContext; page: Page } | null = null;
@@ -192,3 +193,64 @@ async function getPageElementsSummary(page: Page) {
     interactiveElements: elements.slice(0, 150)
   };
 }
+
+/**
+ * Tool: Capture Browser Screenshot
+ */
+export const browserScreenshotTool: Tool = {
+  definition: {
+    name: 'browserScreenshot',
+    description: 'Capture a screenshot of the currently active browser page (or navigate to a URL and take a screenshot). Saves the image locally for visual verification.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        url: {
+          type: 'STRING',
+          description: 'Optional URL to navigate to before capturing screenshot. If omitted, captures current active page.'
+        },
+        path: {
+          type: 'STRING',
+          description: 'Optional file path where screenshot should be saved (defaults to "scratch/screenshots/screenshot_<timestamp>.png").'
+        },
+        fullPage: {
+          type: 'BOOLEAN',
+          description: 'Whether to capture full scrollable page height (defaults to false).'
+        }
+      }
+    }
+  },
+  requiresConfirmation: false,
+  execute: async (args: { url?: string; path?: string; fullPage?: boolean }) => {
+    try {
+      const { page } = await getBrowserSession();
+
+      if (args.url) {
+        await page.goto(args.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForTimeout(1500);
+      }
+
+      const saveDir = path.resolve(process.cwd(), 'scratch/screenshots');
+      await fs.mkdir(saveDir, { recursive: true });
+
+      const filename = args.path
+        ? path.resolve(process.cwd(), args.path)
+        : path.join(saveDir, `screenshot_${Date.now()}.png`);
+
+      await fs.mkdir(path.dirname(filename), { recursive: true });
+      await page.screenshot({ path: filename, fullPage: args.fullPage === true });
+
+      const title = await page.title();
+      const relativePath = path.relative(process.cwd(), filename);
+
+      return {
+        success: true,
+        title,
+        currentUrl: page.url(),
+        savedPath: relativePath.replace(/\\/g, '/'),
+        message: `Screenshot captured successfully and saved to ${relativePath}.`
+      };
+    } catch (err: any) {
+      return { success: false, error: `Failed to capture screenshot: ${err.message}` };
+    }
+  }
+};

@@ -136,10 +136,6 @@ export class Scheduler {
     if (!this.memory || !this.runner) return;
 
     const now = new Date();
-    const currentMinute = now.getMinutes();
-    if (currentMinute === this.lastCheckedMinute) return;
-    this.lastCheckedMinute = currentMinute;
-
     const currentTime = now.getTime();
     const jobs = await this.memory.getScheduledJobs();
 
@@ -147,18 +143,24 @@ export class Scheduler {
       if (job.active && currentTime >= job.nextRun) {
         console.log(`[Scheduler] Triggering scheduled job "${job.id}" (Prompt: "${job.prompt}")`);
         
-        // Update runs immediately to prevent duplicate triggers
         const lastRun = currentTime;
-        let nextRun = currentTime;
-        try {
-          nextRun = getNextCronTime(job.schedule, currentTime);
-        } catch (e: any) {
-          console.error(`[Scheduler] Failed to calculate next cron time for job ${job.id}:`, e.message);
-          // deactivate job on error
-          job.active = 0;
-        }
+        const isOneShot = job.schedule.startsWith('once:');
 
-        await this.memory.updateScheduledJobRun(job.id, lastRun, nextRun);
+        if (isOneShot) {
+          // Deactivate and remove one-shot job so it does not repeat
+          job.active = 0;
+          await this.memory.updateScheduledJobRun(job.id, lastRun, 0);
+          await this.memory.deleteScheduledJob(job.id);
+        } else {
+          let nextRun = currentTime;
+          try {
+            nextRun = getNextCronTime(job.schedule, currentTime);
+          } catch (e: any) {
+            console.error(`[Scheduler] Failed to calculate next cron time for job ${job.id}:`, e.message);
+            job.active = 0;
+          }
+          await this.memory.updateScheduledJobRun(job.id, lastRun, nextRun);
+        }
 
         // Run the agent prompt asynchronously
         this.runner(job.prompt, job.sessionId)
@@ -183,8 +185,15 @@ export class Scheduler {
       throw new Error('Scheduler memory not set. Call setMemory() first.');
     }
     
-    // Verify cron expression format is valid
-    const nextRun = getNextCronTime(schedule, Date.now());
+    let nextRun: number;
+    if (schedule.startsWith('once:')) {
+      nextRun = parseInt(schedule.substring(5), 10);
+      if (isNaN(nextRun)) {
+        throw new Error(`Invalid one-shot schedule format: ${schedule}`);
+      }
+    } else {
+      nextRun = getNextCronTime(schedule, Date.now());
+    }
 
     const job: ScheduledJob = {
       id,
@@ -198,6 +207,27 @@ export class Scheduler {
 
     await this.memory.saveScheduledJob(job);
     return job;
+  }
+
+  async addOneShotJob(
+    id: string,
+    prompt: string,
+    delaySecondsOrIso: number | string,
+    sessionId: string
+  ): Promise<ScheduledJob> {
+    let targetTime: number;
+    if (typeof delaySecondsOrIso === 'number') {
+      targetTime = Date.now() + Math.max(1, delaySecondsOrIso) * 1000;
+    } else {
+      const parsed = Date.parse(delaySecondsOrIso);
+      if (isNaN(parsed)) {
+        throw new Error(`Invalid ISO date format for one-shot timer: "${delaySecondsOrIso}"`);
+      }
+      targetTime = parsed;
+    }
+
+    const schedule = `once:${targetTime}`;
+    return this.addJob(id, prompt, schedule, sessionId);
   }
 
   async listJobs(): Promise<ScheduledJob[]> {

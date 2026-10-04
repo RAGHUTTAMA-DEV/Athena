@@ -121,6 +121,7 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 | `delegate_task` | Delegate generic tasks to an isolated sub-agent with scoped tools |
 | `delegateCodingTask` | Spawn dedicated coding sub-agent process harness for repository tasks |
 | `browser` / `interactiveBrowser` | Headless Chromium web browsing, navigation, and DOM manipulation |
+| `browserScreenshot` | Capture full or viewport screenshots of web pages for visual verification |
 | `searchWeb` | Web search powered by DuckDuckGo and Yahoo fallback |
 | `terminal` | Shell command execution with execution timeouts, maxBuffer, and cwd support |
 | `filesystem` | File and directory operations (listFiles, writeFile, deleteFile) |
@@ -129,7 +130,7 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 | `readFile` | Utility tool to view file contents with line slicing (`startLine`, `endLine`) and size limits |
 | `executePython` | Isolated Python code execution sandbox |
 | `calculate` | Mathematical expression evaluation |
-| `cronjob` | Background timer and cron job manager |
+| `cronjob` | Background recurring cron jobs and one-shot delayed reminders with auto-cleanup |
 | `skillManage` | Create, list, read, and edit dynamic procedural skill files |
 | `semanticMemory` | Multi-provider semantic facts search and persistent memory |
 | `systemTime` | Query current system date and time |

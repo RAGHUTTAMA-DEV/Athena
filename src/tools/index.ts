@@ -13,7 +13,7 @@ import { semanticMemoryTool } from './semanticMemory.js';
 import { executePythonTool } from './executePython.js';
 import { delegateTaskTool } from './delegateTask.js';
 import { cronjobTool } from './cronjob.js';
-import { browserNavigateTool, browserActionTool } from './interactiveBrowser.js';
+import { browserNavigateTool, browserActionTool, browserScreenshotTool } from './interactiveBrowser.js';
 import { delegateCodingTaskTool } from './delegateCodingTask.js';
 
 export const tools: Tool[] = [
@@ -35,6 +35,7 @@ export const tools: Tool[] = [
   cronjobTool,
   browserNavigateTool,
   browserActionTool,
+  browserScreenshotTool,
   delegateCodingTaskTool
 ];
 
