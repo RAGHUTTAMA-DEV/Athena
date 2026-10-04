@@ -43,8 +43,11 @@ export interface ToolDefinition {
   };
 }
 
+import type { ToolManifest } from './toolRuntime.js';
+
 export interface Tool {
   definition: ToolDefinition;
+  manifest?: ToolManifest;
   execute: (args: any, context?: ToolContext) => Promise<any> | any;
   requiresConfirmation?: boolean;
 }

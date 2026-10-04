@@ -12,6 +12,7 @@ import { RunState, RunStatus, RunBudget, createInitialRunState, StructuredFailur
 import { CancellationToken } from './cancellation.js';
 import { AgentEvent, AgentEventEmitter } from './events.js';
 import { ContextEngine } from './contextEngine.js';
+import { ToolExecutor, ToolSelector, ToolResult } from './toolRuntime.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
@@ -22,6 +23,11 @@ export class Agent {
   private soul: string = '';
   private memory: EpisodicMemory | null = null;
   private procedural: ProceduralMemory | null = null;
+  private toolExecutor: ToolExecutor = new ToolExecutor();
+
+  public getToolExecutor(): ToolExecutor {
+    return this.toolExecutor;
+  }
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -281,9 +287,10 @@ export class Agent {
         parts: [{ text: userPrompt }]
       });
 
-      const functionDeclarations = Array.from(toolsRegistry.values())
-        .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name))
-        .map(tool => cleanGeminiSchema(tool.definition, true));
+      const allAllowedTools = Array.from(toolsRegistry.values())
+        .filter(tool => !this.config.allowedTools || this.config.allowedTools.includes(tool.definition.name));
+      const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools);
+      const functionDeclarations = activeTools.map(tool => cleanGeminiSchema(tool.definition, true));
 
       let currentMaxTurns = runState.budget.maxTurns || this.config.maxTurns;
       let turns = 0;
@@ -555,13 +562,15 @@ export class Agent {
                 currentMaxTurns = Math.max(currentMaxTurns, 25);
               }
 
+              const manifest = this.toolExecutor.resolveManifest(tool);
+
               // Check for confirmation for risky actions
-              if (tool.requiresConfirmation) {
+              if (manifest.riskLevel === 'confirm' || manifest.riskLevel === 'destructive' || tool.requiresConfirmation) {
                 const silent = !confirm || (confirm as any).silent;
                 if (!silent) {
                   safeOnUpdate({
                     type: 'thought',
-                    message: `Tool "${call.name}" requires confirmation. Awaiting user response...`
+                    message: `Tool "${call.name}" [${manifest.riskLevel}] requires confirmation. Awaiting user response...`
                   });
                 }
                 try {
@@ -641,14 +650,14 @@ export class Agent {
                 };
 
                 const toolStartTime = Date.now();
-                const result = await startActiveObservation(
+                const toolResult: ToolResult = await startActiveObservation(
                   `tool-${call.name}`,
                   async (toolSpan) => {
                     toolSpan.update({
                       input: JSON.stringify(call.args),
                     });
 
-                    const res = await tool.execute(call.args, toolContext);
+                    const res = await this.toolExecutor.execute(tool, call.args, toolContext);
 
                     toolSpan.update({
                       output: JSON.stringify(res),
@@ -669,22 +678,29 @@ export class Agent {
                   turn: turns,
                   callId: call.id,
                   toolName: call.name,
-                  success: true,
-                  result,
+                  success: toolResult.success,
+                  result: toolResult.data,
+                  error: toolResult.error?.message,
                   durationMs: toolDuration,
                   timestamp: Date.now()
                 });
 
                 safeOnUpdate({
-                  type: 'tool_response',
-                  message: `Tool ${call.name} returned: ${JSON.stringify(result)}`
+                  type: toolResult.success ? 'tool_response' : 'error',
+                  message: toolResult.success
+                    ? (toolResult.metadata?.truncated
+                        ? `Tool ${call.name} output offloaded to disk: ${toolResult.metadata.artifactPath}`
+                        : `Tool ${call.name} returned: ${JSON.stringify(toolResult.data)}`)
+                    : `Tool ${call.name} failed: ${toolResult.error?.message}`
                 });
 
                 toolResponseParts[idx] = {
                   functionResponse: {
                     id: call.id,
                     name: call.name,
-                    response: result
+                    response: toolResult.success
+                      ? (toolResult.data ?? { success: true })
+                      : { success: false, error: toolResult.error?.message, code: toolResult.error?.code }
                   }
                 };
               } catch (toolErr: any) {
