@@ -13,6 +13,7 @@
     "verify": "tsc && node dist/tests/verify.js",
     "test:memory": "tsc && node dist/tests/test_memory.js",
     "test:delegation": "tsc && node dist/tests/test_phase4_delegation.js",
+    "test:orchestration": "tsc && node dist/tests/test_phase4_adaptive_orchestration.js",
     "test:eval": "tsc && node dist/core/eval.js",
     "test:observability": "tsc && node dist/tests/test_phase6_observability.js",
     "test:tools": "tsc && node dist/tests/test_phase3_tools.js",

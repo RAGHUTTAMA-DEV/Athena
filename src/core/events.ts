@@ -10,7 +10,12 @@ export type AgentEventType =
   | 'subagent_finish'
   | 'budget_warning'
   | 'error'
-  | 'completed';
+  | 'completed'
+  | 'plan_created'
+  | 'plan_step_update'
+  | 'escalation'
+  | 'verification'
+  | 'repair_attempt';
 
 export interface BaseAgentEvent {
   runId: string;
@@ -91,6 +96,45 @@ export interface CompletedEvent extends BaseAgentEvent {
   result?: string;
 }
 
+export interface PlanCreatedEvent extends BaseAgentEvent {
+  type: 'plan_created';
+  planId: string;
+  goal: string;
+  totalSteps: number;
+  steps: Array<{ stepId: string; description: string; dependencies: string[]; acceptanceCriteria?: string }>;
+}
+
+export interface PlanStepUpdateEvent extends BaseAgentEvent {
+  type: 'plan_step_update';
+  planId: string;
+  stepId: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'skipped';
+  result?: any;
+  error?: string;
+}
+
+export interface EscalationEvent extends BaseAgentEvent {
+  type: 'escalation';
+  fromComplexity: string;
+  toComplexity: string;
+  reason: string;
+}
+
+export interface VerificationEvent extends BaseAgentEvent {
+  type: 'verification';
+  passed: boolean;
+  reasoning: string;
+  issues?: string[];
+}
+
+export interface RepairAttemptEvent extends BaseAgentEvent {
+  type: 'repair_attempt';
+  attempt: number;
+  maxAttempts: number;
+  issues: string[];
+  repairAction: string;
+}
+
 export type AgentEvent =
   | StatusChangeEvent
   | TurnStartEvent
@@ -101,7 +145,12 @@ export type AgentEvent =
   | SubagentFinishEvent
   | BudgetWarningEvent
   | AgentErrorEvent
-  | CompletedEvent;
+  | CompletedEvent
+  | PlanCreatedEvent
+  | PlanStepUpdateEvent
+  | EscalationEvent
+  | VerificationEvent
+  | RepairAttemptEvent;
 
 export type EventHandler<T extends AgentEvent = AgentEvent> = (event: T) => void | Promise<void>;
 

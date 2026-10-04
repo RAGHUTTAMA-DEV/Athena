@@ -13,6 +13,7 @@ import { CancellationToken } from './cancellation.js';
 import { AgentEvent, AgentEventEmitter } from './events.js';
 import { ContextEngine } from './contextEngine.js';
 import { ToolExecutor, ToolSelector, ToolResult } from './toolRuntime.js';
+import { TaskClassifier, Planner, VerificationGate, DynamicEscalator, ExecutionPlan, TaskClassification } from './orchestration.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
@@ -292,7 +293,36 @@ export class Agent {
       const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools);
       const functionDeclarations = activeTools.map(tool => cleanGeminiSchema(tool.definition, true));
 
-      let currentMaxTurns = runState.budget.maxTurns || this.config.maxTurns;
+      // Adaptive Orchestration: classify task complexity and initialize plan if complex
+      const classification = TaskClassifier.classify(userPrompt);
+      let activeComplexity = classification.complexity;
+      const escalator = new DynamicEscalator(activeComplexity);
+
+      let executionPlan: ExecutionPlan | null = null;
+      if (activeComplexity === 'complex') {
+        executionPlan = Planner.decomposeGoal(userPrompt);
+        events.emit({
+          type: 'plan_created',
+          runId,
+          parentRunId,
+          planId: executionPlan.planId,
+          goal: executionPlan.goal,
+          totalSteps: executionPlan.steps.length,
+          steps: executionPlan.steps.map(s => ({
+            stepId: s.stepId,
+            description: s.description,
+            dependencies: s.dependencies,
+            acceptanceCriteria: s.acceptanceCriteria
+          })),
+          timestamp: Date.now()
+        });
+        safeOnUpdate({
+          type: 'thought',
+          message: `[Orchestrator] Complex task identified. Formulated plan with ${executionPlan.steps.length} steps: ${executionPlan.steps.map(s => s.description).join(' ➔ ')}`
+        });
+      }
+
+      let currentMaxTurns = runState.budget.maxTurns || (classification.suggestedMaxTurns ? Math.max(this.config.maxTurns, classification.suggestedMaxTurns) : this.config.maxTurns);
       let turns = 0;
       let emptyResponseCount = 0;
       while (turns < currentMaxTurns) {
@@ -671,6 +701,64 @@ export class Agent {
                 runState!.idempotencyKeys.push(idempotencyKey);
                 runState!.usage.toolCallsCount++;
 
+                escalator.recordToolResult(toolResult.success);
+
+                // Check dynamic escalation
+                const escalationCheck = escalator.shouldEscalate(turns);
+                if (escalationCheck.escalate && escalationCheck.targetComplexity) {
+                  const fromComplexity = activeComplexity;
+                  activeComplexity = escalationCheck.targetComplexity;
+                  escalator.escalate(activeComplexity);
+                  events.emit({
+                    type: 'escalation',
+                    runId,
+                    parentRunId,
+                    fromComplexity,
+                    toComplexity: activeComplexity,
+                    reason: escalationCheck.reason || 'Dynamic escalation triggered.',
+                    timestamp: Date.now()
+                  });
+                  safeOnUpdate({
+                    type: 'thought',
+                    message: `[Escalation] ${escalationCheck.reason}`
+                  });
+                  if (activeComplexity === 'complex' && !executionPlan) {
+                    executionPlan = Planner.decomposeGoal(userPrompt);
+                    events.emit({
+                      type: 'plan_created',
+                      runId,
+                      parentRunId,
+                      planId: executionPlan.planId,
+                      goal: executionPlan.goal,
+                      totalSteps: executionPlan.steps.length,
+                      steps: executionPlan.steps.map(s => ({
+                        stepId: s.stepId,
+                        description: s.description,
+                        dependencies: s.dependencies,
+                        acceptanceCriteria: s.acceptanceCriteria
+                      })),
+                      timestamp: Date.now()
+                    });
+                  }
+                }
+
+                if (executionPlan) {
+                  const pendingSteps = Planner.getExecutableSteps(executionPlan);
+                  if (pendingSteps.length > 0) {
+                    const step = pendingSteps[0];
+                    step.status = 'completed';
+                    events.emit({
+                      type: 'plan_step_update',
+                      runId,
+                      parentRunId,
+                      planId: executionPlan.planId,
+                      stepId: step.stepId,
+                      status: 'completed',
+                      timestamp: Date.now()
+                    });
+                  }
+                }
+
                 events.emit({
                   type: 'tool_result',
                   runId,
@@ -739,7 +827,63 @@ export class Agent {
 
           // No function calls, this is the final answer!
           const text = response.text || '';
-          
+
+          // Adaptive Verification Gate & Self-Repair Loop
+          if (classification.requiresVerification || activeComplexity === 'complex' || activeComplexity === 'high_risk') {
+            const verification = VerificationGate.verify(userPrompt, text);
+            events.emit({
+              type: 'verification',
+              runId,
+              parentRunId,
+              passed: verification.passed,
+              reasoning: verification.reasoning,
+              issues: verification.issues,
+              timestamp: Date.now()
+            });
+
+            if (!verification.passed && turns < currentMaxTurns - 1) {
+              events.emit({
+                type: 'repair_attempt',
+                runId,
+                parentRunId,
+                attempt: 1,
+                maxAttempts: 2,
+                issues: verification.issues,
+                repairAction: 'Initiating diagnostic self-repair loop with acceptance feedback.',
+                timestamp: Date.now()
+              });
+              safeOnUpdate({
+                type: 'thought',
+                message: `[Self-Repair] Verification gate flagged: ${verification.issues.join(', ')}. Engaging self-repair loop...`
+              });
+              currentRunHistory.push({
+                role: 'user',
+                parts: [{
+                  text: `[Verification Diagnostic]: Acceptance criteria check indicated issues:\n${verification.issues.map(i => `- ${i}`).join('\n')}\nPlease revise and fix these specific deficiencies before concluding.`
+                }]
+              });
+              continue;
+            }
+          }
+
+          if (executionPlan) {
+            executionPlan.status = 'completed';
+            for (const step of executionPlan.steps) {
+              if (step.status === 'pending' || step.status === 'in_progress') {
+                step.status = 'completed';
+                events.emit({
+                  type: 'plan_step_update',
+                  runId,
+                  parentRunId,
+                  planId: executionPlan.planId,
+                  stepId: step.stepId,
+                  status: 'completed',
+                  timestamp: Date.now()
+                });
+              }
+            }
+          }
+
           // Push the user prompt and final model response to the persistent history
           history.push({
             role: 'user',
