@@ -232,6 +232,30 @@ export class EpisodicMemory {
         updated_at INTEGER NOT NULL
       );
     `);
+
+    // Auto-migrate any unmigrated facts from legacy semantic_memory into scoped_memory
+    try {
+      await this.db.exec(`
+        INSERT INTO scoped_memory (
+          scope, fact, tags, confidence, lifecycle, source, timestamp, created_at, updated_at, embedding
+        )
+        SELECT 
+          'user' AS scope,
+          fact,
+          tags,
+          0.95 AS confidence,
+          'active' AS lifecycle,
+          'user' AS source,
+          timestamp,
+          timestamp AS created_at,
+          timestamp AS updated_at,
+          embedding
+        FROM semantic_memory
+        WHERE fact NOT IN (SELECT fact FROM scoped_memory);
+      `);
+    } catch (e) {
+      // Table might not exist or migration already done
+    }
   }
 
   async saveMessage(sessionId: string, role: 'user' | 'model', parts: any[]): Promise<void> {
@@ -385,13 +409,31 @@ export class EpisodicMemory {
     }
 
     const tagsStr = tags && tags.length > 0 ? tags.join(',') : null;
+    const now = Date.now();
     const result = await this.db.run(
       `INSERT INTO semantic_memory (fact, embedding, tags, timestamp) VALUES (?, ?, ?, ?)`,
       fact,
       JSON.stringify(embedding),
       tagsStr,
-      Date.now()
+      now
     );
+
+    // Also mirror to scoped_memory for Phase 2 ContextEngine
+    try {
+      await this.db.run(
+        `INSERT INTO scoped_memory (
+          scope, fact, tags, confidence, lifecycle, source, timestamp, created_at, updated_at, embedding
+        ) VALUES ('user', ?, ?, 0.95, 'active', 'user', ?, ?, ?, ?)`,
+        fact,
+        tagsStr,
+        now,
+        now,
+        now,
+        JSON.stringify(embedding)
+      );
+    } catch (e) {
+      // Ignore if table does not exist yet
+    }
 
     return result.lastID!;
   }
