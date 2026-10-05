@@ -102,4 +102,10 @@ export interface AgentConfig {
   consolidationThreshold?: number;
   nvidiaApiKey?: string;
   nvidiaBaseUrl?: string;
+  enableFallback?: boolean;
+  fallbackProvider?: ProviderType;
+  fallbackModelName?: string;
+  fallbackApiKey?: string;
 }
+
+

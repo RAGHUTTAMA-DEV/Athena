@@ -309,15 +309,119 @@ export class NvidiaProvider implements LLMProvider {
   }
 }
 
+export interface FallbackProviderOptions {
+  primary: LLMProvider;
+  fallback: LLMProvider;
+  fallbackModel?: string;
+  cooldownMs?: number;
+  onFallback?: (error: any, fromProvider: string, toProvider: string) => void;
+}
+
+export class FallbackLLMProvider implements LLMProvider {
+  public name: ProviderType;
+  public primary: LLMProvider;
+  public fallback: LLMProvider;
+  private primaryFailedUntil: number = 0;
+  private cooldownMs: number;
+  private fallbackModel?: string;
+  private onFallback?: (error: any, fromProvider: string, toProvider: string) => void;
+
+  constructor(options: FallbackProviderOptions) {
+    this.primary = options.primary;
+    this.fallback = options.fallback;
+    this.name = this.primary.name;
+    this.cooldownMs = options.cooldownMs || 60000;
+    this.fallbackModel = options.fallbackModel;
+    this.onFallback = options.onFallback;
+  }
+
+  isPrimaryCoolingDown(): boolean {
+    return Date.now() < this.primaryFailedUntil;
+  }
+
+  reset(): void {
+    this.primaryFailedUntil = 0;
+  }
+
+  async generateContent(params: {
+    model: string;
+    systemInstruction?: string;
+    messages: Message[];
+    tools?: any[];
+  }): Promise<LLMResponse> {
+    const isCoolingDown = this.isPrimaryCoolingDown();
+
+    if (!isCoolingDown) {
+      try {
+        return await this.primary.generateContent(params);
+      } catch (err: any) {
+        const errMsg = (err.message || String(err)).toLowerCase();
+        const status = err.status || err.statusCode || err.response?.status;
+        const isEligibleForFailover =
+          status === 429 ||
+          status === 500 ||
+          status === 502 ||
+          status === 503 ||
+          status === 504 ||
+          errMsg.includes('429') ||
+          errMsg.includes('rate limit') ||
+          errMsg.includes('resource_exhausted') ||
+          errMsg.includes('timeout') ||
+          errMsg.includes('network error') ||
+          errMsg.includes('econnreset') ||
+          errMsg.includes('service unavailable');
+
+        if (!isEligibleForFailover) {
+          throw err;
+        }
+
+        this.primaryFailedUntil = Date.now() + this.cooldownMs;
+        if (this.onFallback) {
+          this.onFallback(err, this.primary.name, this.fallback.name);
+        } else {
+          console.warn(
+            `[FallbackLLMProvider] Primary provider "${this.primary.name}" failed (${err.message}). Failing over to "${this.fallback.name}" for ${this.cooldownMs}ms.`
+          );
+        }
+      }
+    }
+
+    const fallbackParams = {
+      ...params,
+      model: this.fallbackModel || (this.fallback.name === 'nvidia' ? 'meta/llama-3.1-70b-instruct' : params.model)
+    };
+    return await this.fallback.generateContent(fallbackParams);
+  }
+}
+
 export function createLLMProvider(
   providerType?: ProviderType,
-  options?: { apiKey?: string; baseUrl?: string }
+  options?: { apiKey?: string; baseUrl?: string; enableFallback?: boolean; fallbackApiKey?: string }
 ): LLMProvider {
   const type = providerType || (process.env.LLM_PROVIDER as ProviderType) || 'gemini';
 
+  let primary: LLMProvider;
   if (type === 'nvidia') {
-    return new NvidiaProvider(options?.apiKey, options?.baseUrl);
+    primary = new NvidiaProvider(options?.apiKey, options?.baseUrl);
   } else {
-    return new GeminiProvider(options?.apiKey);
+    primary = new GeminiProvider(options?.apiKey);
   }
+
+  if (options?.enableFallback || process.env.ENABLE_LLM_FALLBACK === 'true') {
+    const fallbackType = type === 'gemini' ? 'nvidia' : 'gemini';
+    const hasFallbackKey = fallbackType === 'nvidia' ? (options?.fallbackApiKey || process.env.NVIDIA_API_KEY) : process.env.GEMINI_API_KEY;
+    if (hasFallbackKey) {
+      try {
+        const fallback = fallbackType === 'nvidia'
+          ? new NvidiaProvider(options?.fallbackApiKey)
+          : new GeminiProvider();
+        return new FallbackLLMProvider({ primary, fallback });
+      } catch (e) {
+        // If fallback provider initialization fails, return primary
+      }
+    }
+  }
+
+  return primary;
 }
+

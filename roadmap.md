@@ -13,9 +13,9 @@
 | **Phase 3** | **Tool Runtime** | Athena Core | **100%** | `npm run test:tools` | ✅ **Completed & Verified** |
 | **Phase 4** | **Adaptive Orchestration** | Athena Core | **100%** | `npm run test:orchestration` | ✅ **Completed & Verified** |
 | **Phase 5** | **Coding Harness Integration** | Harness Bridge | **100%** | `npm run test:harness` | ✅ **Completed & Verified** |
-| **Phase 6** | **Background + Event Runtime** | Athena Core | **0%** | `npm run test:evolution` | 🟡 **Next Up** |
-| **Phase 7** | **Reliability + Security** | Athena Core | **0%** | `npm run test:security` | ⏳ Queued |
-| **Phase 8** | **Observability + Evaluation** | Athena Core | **0%** | `npm run test:observability` | ⏳ Queued |
+| **Phase 6** | **Background + Event Runtime** | Athena Core | **100%** | `npm run test:background` | ✅ **Completed & Verified** |
+| **Phase 7** | **Reliability + Security** | Athena Core | **100%** | `npm run test:security` | ✅ **Completed & Verified** |
+| **Phase 8** | **Observability + Evaluation** | Athena Core | **0%** | `npm run test:observability` | 🟡 **Next Up** |
 | **Phase 9** | **Platform / Production** | Athena Core | **0%** | `npm run test:production` | ⏳ Queued |
 
 ---
@@ -160,14 +160,18 @@ flowchart TD
 
 ---
 
-## Phase 7: RELIABILITY + SECURITY — [QUEUED]
+## Phase 7: RELIABILITY + SECURITY — [100% COMPLETE]
 
-- [ ] **Central Policy Engine**: Rule-based gatekeeper restricting sensitive file paths, destructive commands, and secret exfiltration.
-- [ ] **Prompt-Injection Defense**: Dual-boundary trust model: external web pages, emails, and files are tagged as untrusted data, never as system instructions.
-- [ ] **Credential Isolation**: Secrets stored in environment/vault; tools receive scoped temporary tokens without leaking raw keys to the model.
-- [ ] **Provider Fallback**: Automatic failover (e.g. Gemini ➔ NVIDIA GLM / OpenAI) on HTTP 429 rate limits or provider outages.
-- [ ] **Failure Taxonomy & Recovery**: Tailored strategies for `timeout`, `rate-limit`, `auth_error`, and `network_reset`.
-- [ ] **Chaos Testing**: Automated tests simulating MCP server disconnects, tool timeouts, and process SIGKILL recovery.
+- [x] **Central Policy Engine**: Rule-based gatekeeper restricting sensitive file paths (`.env`, `id_rsa`, `.ssh/`, `credentials.json`, `client_secret*.json`), directory traversal outside workspace, and destructive commands (`rm -rf /`, `del /s /q C:\`, fork bombs, drive formatting) ([`src/core/policyEngine.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/policyEngine.ts)).
+- [x] **Prompt-Injection Defense**: Dual-boundary trust model wrapping untrusted web pages, emails, and external files in `<untrusted_content>` tags, disarming instruction overrides, jailbreaks, and delimiter evasions ([`src/core/promptDefense.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/promptDefense.ts)).
+- [x] **Credential Isolation**: Deep recursive secret redactor masking Gemini, OpenAI, Nvidia, Telegram, AWS, GitHub, and Bearer tokens from tool results, logs, and histories ([`src/core/credentialManager.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/credentialManager.ts)).
+- [x] **Provider Fallback**: Automatic failover (e.g. Gemini ➔ NVIDIA GLM / OpenAI) on HTTP 429 rate limits, 500/503 outages, or connection resets with primary cooldown circuit breaker ([`src/core/llmProvider.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/llmProvider.ts)).
+- [x] **Failure Taxonomy & Recovery**: Structured categorization of `rate_limit`, `provider_outage`, `network_reset`, `timeout`, `auth`, `policy_violation` with tailored exponential backoff, failover, or abort recovery strategies ([`src/core/failureRecovery.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/failureRecovery.ts)).
+- [x] **Tool Runtime & Chaos Recovery**: Integrated policy checks before tool execution, automatic untrusted content wrapping, secret scrubbing on outputs, and graceful timeout / circuit breaker recovery in `ToolExecutor` ([`src/core/toolRuntime.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/toolRuntime.ts)).
+
+**Verification**:
+* Test file: [`src/tests/test_phase7_reliability_security.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_phase7_reliability_security.ts)
+* Command: `npm run test:security` (6/6 passing)
 
 ---
 

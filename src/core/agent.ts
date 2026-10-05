@@ -45,13 +45,36 @@ export class Agent {
     return this.toolExecutor;
   }
 
+  public getProvider(): LLMProvider {
+    return this.provider;
+  }
+
+  public setProvider(provider: LLMProvider): void {
+    this.provider = provider;
+  }
+
+  public getPolicyEngine() {
+    return this.toolExecutor.getPolicyEngine();
+  }
+
+  public getPromptDefense() {
+    return this.toolExecutor.getPromptDefense();
+  }
+
+  public getCredentialManager() {
+    return this.toolExecutor.getCredentialManager();
+  }
+
   constructor(config: AgentConfig) {
     this.config = config;
     this.provider = createLLMProvider(config.provider, {
       apiKey: config.provider === 'nvidia' ? config.nvidiaApiKey : undefined,
       baseUrl: config.provider === 'nvidia' ? config.nvidiaBaseUrl : undefined,
+      enableFallback: config.enableFallback,
+      fallbackApiKey: config.fallbackApiKey || (config.provider === 'gemini' ? config.nvidiaApiKey : undefined)
     });
   }
+
 
   // Load the soul persona from file system
   async init() {

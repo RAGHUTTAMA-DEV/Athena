@@ -2,6 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Tool, ToolDefinition, ToolContext } from './types.js';
 import { CancellationToken } from './cancellation.js';
+import { PolicyEngine } from './policyEngine.js';
+import { PromptDefense } from './promptDefense.js';
+import { CredentialManager } from './credentialManager.js';
 
 export type ToolRiskLevel = 'safe' | 'confirm' | 'destructive';
 export type ToolPermission = 'fs:read' | 'fs:write' | 'net:http' | 'cmd:exec' | 'browser' | 'memory' | 'system';
@@ -296,11 +299,35 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
 
 export class ToolExecutor {
   private circuitBreakers: CircuitBreakerRegistry;
+  private policyEngine: PolicyEngine;
+  private promptDefense: PromptDefense;
+  private credentialManager: CredentialManager;
   private artifactsDir: string;
 
-  constructor(options?: { artifactsDir?: string; circuitBreakers?: CircuitBreakerRegistry }) {
+  constructor(options?: {
+    artifactsDir?: string;
+    circuitBreakers?: CircuitBreakerRegistry;
+    policyEngine?: PolicyEngine;
+    promptDefense?: PromptDefense;
+    credentialManager?: CredentialManager;
+  }) {
     this.artifactsDir = options?.artifactsDir || path.resolve(process.cwd(), 'scratch', 'artifacts');
     this.circuitBreakers = options?.circuitBreakers || CircuitBreakerRegistry.getInstance();
+    this.policyEngine = options?.policyEngine || PolicyEngine.getInstance();
+    this.promptDefense = options?.promptDefense || PromptDefense.getInstance();
+    this.credentialManager = options?.credentialManager || CredentialManager.getInstance();
+  }
+
+  public getPolicyEngine(): PolicyEngine {
+    return this.policyEngine;
+  }
+
+  public getPromptDefense(): PromptDefense {
+    return this.promptDefense;
+  }
+
+  public getCredentialManager(): CredentialManager {
+    return this.credentialManager;
   }
 
   resolveManifest(tool: Tool): ToolManifest {
@@ -387,6 +414,24 @@ export class ToolExecutor {
     const manifest = this.resolveManifest(tool);
     const breaker = this.circuitBreakers.getBreaker(manifest.name);
 
+    // 0. Security Policy Evaluation Gate
+    const policyResult = this.policyEngine.evaluateToolCall(manifest.name, args);
+    if (!policyResult.allowed) {
+      return {
+        success: false,
+        error: {
+          code: 'POLICY_VIOLATION',
+          message: policyResult.reason || `Tool execution blocked by security policy (${policyResult.ruleId || 'DENY'}).`
+        },
+        retryable: false,
+        metadata: {
+          durationMs: Date.now() - startTime,
+          policyAction: policyResult.action,
+          severity: policyResult.severity
+        }
+      };
+    }
+
     // 1. Circuit breaker guard
     if (!breaker.canExecute()) {
       return {
@@ -458,9 +503,24 @@ export class ToolExecutor {
       // Successful execution: record success on circuit breaker
       breaker.recordSuccess();
 
+      // Wrap untrusted web/external contents with dual-boundary defense
+      let processedResult = rawResult;
+      const isWebContent = manifest.tags?.includes('web') || manifest.permissions?.includes('browser') || manifest.name === 'searchWeb' || manifest.name === 'browseUrl';
+      if (isWebContent && processedResult && typeof processedResult === 'object') {
+        if (typeof processedResult.content === 'string') {
+          processedResult = {
+            ...processedResult,
+            content: this.promptDefense.wrapUntrustedData(processedResult.content, {
+              source: 'web',
+              origin: args?.url || args?.query
+            })
+          };
+        }
+      }
+
       // Check if output payload exceeds maxOutputBytes and offload to disk artifact
       const maxBytes = manifest.maxOutputBytes || 16384;
-      const offloaded = await this.offloadLargePayload(context?.runId, manifest.name, rawResult, maxBytes);
+      const offloaded = await this.offloadLargePayload(context?.runId, manifest.name, processedResult, maxBytes);
 
       // Check if rawResult itself indicated failure
       let isSuccess = true;
@@ -475,10 +535,14 @@ export class ToolExecutor {
         };
       }
 
+      // Deep redact sensitive secrets before returning
+      const sanitizedPayload = isSuccess ? this.credentialManager.redactData(offloaded.payload) : undefined;
+      const sanitizedError = errorInfo ? this.credentialManager.redactData(errorInfo) : undefined;
+
       return {
         success: isSuccess,
-        data: isSuccess ? offloaded.payload : undefined,
-        error: errorInfo,
+        data: sanitizedPayload,
+        error: sanitizedError,
         retryable: false,
         metadata: {
           durationMs,
@@ -515,12 +579,14 @@ export class ToolExecutor {
           ? 'TIMEOUT'
           : 'TOOL_EXECUTION_ERROR';
 
+      const sanitizedError = this.credentialManager.redactData({
+        code: errorCode,
+        message: err.message || 'Tool execution encountered an error.'
+      });
+
       return {
         success: false,
-        error: {
-          code: errorCode,
-          message: err.message || 'Tool execution encountered an error.'
-        },
+        error: sanitizedError,
         retryable: isRetryable,
         metadata: {
           durationMs,
@@ -528,6 +594,7 @@ export class ToolExecutor {
         }
       };
     }
+
   }
 }
 
