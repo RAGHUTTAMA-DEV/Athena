@@ -190,7 +190,13 @@ export class MCPManager {
           const cleanEnv: Record<string, string> = {};
           for (const [key, val] of Object.entries({ ...process.env, ...(serverConfig.env || {}) })) {
             if (val !== undefined) {
-              cleanEnv[key] = val;
+              let resolved = String(val).trim();
+              const envMatch = resolved.match(/^\$\{?(?:env:)?([a-zA-Z0-9_]+)\}?$/);
+              if (envMatch) {
+                const envVarName = envMatch[1];
+                resolved = process.env[envVarName] || process.env[envVarName.trim()] || '';
+              }
+              cleanEnv[key] = resolved;
             }
           }
 

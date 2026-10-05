@@ -628,7 +628,12 @@ export class ToolSelector {
     web: ['web', 'search', 'google', 'url', 'site', 'browser', 'scrape', 'news', 'find online', 'http', 'https'],
     python: ['python', 'script', 'data', 'plot', 'numpy', 'pandas', 'calculate'],
     agent: ['subagent', 'delegate', 'worker', 'hire', 'team', 'spawn', 'background'],
-    cron: ['cron', 'schedule', 'remind', 'reminder', 'timer', 'alarm', 'recurring', 'interval', 'every', 'secs', 'sec', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'daily', 'weekly', 'monthly', 'delay', 'job', 'jobs', 'cronjob']
+    cron: ['cron', 'schedule', 'remind', 'reminder', 'timer', 'alarm', 'recurring', 'interval', 'every', 'secs', 'sec', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'daily', 'weekly', 'monthly', 'delay', 'job', 'jobs', 'cronjob'],
+    github: ['github', 'gh', 'repo', 'repos', 'repository', 'repositories', 'pull request', 'pr', 'commit', 'commits', 'issue', 'issues', 'branch', 'branches', 'git', 'project', 'projects', 'fork', 'clone', 'release', 'workflow', 'star', 'pat'],
+    email: ['email', 'mail', 'gmail', 'inbox', 'message', 'draft', 'send email', 'read email'],
+    calendar: ['calendar', 'meeting', 'events', 'appointment', 'schedule', 'rsvp'],
+    notion: ['notion', 'page', 'database', 'notes', 'docs', 'workspace'],
+    diagram: ['excalidraw', 'draw', 'diagram', 'canvas', 'sketch', 'mermaid', 'shape']
   };
 
   private static TOOL_GROUPS: Record<string, string[]> = {
@@ -663,17 +668,77 @@ export class ToolSelector {
         return promptTokens.has(kw);
       });
       if (matches) {
+        // Built-in tools in this group
         const toolsInGroup = ToolSelector.TOOL_GROUPS[group] || [];
         for (const toolName of toolsInGroup) {
           activeToolNames.add(toolName);
         }
+
+        // Dynamically include MCP tools matching the active group
+        if (group === 'github') {
+          for (const tool of availableTools) {
+            if (tool.definition.name.startsWith('github_') || tool.definition.name.startsWith('mcp_github_')) {
+              activeToolNames.add(tool.definition.name);
+            }
+          }
+        } else if (group === 'email') {
+          for (const tool of availableTools) {
+            if (tool.definition.name.startsWith('gmail_') || tool.definition.name.startsWith('mcp_gmail_')) {
+              activeToolNames.add(tool.definition.name);
+            }
+          }
+        } else if (group === 'calendar') {
+          for (const tool of availableTools) {
+            if (tool.definition.name.startsWith('calendar_') || tool.definition.name.startsWith('mcp_calendar_')) {
+              activeToolNames.add(tool.definition.name);
+            }
+          }
+        } else if (group === 'notion') {
+          for (const tool of availableTools) {
+            if (tool.definition.name.startsWith('notion_') || tool.definition.name.startsWith('mcp_notion_')) {
+              activeToolNames.add(tool.definition.name);
+            }
+          }
+        } else if (group === 'diagram') {
+          for (const tool of availableTools) {
+            if (tool.definition.name.startsWith('excalidraw_') || tool.definition.name.startsWith('mcp_excalidraw_')) {
+              activeToolNames.add(tool.definition.name);
+            }
+          }
+        } else if (group === 'code') {
+          for (const tool of availableTools) {
+            if (tool.definition.name.startsWith('filesystem_') || tool.definition.name.startsWith('mcp_filesystem_')) {
+              activeToolNames.add(tool.definition.name);
+            }
+          }
+        }
       }
     }
 
-    // Always keep dynamic MCP tools or tools that specifically match prompt tokens
+    // Dynamic token and namespace matching for any tools
     for (const tool of availableTools) {
-      if (promptLower.includes(tool.definition.name.toLowerCase())) {
+      const toolNameLower = tool.definition.name.toLowerCase();
+      // If exact tool name or part of it is in prompt
+      if (promptLower.includes(toolNameLower)) {
         activeToolNames.add(tool.definition.name);
+        continue;
+      }
+
+      // Check server namespace prefix (e.g. github, gmail, notion)
+      const parts = toolNameLower.split('_');
+      if (parts.length > 1) {
+        const prefix = parts[0];
+        if (promptTokens.has(prefix) || promptLower.includes(prefix)) {
+          activeToolNames.add(tool.definition.name);
+          continue;
+        }
+
+        // Check if individual keywords in tool name match prompt tokens (e.g., "repositories", "commits", "issues")
+        const matchingParts = parts.filter(p => p.length >= 4 && promptTokens.has(p));
+        if (matchingParts.length >= 1) {
+          activeToolNames.add(tool.definition.name);
+          continue;
+        }
       }
     }
 
