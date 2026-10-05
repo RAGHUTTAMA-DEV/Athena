@@ -5,6 +5,7 @@ import * as path from 'path';
 import { CodingTaskRequest, CodingTaskResult, HarnessRepoInfo } from './codingHarnessTypes.js';
 import { CancellationToken } from './cancellation.js';
 import { AgentEventEmitter } from './events.js';
+import { TelemetryManager } from './telemetry.js';
 
 const execPromise = promisify(exec);
 
@@ -121,7 +122,7 @@ export class CodingHarnessBridge {
       '--cwd', resolvedCwd
     ];
 
-    const traceId = request.traceId || request.runId;
+    const traceId = request.traceId || TelemetryManager.getInstance().getCurrentTraceId() || request.runId;
     if (traceId) {
       execArgs.push('--trace-id', traceId);
     }

@@ -1,4 +1,5 @@
 import { CancellationToken, CancellationTokenSource } from './cancellation.js';
+import { TelemetryManager, TraceContext } from './telemetry.js';
 
 export type JobPriority = 'critical' | 'high' | 'normal' | 'low';
 
@@ -15,6 +16,7 @@ export interface BackgroundTaskDefinition<T = any> {
   priority?: JobPriority;
   execute: (token?: CancellationToken) => Promise<T>;
   timeoutMs?: number;
+  traceContext?: TraceContext;
 }
 
 interface QueuedTask<T = any> {
@@ -24,6 +26,7 @@ interface QueuedTask<T = any> {
   execute: (token?: CancellationToken) => Promise<T>;
   queuedAt: number;
   timeoutMs?: number;
+  traceContext?: TraceContext;
   resolve: (value: T) => void;
   reject: (reason?: any) => void;
   cancellationSource: CancellationTokenSource;
@@ -87,6 +90,7 @@ export class BackgroundWorkerPool {
         execute: task.execute,
         queuedAt: Date.now(),
         timeoutMs: task.timeoutMs,
+        traceContext: task.traceContext || TelemetryManager.getInstance().getActiveContext() || undefined,
         resolve,
         reject,
         cancellationSource
@@ -129,6 +133,11 @@ export class BackgroundWorkerPool {
       }, task.timeoutMs);
     }
 
+    const prevContext = TelemetryManager.getInstance().getActiveContext();
+    if (task.traceContext) {
+      TelemetryManager.getInstance().setActiveContext(task.traceContext);
+    }
+
     Promise.resolve()
       .then(() => task.execute(task.cancellationSource.token))
       .then(
@@ -144,6 +153,7 @@ export class BackgroundWorkerPool {
         }
       )
       .finally(() => {
+        TelemetryManager.getInstance().setActiveContext(prevContext);
         this.activeCount--;
         this.runningTasks.delete(task.id);
         this.processNext();

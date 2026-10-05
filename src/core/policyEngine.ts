@@ -71,6 +71,14 @@ export class PolicyEngine {
     return PolicyEngine.instance;
   }
 
+  public setWorkspaceRoot(root: string): void {
+    this.workspaceRoot = path.resolve(root);
+  }
+
+  public getWorkspaceRoot(): string {
+    return this.workspaceRoot;
+  }
+
   /**
    * Evaluates filesystem operations (read, write, delete)
    */
@@ -163,24 +171,30 @@ export class PolicyEngine {
    */
   public evaluateToolCall(toolName: string, args: any): PolicyCheckResult {
     switch (toolName) {
-      case 'readFile':
-        if (args?.filePath) {
-          return this.evaluateFileAccess(args.filePath, 'read');
+      case 'readFile': {
+        const targetPath = args?.path || args?.filePath;
+        if (targetPath) {
+          return this.evaluateFileAccess(targetPath, 'read');
         }
         break;
+      }
 
       case 'writeFile':
-      case 'replaceFileContent':
-        if (args?.filePath) {
-          return this.evaluateFileAccess(args.filePath, 'write');
+      case 'replaceFileContent': {
+        const targetPath = args?.path || args?.filePath;
+        if (targetPath) {
+          return this.evaluateFileAccess(targetPath, 'write');
         }
         break;
+      }
 
-      case 'deleteFile':
-        if (args?.filePath) {
-          return this.evaluateFileAccess(args.filePath, 'delete');
+      case 'deleteFile': {
+        const targetPath = args?.path || args?.filePath;
+        if (targetPath) {
+          return this.evaluateFileAccess(targetPath, 'delete');
         }
         break;
+      }
 
       case 'executeCommand':
         if (args?.command) {

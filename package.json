@@ -17,6 +17,8 @@
     "test:harness": "tsc && node dist/tests/test_phase5_coding_harness.js",
     "test:background": "tsc && node dist/tests/test_phase6_background_runtime.js",
     "test:security": "tsc && node dist/tests/test_phase7_reliability_security.js",
+    "test:phase8": "tsc && node dist/tests/test_phase8_observability_eval.js",
+    "eval:adversarial": "tsc && node dist/tests/evals/adversarialRunner.js",
     "test:eval": "tsc && node dist/core/eval.js",
     "test:observability": "tsc && node dist/tests/test_phase6_observability.js",
     "test:tools": "tsc && node dist/tests/test_phase3_tools.js",

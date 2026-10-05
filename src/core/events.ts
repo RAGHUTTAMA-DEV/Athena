@@ -1,4 +1,5 @@
 import { RunStatus, TerminationReason, StructuredFailure } from './runState.js';
+import { TelemetryManager } from './telemetry.js';
 
 export type AgentEventType =
   | 'status_change'
@@ -21,6 +22,8 @@ export interface BaseAgentEvent {
   runId: string;
   parentRunId?: string;
   timestamp: number;
+  traceId?: string;
+  spanId?: string;
 }
 
 export interface StatusChangeEvent extends BaseAgentEvent {
@@ -176,6 +179,15 @@ export class AgentEventEmitter {
   }
 
   emit(event: AgentEvent): void {
+    if (!event.traceId) {
+      try {
+        const tid = TelemetryManager.getInstance().getCurrentTraceId();
+        if (tid) event.traceId = tid;
+        const sid = TelemetryManager.getInstance().getCurrentSpanId();
+        if (sid) event.spanId = sid;
+      } catch {}
+    }
+
     const specific = this.handlers.get(event.type);
     if (specific) {
       for (const h of specific) {

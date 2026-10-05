@@ -14,6 +14,7 @@ import { MCPManager } from './core/mcpManager.js';
 import { registerDynamicTools } from './tools/index.js';
 import { ui } from './cli/ui.js';
 import { CancellationTokenSource } from './core/cancellation.js';
+import { TrajectoryReplayer } from './core/replayDebugger.js';
 import * as readline from 'readline';
 
 let currentActiveCts: CancellationTokenSource | null = null;
@@ -366,6 +367,47 @@ async function startCli(mcpTools = 0) {
           console.log('');
         } finally {
           currentActiveCts = null;
+        }
+        askPrompt();
+        return;
+      }
+
+      if (lowerInput.startsWith('/replay')) {
+        const parts = trimmed.split(/\s+/);
+        const sub = parts[1]?.toLowerCase();
+
+        if (!sub || sub === 'help') {
+          ui.replayHelp();
+          askPrompt();
+          return;
+        }
+
+        const runId = parts[1];
+        try {
+          const replayer = agent.getReplayer();
+          const trajectory = await replayer.loadTrajectory(runId);
+
+          if (trimmed.includes('--diff')) {
+            const diffIdx = parts.indexOf('--diff');
+            const targetRunId = parts[diffIdx + 1];
+            if (!targetRunId) {
+              ui.err('usage: /replay <runId> --diff <otherRunId>');
+              askPrompt();
+              return;
+            }
+            const targetTrajectory = await replayer.loadTrajectory(targetRunId);
+            const diff = TrajectoryReplayer.diffTrajectories(trajectory, targetTrajectory);
+            ui.replayDiffView(diff);
+          } else if (trimmed.includes('--export')) {
+            const exportIdx = parts.indexOf('--export');
+            const targetPath = parts[exportIdx + 1] || `scratch/run_${runId}_replay.md`;
+            const saved = await replayer.exportToFile(targetPath, 'markdown');
+            ui.ok(`Trajectory post-mortem exported to: ${saved}`);
+          } else {
+            ui.replayTrajectoryView(trajectory);
+          }
+        } catch (err: any) {
+          ui.err(`Replay error: ${err.message}`);
         }
         askPrompt();
         return;

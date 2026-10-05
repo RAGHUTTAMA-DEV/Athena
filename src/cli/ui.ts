@@ -406,4 +406,73 @@ export const ui = {
     frame(lines, ink.sky, hugInner(lines), true);
     console.log('');
   },
+
+  replayHelp() {
+    const lines = [
+      'Replay Debugger (Phase 8 Observability)',
+      '',
+      '/replay <runId>                     inspect execution timeline & tool stats',
+      '/replay <runId> --diff <otherRunId>  diff two trajectories & detect divergence',
+      '/replay <runId> --export <path>      export detailed markdown post-mortem',
+    ];
+    console.log('');
+    frame(lines, ink.gold, hugInner(lines), true);
+    console.log('');
+  },
+
+  replayTrajectoryView(t: any) {
+    const lines = [
+      `Trajectory: ${t.runId}  ·  [${t.status.toUpperCase()}]`,
+      `Task: "${t.task.length > 60 ? t.task.substring(0, 57) + '...' : t.task}"`,
+      `Duration: ${(t.durationMs / 1000).toFixed(2)}s  ·  Turns: ${t.currentTurn}  ·  Steps: ${t.steps.length}`,
+      '',
+      'Timeline:'
+    ];
+
+    for (const step of t.steps) {
+      const timeOffset = ((step.timestamp - t.startTime) / 1000).toFixed(1);
+      lines.push(`  +${timeOffset}s [Turn ${step.turn}] ${step.title} -> ${step.summary}`);
+    }
+
+    if (t.toolSummary && t.toolSummary.length > 0) {
+      lines.push('');
+      lines.push('Tool Usage:');
+      for (const ts of t.toolSummary) {
+        lines.push(`  • ${ts.name}: ${ts.invocations} calls (${ts.successes} ok, ${ts.failures} err) ~${ts.avgDurationMs}ms avg`);
+      }
+    }
+
+    console.log('');
+    frame(lines, ink.cream, hugInner(lines), true);
+    console.log('');
+  },
+
+  replayDiffView(diff: any) {
+    const statusStr = diff.diverged ? `${ink.amber}DIVERGED${ink.reset}` : `${ink.cream}IDENTICAL${ink.reset}`;
+    const lines = [
+      `Trajectory Comparison: ${diff.runIdA} vs ${diff.runIdB}`,
+      `Outcome: [${statusStr}]`,
+      '',
+      `Run A: ${diff.statusA} (${diff.stepCountA} steps)`,
+      `Run B: ${diff.statusB} (${diff.stepCountB} steps)`,
+      `Duration Delta: ${(diff.durationDeltaMs / 1000).toFixed(2)}s`,
+      `Token Delta: total=${diff.tokenDelta.total} (in: ${diff.tokenDelta.input}, out: ${diff.tokenDelta.output})`,
+      '',
+      `Analysis:`,
+      `  ${diff.summary}`
+    ];
+
+    if (diff.toolDifferences) {
+      if (diff.toolDifferences.inAOnly.length > 0) {
+        lines.push(`  Tools in A only: ${diff.toolDifferences.inAOnly.join(', ')}`);
+      }
+      if (diff.toolDifferences.inBOnly.length > 0) {
+        lines.push(`  Tools in B only: ${diff.toolDifferences.inBOnly.join(', ')}`);
+      }
+    }
+
+    console.log('');
+    frame(lines, diff.diverged ? ink.amber : ink.gold, hugInner(lines), true);
+    console.log('');
+  }
 };

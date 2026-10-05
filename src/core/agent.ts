@@ -17,6 +17,8 @@ import { TaskClassifier, Planner, VerificationGate, DynamicEscalator, ExecutionP
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
+import { TelemetryManager } from './telemetry.js';
+import { TrajectoryReplayer } from './replayDebugger.js';
 
 const TOOL_ALIASES: Record<string, string> = {
   'jobs_schedule': 'cronjob',
@@ -63,6 +65,13 @@ export class Agent {
 
   public getCredentialManager() {
     return this.toolExecutor.getCredentialManager();
+  }
+
+  public getReplayer(): TrajectoryReplayer {
+    if (!this.memory) {
+      throw new Error('Episodic memory must be initialized before using the Trajectory Replayer.');
+    }
+    return new TrajectoryReplayer(this.memory);
   }
 
   constructor(config: AgentConfig) {
@@ -121,41 +130,29 @@ export class Agent {
       }
 
       const activeSessionId = options.sessionId || 'default-session';
+      const runId = options.runId || `run_${Math.random().toString(36).substring(2, 10)}`;
+      const parentRunId = options.parentRunId;
+      const rootRunId = options.rootRunId || (parentRunId ? parentRunId : runId);
       const taskId = options.runId || this.config.taskId || 'agent-run';
 
-      return startActiveObservation(
+      options.runId = runId;
+      options.parentRunId = parentRunId;
+      options.rootRunId = rootRunId;
+
+      return TelemetryManager.getInstance().startAgentTrace(
         taskId,
-        async (traceSpan) => {
-          traceSpan.update({
-            input: userPrompt,
-            metadata: {
-              modelName: this.config.modelName,
-              maxTurns: this.config.maxTurns,
-              depth: this.config.depth || 0,
-              taskId,
-              runId: options.runId,
-              parentRunId: options.parentRunId,
-              rootRunId: options.rootRunId
-            }
-          });
-
-          const finalResult = await propagateAttributes(
-            {
-              sessionId: activeSessionId,
-              tags: [taskId],
-              metadata: {
-                depth: String(this.config.depth || 0),
-                runId: options.runId || '',
-                parentRunId: options.parentRunId || ''
-              }
-            },
-            async () => {
-              return this.runInternal(userPrompt, history, options);
-            }
-          );
-
-          traceSpan.update({ output: finalResult });
-          return finalResult;
+        {
+          runId,
+          parentRunId,
+          rootRunId,
+          sessionId: activeSessionId,
+          task: userPrompt,
+          modelName: this.config.modelName,
+          maxTurns: this.config.maxTurns,
+          depth: this.config.depth || 0,
+        },
+        async () => {
+          return this.runInternal(userPrompt, history, options);
         }
       );
     }
@@ -498,9 +495,16 @@ export class Agent {
         try {
           safeOnUpdate({ type: 'thought', message: `Thinking (Turn ${turns}/${currentMaxTurns})...` });
 
-          // Call Provider API wrapped in a Langfuse generation span
-          const response: LLMResponse = await startActiveObservation(
+          // Call Provider API wrapped in a Telemetry generation span
+          const response: LLMResponse = await TelemetryManager.getInstance().startGenerationSpan(
             `llm-generation-turn-${turns}`,
+            {
+              model: this.config.modelName,
+              turn: turns,
+              runId,
+              sessionId,
+              input: currentRunHistory
+            },
             async (generation) => {
               generation.update({
                 input: JSON.stringify(currentRunHistory),
@@ -529,8 +533,7 @@ export class Agent {
               }
 
               return res;
-            },
-            { asType: 'generation' }
+            }
           );
 
           // Add model response to history

@@ -5,6 +5,7 @@ import { CancellationToken } from './cancellation.js';
 import { PolicyEngine } from './policyEngine.js';
 import { PromptDefense } from './promptDefense.js';
 import { CredentialManager } from './credentialManager.js';
+import { TelemetryManager } from './telemetry.js';
 
 export type ToolRiskLevel = 'safe' | 'confirm' | 'destructive';
 export type ToolPermission = 'fs:read' | 'fs:write' | 'net:http' | 'cmd:exec' | 'browser' | 'memory' | 'system';
@@ -410,6 +411,19 @@ export class ToolExecutor {
   }
 
   async execute(tool: Tool, args: any, context?: ToolContext): Promise<ToolResult> {
+    const manifest = this.resolveManifest(tool);
+    const sanitizedArgs = this.credentialManager.redactData(args);
+    return TelemetryManager.getInstance().startToolSpan(
+      {
+        toolName: manifest.name,
+        runId: context?.runId,
+        args: sanitizedArgs
+      },
+      async () => this.executeInternal(tool, args, context)
+    );
+  }
+
+  private async executeInternal(tool: Tool, args: any, context?: ToolContext): Promise<ToolResult> {
     const startTime = Date.now();
     const manifest = this.resolveManifest(tool);
     const breaker = this.circuitBreakers.getBreaker(manifest.name);

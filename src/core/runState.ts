@@ -55,6 +55,8 @@ export interface BudgetUsage {
   turnsCount: number;
 }
 
+export type RunUsage = BudgetUsage;
+
 export interface RunState {
   runId: string;
   parentRunId?: string;
