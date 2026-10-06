@@ -5,8 +5,9 @@
 [![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=for-the-badge&logo=playwright&logoColor=white)](https://playwright.dev/)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blue?style=for-the-badge&logo=probot)](https://modelcontextprotocol.io/)
 [![Langfuse](https://img.shields.io/badge/Langfuse-000000?style=for-the-badge&logo=langfuse&logoColor=white)](https://langfuse.com/)
+[![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-425CC7?style=for-the-badge&logo=opentelemetry&logoColor=white)](https://opentelemetry.io/)
 
-**Athena** is a state-of-the-art, autonomous, multi-agent AI assistant framework built in TypeScript. Athena is a **local-first AI agent** with direct access to your local machine (terminal, filesystem, browser, Python execution), persistent SQLite episodic memory, dynamic procedural skill learning ("grows with you"), recursive sub-agent delegation, headless browser automation via Playwright, background cron scheduling, and end-to-end telemetry through Langfuse and OpenTelemetry.
+**Athena** is a production-grade, local-first autonomous AI agent system engineered in TypeScript. Designed for reliability, safety, and long-running execution, Athena pairs local machine access (terminal, filesystem, browser automation, Python sandbox) with **adaptive multi-phase orchestration**, **hierarchical run state and recovery**, **multi-scope persistent memory**, **circuit-breaker-protected tool runtimes**, **dedicated coding harness bridge**, **durable background event scheduling**, **multi-layered security and prompt defense**, and **deep OpenTelemetry/Langfuse observability with trajectory replay debugging**.
 
 ---
 
@@ -24,7 +25,18 @@
 
 - [📹 Demo](#-demo)
 - [💡 Core Philosophy](#-core-philosophy)
+- [🚀 Architecture Phases (Phases 1–8 Implemented)](#-architecture-phases-phases-18-implemented)
 - [✨ Key Features & Capabilities](#-key-features--capabilities)
+  - [1. Agent Runtime & Durable Execution (Phase 1)](#1-agent-runtime--durable-execution-phase-1)
+  - [2. Context Engine & Multi-Scope Memory (Phase 2)](#2-context-engine--multi-scope-memory-phase-2)
+  - [3. Resilient Tool Runtime (Phase 3)](#3-resilient-tool-runtime-phase-3)
+  - [4. Adaptive Orchestration & Self-Repair (Phase 4)](#4-adaptive-orchestration--self-repair-phase-4)
+  - [5. Coding Harness Integration (Phase 5)](#5-coding-harness-integration-phase-5)
+  - [6. Background Event Runtime & Worker Pool (Phase 6)](#6-background-event-runtime--worker-pool-phase-6)
+  - [7. Reliability, Security & Policy Engine (Phase 7)](#7-reliability-security--policy-engine-phase-7)
+  - [8. Observability, Telemetry & Replay Debugger (Phase 8)](#8-observability-telemetry--replay-debugger-phase-8)
+  - [9. Model Context Protocol (MCP) Integration](#9-model-context-protocol-mcp-integration)
+- [🛠️ Comprehensive Built-in Toolset](#️-comprehensive-built-in-toolset)
 - [🏗️ System Architecture & Structure](#️-system-architecture--structure)
   - [📐 System Architecture Diagram](#-system-architecture-diagram)
   - [📂 Directory & File Structure](#-directory--file-structure)
@@ -35,114 +47,200 @@
   - [3. Build the Project](#3-build-the-project)
 - [🧠 Multi-LLM Provider Architecture](#-multi-llm-provider-architecture)
   - [Supported Providers](#supported-providers)
+  - [Automatic Outage Failover & Fallback](#automatic-outage-failover--fallback)
   - [Runtime Provider Switching](#runtime-provider-switching)
 - [🔌 Model Context Protocol (MCP) Setup & Configuration](#-model-context-protocol-mcp-setup--configuration)
   - [1. Configuration File (`mcp_servers.json`)](#1-configuration-file-mcp_serversjson)
   - [2. Supported Transport Modes](#2-supported-transport-modes)
-  - [3. Server Configuration Options](#3-server-configuration-options)
-  - [4. How MCP Integration Works Under the Hood](#4-how-mcp-integration-works-under-the-hood)
+  - [3. How MCP Integration Works Under the Hood](#3-how-mcp-integration-works-under-the-hood)
 - [💻 Usage & CLI Commands](#-usage--cli-commands)
-  - [Start the CLI Client](#start-the-cli-client)
+  - [Start the Interactive CLI](#start-the-interactive-cli)
   - [Autonomous Unattended Execution (`--allow-all`)](#autonomous-unattended-execution---allow-all)
-  - [In-CLI Commands](#in-cli-commands)
+  - [In-CLI Commands Cheat Sheet](#in-cli-commands-cheat-sheet)
   - [Start the Telegram Gateway](#start-the-telegram-gateway)
 - [🧪 Manual Feature Test Prompts](#-manual-feature-test-prompts)
-  - [Flagship prompts](#flagship-prompts)
-  - [Other prompts](#other-prompts)
 - [📊 Evaluation & Benchmark Suite](#-evaluation--benchmark-suite)
-  - [Running the Benchmarks](#running-the-benchmarks)
-  - [Trajectory Assertions & Side-Effect Checks](#trajectory-assertions--side-effect-checks)
-  - [Regression Gate & CI/CD](#regression-gate--cicd)
-- [🧪 Test Suite & Verification](#-test-suite--verification)
-- [🛠️ Advanced Concepts](#️-advanced-concepts)
-  - [1. Sub-Agent Depth & Safety Caps](#1-sub-agent-depth--safety-caps)
-  - [2. Memory Architecture](#2-memory-architecture)
+  - [1. Running the Trajectory Benchmarks](#1-running-the-trajectory-benchmarks)
+  - [2. Adversarial Security Evaluation](#2-adversarial-security-evaluation)
+  - [3. CI/CD Regression Gate](#3-cicd-regression-gate)
+- [🧪 Test Suite & Verification Commands](#-test-suite--verification-commands)
 - [📜 License](#-license)
 
 ---
 
 ## 💡 Core Philosophy
 
-### 💻 1. Local Machine Access & Native Integration
-Athena operates directly on your local system, giving it hands-on execution capabilities:
-* **Local Terminal Execution**: Runs shell commands, scripts, git workflows, and system commands via the `terminal` tool.
-* **Direct Filesystem Management**: Inspects, reads, writes, and refactors workspace directories and files locally via `filesystem`, `readFile`, and `delegateCodingTask`.
-* **Local Python Sandbox**: Runs Python code locally for data processing, calculations, and automation (`executePython`).
-* **Local Browser Automation**: Controls a local headless Chromium browser using Playwright to inspect websites, extract dynamic DOM elements, and capture screenshots (`browser`, `interactiveBrowser`).
+### 💻 1. Local-First Machine Native Access
+Athena runs directly on your local developer environment with hands-on capabilities:
+* **Local Terminal Execution**: Runs shell commands, scripts, git workflows, and system tools via `terminal`.
+* **Direct Filesystem Management**: Inspects, reads, writes, and surgical-edits workspace files (`readFile`, `filesystem`, `replaceFileContent`, `grepSearch`).
+* **Python Sandbox**: Executes local Python code for analytics, math, and data processing (`executePython`).
+* **Interactive Headless Browser**: Automates Chromium via Playwright for live DOM interaction, element clicking/typing, and screenshot capture (`browser`, `browserNavigate`, `browserAction`, `browserScreenshot`).
 
-### 🌱 2. Self-Evolving Intelligence ("Grows With You")
-Athena isn't stateless—it learns your environment, adapts to your workflows, and gets smarter over time:
-* **Procedural Skill Learning (`skills/`)**: When Athena discovers a new workflow or solution, it creates and stores reusable skill guides using `skillManage`. Future runs automatically load and build upon these learned skills.
-* **Episodic & Long-Term Memory**: All interactions, past decisions, tool results, and session contexts are stored persistently in SQLite (`state.db`).
-* **Continuous Memory Consolidation**: A background LLM consolidation pipeline periodically analyzes past sessions to extract long-term user preferences, project insights, and coding style, allowing Athena to grow into a personalized AI assistant tailored specifically to you.
+### 🌱 2. Adaptive Complexity & Resilience First
+Athena prioritizes **reliability and recoverability over raw token counts**:
+* **Adaptive Orchestration**: Simple requests use a fast direct tool loop with zero planning token overhead. Complex requests automatically decompose into a **Plan DAG**, run acceptance verifications, and trigger self-repair loops.
+* **Cooperative Cancellation & Run Resumption**: Any long-running task can be interrupted cleanly via `Ctrl+C` and resumed later from SQLite checkpoints using `/resume <runId>`.
+* **Deep Security Guardrails**: Dual-boundary prompt injection defense, recursive secret redacting, and a centralized policy engine prevent unintended access to sensitive files or destructive shell commands.
+* **Continuous Self-Evolution**: Dynamic procedural skill learning (`skills/`) and multi-scope episodic memory allow Athena to grow alongside you.
+
+---
+
+## 🚀 Architecture Phases (Phases 1–8 Implemented)
+
+Athena is engineered as a multi-tier modular architecture across 8 fully implemented and verified phases:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Athena Autonomous Runtime                       │
+└──────────────────────────────────┬─────────────────────────────────────┘
+                                   │
+ ┌─────────────────────────────────┴─────────────────────────────────┐
+ │ Phase 1: Authoritative RunState, Budgets & Resumption             │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 2: ContextEngine, Multi-Scope Memory & Contradiction Logic │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 3: Resilient ToolRuntime, Circuit Breakers & Offloading     │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 4: Adaptive Orchestrator, TaskClassifier & Self-Repair DAG  │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 5: Coding Harness Bridge, Git Snapshots & Acceptance Gate   │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 6: Scheduler (Timezones), EventBus & Priority WorkerPool    │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 7: PolicyEngine, PromptDefense & Credential Isolation       │
+ ├───────────────────────────────────────────────────────────────────┤
+ │ Phase 8: Telemetry Alignment, Replay Debugger & Adversarial Suite │
+ └───────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
 ## ✨ Key Features & Capabilities
 
-### 🤖 Core Autonomous Agent Loop
-* **Multi-Turn Reasoning & Tool Calling**: Continuously plans, calls tools, processes feedback, and executes complex goals autonomously up to a configurable turn cap.
-* **Persona & SOUL System**: Dynamically loads agent personality, tone, and core identity from [`SOUL.md`](file:///c:/Users/raghu/Documents/Athena/SOUL.md).
-* **Human-in-the-Loop Safety**: Interactive confirmation prompts for high-impact tools (e.g., terminal execution, coding sub-agent tasks).
-* **Unattended Mode (`--allow-all`)**: Support for non-interactive execution for automated benchmarking, CI/CD pipelines, or power-user terminal workflows.
+### 1. Agent Runtime & Durable Execution (Phase 1)
+* **Authoritative `RunState` Model**: Explicit lifecycle tracking (`queued` ➔ `running` ➔ `waiting` ➔ `verifying` ➔ `completed` / `failed` / `cancelled`) persisted transactionally to SQLite (`runs` and `run_events`).
+* **Sub-Agent Run Tree Hierarchy**: Explicit parentage tracking with `runId`, `parentRunId`, and `rootRunId` across nested delegation trees.
+* **Typed `AgentEvent` Stream**: Real-time event emission for status transitions, turns, thoughts, tool executions, sub-agent spawning, plan updates, and budget alerts via `AgentEventEmitter`.
+* **Cooperative Cancellation**: `CancellationTokenSource` creates hierarchical cancellation tokens that cleanly abort LLM generation, child processes, sub-agents, and tools on `Ctrl+C`.
+* **Interrupted Run Resumption**: Resume paused, failed, or interrupted runs with full turn history and state via `/resume <runId>` and `agent.resumeRun(runId)`.
+* **Multi-Resource Budget Engine**: Bounded execution with strict limits on `maxTimeMs`, `maxTokens`, `maxCostUsd`, `maxToolCalls`, `maxTurns`, and child sub-agent allocations.
+* **Idempotency Tagging**: Side-effect tool calls generate unique idempotency keys to prevent accidental duplicate actions upon retry.
 
-### 🧠 Pluggable Multi-LLM Provider Engine
-* **Multi-Provider Support**: Seamless support for **Google Gemini** (via `@google/genai`) and **NVIDIA NIM / OpenAI-compatible** endpoints (via `openai`).
-* **Dynamic In-CLI Switching**: Switch models and providers on the fly during active conversations using the `/provider <gemini|nvidia> [model]` command.
-* **Unified Schema & Tool Normalization**: Transparently handles function declaration schemas, system instructions, and tool response mapping between Gemini and OpenAI APIs.
+### 2. Context Engine & Multi-Scope Memory (Phase 2)
+* **Unified Context Pipeline**: `ContextEngine` dynamically budgets and synthesizes system prompt instructions, workspace state, relevant scoped memory, and active conversation history within model token limits.
+* **Multi-Scope Memory Model**:
+  - `global`: Universal knowledge and user preferences across all projects.
+  - `user`: User-specific metadata, contact info, and constraints.
+  - `workspace`: Working directory facts, repo layout, and tooling conventions.
+  - `project`: Project goals, milestones, and architectural decisions.
+  - `session`: Current conversation thread history.
+  - `task`: Ephemeral context dedicated to an active sub-task.
+* **Memory Provenance & Confidence**: Every memory record tracks origin `runId`, source type (user message / tool execution / subagent finding), timestamp, and calibrated confidence score (0.0 to 1.0).
+* **Contradiction Resolution & Lifecycle**: Full lifecycle tracking (`active` ➔ `confirmed` ➔ `contradicted` ➔ `superseded` ➔ `deleted`) with bidirectional `supersededBy` and `supersedes` pointers when new facts invalidate older ones.
+* **User Memory Controls**: Interactive CLI commands (`/memory inspect`, `/memory scopes`, `/memory forget <id>`, `/memory purge <scope>`).
+* **Skill Registry Intelligence**: Tracks procedural skill versions, invocation counts, and success rates in SQLite.
 
-### 🌿 Sub-Agent Hierarchy & Delegation
-* **Generic Task Sub-Agents (`delegate_task`)**: Spawns isolated child agent instances with strict **tool scoping**, task-specific context slicing, and **depth limiting** (strips delegation capability when depth ≥ 3 to prevent infinite recursion).
-* **Coding Sub-Agent (`delegateCodingTask`)**: Spawns a dedicated CLI process harness for file modifications, code creation, refactoring, and test verification.
-* **Parallel Execution**: Supports parent agents running multiple sub-agent tasks concurrently.
+### 3. Resilient Tool Runtime (Phase 3)
+* **Standardized `ToolResult<T>` Envelope**: Unified return structure across all tools:
+  ```typescript
+  interface ToolResult<T> {
+    success: boolean;
+    data?: T;
+    error?: { code: string; message: string };
+    retryable: boolean;
+    metadata?: Record<string, any>;
+  }
+  ```
+* **Tool Manifests**: Every tool declares permissions (`fs:read`, `fs:write`, `cmd:exec`, `browser`, `memory`, `system`), risk levels (`safe`, `confirm`, `destructive`), timeout policies, and `parallelSafe` concurrency flags.
+* **Central Timeout Policies**: Fine-grained per-tool execution timeouts (5s math, 15s search, 45s browser, 60s terminal) with cooperative cancellation tokens.
+* **Circuit Breaker Registry**: Protects against flaky MCP servers or failing remote APIs with automatic state transitions (`closed` ➔ `open` ➔ `half-open` ➔ `closed`), failure thresholds, and recovery cooldowns.
+* **Semantic Schema Validation**: Validates parameter types and required fields against JSON Schema definitions prior to tool invocation.
+* **Large Output Offloading**: Payloads exceeding 16KB are automatically offloaded to disk artifacts (`scratch/artifacts/`), returning structured preview envelopes with artifact paths to avoid blowing out model context windows.
+* **Dynamic Tool Pruning (`ToolSelector`)**: Intent-based filter that dynamically prunes 20+ registered tools down to relevant subsets for the current turn.
 
-### 💾 Episodic & Procedural Memory ("Self-Learning")
-* **Episodic Memory (`state.db`)**: SQLite-backed persistent memory storing multi-session chat histories, session states, and tool outcomes.
-* **Procedural Memory (Skills)**: Dynamically loads, reads, and creates reusable skills in the [`skills/`](file:///c:/Users/raghu/Documents/Athena/skills) directory via `skillManage`.
-* **Memory Consolidation**: Periodically condenses historical interactions into structured long-term knowledge and user profiles using background LLM consolidation.
+### 4. Adaptive Orchestration & Self-Repair (Phase 4)
+* **Task Complexity Classification**: Zero-token-overhead heuristic router (`TaskClassifier`) assigning complexity classes:
+  - `simple`: Direct tool loop with zero planning overhead.
+  - `medium`: Standard loop with state checkpointing and focused context.
+  - `complex`: Formal DAG decomposition and dependency scheduling.
+  - `high_risk`: Mandatory verification gate and human-in-the-loop confirmation.
+* **Plan DAG Engine**: Decomposes complex tasks into directed acyclic step graphs (`PlanDAG`, `PlanStep`) with dependency resolution and step-level status tracking.
+* **Dynamic Escalation Engine**: Automatically escalates execution mode (`simple` ➔ `medium` ➔ `complex`) upon detecting repeated tool failures or lack of convergence.
+* **Verification Gate**: Evaluates task completion against acceptance criteria, scoring responses and flagging defects.
+* **Self-Repair Diagnostic Loop**: Re-prompts the model with structured diagnostic feedback when verification checks flag missing requirements or broken tests.
 
-### ⏰ Background Scheduler & Cron Engine
-* **Scheduled Tasks**: Create, list, execute, and cancel one-shot timers or recurring cron jobs (`cronjob` tool).
-* **Background Worker**: Integrates directly with SQLite state to wake up and trigger agent actions automatically.
+### 5. Coding Harness Integration (Phase 5)
+* **Zero-Duplicate Architecture**: Athena orchestrates complex repository modifications via an external Coding Harness process bridge (`CodingHarnessBridge`) without duplicating sandbox or git logic.
+* **Typed Communication Protocol**:
+  - `CodingTaskRequest`: `{ runId, task, cwd, traceId, maxIterations, timeoutSec, constraints, autoSnapshot }`
+  - `CodingTaskResult`: `{ status, summary, filesChanged, testsPassed, diff, checkpointId, stdout, stderr, error, durationMs }`
+* **Shared Trace & Run ID**: Propagates Athena `runId` via `--trace-id` for end-to-end telemetry correlation.
+* **Live Event Streaming**: Streams child process thoughts, tool calls, and test runs directly into Athena's terminal UI and event stream.
+* **Repository Intelligence (`inspectRepo`)**: Auto-detects package managers (`npm`, `yarn`, `pnpm`, `bun`, `pip`, `cargo`), test runners, and git branch status.
+* **Git Snapshots & Automatic Rollback**: Automatically creates pre-execution git snapshots and rolls back workspace state if verification tests fail.
+* **Coding Acceptance Gate**: Verifies exit status, changed file paths, and test execution outcomes before declaring success.
 
-### 🔌 Model Context Protocol (MCP) Integration
-* **Plug-and-Play MCP Servers**: Dynamically initializes and connects to external MCP tool servers via `stdio`, `sse`, `http`, or `streamable-http` transports.
-* **Automatic Dynamic Tool Registration**: Discovers exposed tools from configured MCP servers (`client.listTools()`) and registers them dynamically with server namespacing (e.g. `[MCP: filesystem]`).
-* **Gemini Schema Sanitization**: Built-in schema cleaner (`cleanGeminiSchema`) converts complex JSON schemas into 100% Gemini-compliant function declarations.
+### 6. Background Event Runtime & Worker Pool (Phase 6)
+* **Durable Task Scheduler**: Persistent cron and timer engine stored in SQLite that survives system restarts (`Scheduler`).
+* **Full IANA Timezone Support**: Schedule jobs with complete timezone awareness (`America/New_York`, `Asia/Kolkata`, `UTC`, etc.) using native `Intl.DateTimeFormat`.
+* **Atomic Job Leases / Distributed Locks**: SQLite-backed lease manager (`JobLeaseManager`) with auto-heartbeat renewal and stale lease takeover, preventing duplicate executions across worker processes.
+* **Decoupled Event Bus (`EventBus`)**: Wildcard topic subscription (`*`, `timer:*`, `webhook:*`) with sliding-window idempotency deduplication and an audit trail in `event_log`.
+* **Priority Worker Pool (`WorkerPool`)**: Asynchronous task runner with configurable concurrency (`ATHENA_WORKER_CONCURRENCY`) and priority queues (`critical` > `high` > `normal` > `low`).
 
-### 🌐 Headless Web Automation & Search
-* **Playwright Browser Automation**: Full web navigation, clicking, typing, page extraction, and screenshot capturing with Chromium.
-* **Interactive DOM Inspection**: Live page analysis and multi-turn web interaction via `interactiveBrowser`.
-* **DuckDuckGo Web Search**: Fast, live web search retrieval (`searchWeb`).
+### 7. Reliability, Security & Policy Engine (Phase 7)
+* **Central Policy Engine (`PolicyEngine`)**: Rule-based security gatekeeper:
+  - Blocks access to sensitive paths (`.env`, `id_rsa`, `.ssh/`, `credentials.json`, `client_secret*.json`).
+  - Enforces workspace boundaries against directory traversal (`../`).
+  - Restricts destructive commands (`rm -rf /`, `del /s /q C:\`, fork bombs, drive formatting).
+* **Prompt-Injection Dual-Boundary Defense (`PromptDefense`)**:
+  - Disarms instruction overrides, jailbreaks, and delimiter escapes.
+  - Sanitizes and isolates external web pages, emails, and external files inside strict `<untrusted_content>` tags.
+* **Recursive Credential Redaction (`CredentialManager`)**: Automatically detects and redacts secrets (Gemini, OpenAI, NVIDIA, Telegram, AWS, GitHub tokens, Bearer tokens) across all tool outputs, trace spans, and histories.
+* **Multi-Provider Fallback**: Automatic failover (e.g., Gemini ➔ NVIDIA NIM / OpenAI) on HTTP 429 rate limits, 500/503 outages, or connection resets with primary cooldown circuit breaker.
+* **Structured Failure Taxonomy & Recovery**: Tailored backoff, retry, and recovery strategies for `rate_limit`, `provider_outage`, `network_reset`, `timeout`, `auth`, and `policy_violation`.
 
-### 🛠️ Comprehensive Built-in Toolset
-| Tool | Description |
-| :--- | :--- |
-| `delegate_task` | Delegate generic tasks to an isolated sub-agent with scoped tools |
-| `delegateCodingTask` | Spawn dedicated coding sub-agent process harness for repository tasks |
-| `browser` / `interactiveBrowser` | Headless Chromium web browsing, navigation, and DOM manipulation |
-| `browserScreenshot` | Capture full or viewport screenshots of web pages for visual verification |
-| `searchWeb` | Web search powered by DuckDuckGo and Yahoo fallback |
-| `terminal` | Shell command execution with execution timeouts, maxBuffer, and cwd support |
-| `filesystem` | File and directory operations (listFiles, writeFile, deleteFile) |
-| `replaceFileContent` | Surgical text/code search-and-replace for existing files without full rewrites |
-| `grepSearch` | Fast recursive codebase search with regex, line numbers, and file filters |
-| `readFile` | Utility tool to view file contents with line slicing (`startLine`, `endLine`) and size limits |
-| `executePython` | Isolated Python code execution sandbox |
-| `calculate` | Mathematical expression evaluation |
-| `cronjob` | Background recurring cron jobs and one-shot delayed reminders with auto-cleanup |
-| `skillManage` | Create, list, read, and edit dynamic procedural skill files |
-| `semanticMemory` | Multi-provider semantic facts search and persistent memory |
-| `systemTime` | Query current system date and time |
+### 8. Observability, Telemetry & Replay Debugger (Phase 8)
+* **OpenTelemetry & Langfuse Trace Alignment**: Unified trace and span hierarchies linking Athena Core, child sub-agents, Coding Harness processes, and background workers into a single observability tree.
+* **Trajectory Replay Debugger (`TrajectoryReplayer`)**:
+  - Replay past run trajectories step-by-step from persisted events.
+  - Inspect timestamps, tool invocations, success/failure counts, and execution latency.
+  - Trajectory diffing (`/replay <runId> --diff <otherRunId>`) to detect divergence between runs.
+  - Markdown post-mortem export (`/replay <runId> --export <path>`).
+* **Adversarial Security Evaluation Suite**: Built-in benchmark harness (`npm run eval:adversarial`) evaluating resilience against prompt injection, memory poisoning, directory traversal, and unauthorized tool invocation with defense scorecards.
 
-### 📊 Observability & Evaluation
-* **Langfuse & OpenTelemetry Tracing**: Deep observability tracking token usage, latency, tool call traces, and hierarchical parent-child agent spans ([`instrumentation.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/instrumentation.ts)).
-* **LLM-as-a-Judge Evaluation**: Built-in eval engine ([`eval.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/eval.ts)) for measuring task accuracy and response quality.
-* **Automated Benchmark & Regression Suite**: Multi-run trajectory evaluation harness ([`runBenchmark.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/runBenchmark.ts)) testing tool usage, side-effect checks, turn limits, and tracking regression gates across runs.
+### 9. Model Context Protocol (MCP) Integration
+* Connects external tool servers (Gmail, Notion, Slack, GitHub, Postgres, Filesystem, Brave Search) seamlessly via `stdio`, `sse`, `http`, or `streamable-http`.
+* Automatic Gemini schema sanitization (`cleanGeminiSchema`) converts raw JSON schemas into compliant function declarations.
+* Server-namespaced tool registration (e.g. `[MCP: filesystem]`).
 
-### 💬 Multi-Channel Access Gateways
-* **CLI Client**: Feature-rich terminal interface with ANSI colors, multi-session switching (`/session`), runtime provider switching (`/provider`), command history, and interactive tool confirmations.
-* **Telegram Bot Gateway**: Telegraf-based Telegram gateway allowing remote messaging and task delegation directly via Telegram chats.
+---
+
+## 🛠️ Comprehensive Built-in Toolset
+
+| Tool | Category | Description | Permissions | Risk Level |
+| :--- | :--- | :--- | :--- | :--- |
+| `delegate_task` | Orchestration | Spawns an isolated sub-agent with scoped tools, budget cap, and depth guards | `system` | `safe` |
+| `delegateCodingTask` | Coding | Delegates repository coding tasks to the Coding Harness with git snapshots and rollback | `cmd:exec`, `system` | `confirm` |
+| `browser` | Web | Headless Chromium web browsing, text extraction, and page navigation | `browser` | `safe` |
+| `browserNavigate` | Web | Interactive browser navigation to URLs | `browser` | `safe` |
+| `browserAction` | Web | Interactive browser DOM action (click, type, press, scroll) using element IDs | `browser` | `safe` |
+| `browserScreenshot` | Web | Captures full or viewport screenshots of web pages for visual verification | `browser` | `safe` |
+| `searchWeb` | Search | Live web search powered by DuckDuckGo and Yahoo fallback | `browser` | `safe` |
+| `terminal` | System | Shell command execution with timeout policies, maxBuffer, and cwd control | `cmd:exec` | `confirm` |
+| `writeFile` | Filesystem | Writes or overwrites file contents on the local filesystem | `fs:write` | `confirm` |
+| `deleteFile` | Filesystem | Deletes a file on the local filesystem | `fs:write` | `confirm` |
+| `listFiles` | Filesystem | Lists files and directories with depth limits and hidden file filters | `fs:read` | `safe` |
+| `replaceFileContent` | Filesystem | Surgical search-and-replace for existing files without whole-file rewrites | `fs:write` | `safe` |
+| `grepSearch` | Filesystem | Fast recursive regex codebase search with line numbers and file filters | `fs:read` | `safe` |
+| `readFile` | Filesystem | Reads file contents with line slicing (`startLine`, `endLine`) and output offloading | `fs:read` | `safe` |
+| `executePython` | Execution | Executes Python code in a local subprocess sandbox | `cmd:exec` | `confirm` |
+| `calculate` | Utility | Mathematical expression evaluation | `system` | `safe` |
+| `cronjob` | Scheduler | Persistent scheduled tasks with IANA timezones, priorities, and one-shot/cron triggers | `system` | `safe` |
+| `skillManage` | Learning | Creates, lists, reads, and edits reusable procedural skills in `skills/` | `fs:write`, `fs:read` | `safe` |
+| `semanticMemory` | Memory | Queries, updates, reinforces, or resolves scoped memories across scopes | `memory` | `safe` |
+| `systemTime` | Utility | Returns current machine date, time, and timezone | `system` | `safe` |
+| *Dynamic MCP Tools* | Dynamic | Discovered dynamically from declared servers in `mcp_servers.json` | *Dynamic* | *Dynamic* |
 
 ---
 
@@ -158,62 +256,94 @@ Athena isn't stateless—it learns your environment, adapts to your workflows, a
 Athena/
 ├── .github/
 │   └── workflows/
-│       └── eval-benchmark.yml     # Automated CI/CD benchmark regression gate
-├── assets/                        # Project media, videos & diagrams
+│       └── eval-benchmark.yml         # CI/CD benchmark regression gate
+├── assets/                            # Media, demo videos & architecture diagrams
 │   ├── videos/
-│   │   ├── Athena.mp4             # Athena project demonstration video
-│   │   └── Coding-Harness.mp4     # Harness demo video
-│   └── athena_architecture.png    # System architecture diagram
-├── docs/                          # System documentation & guides
-│   ├── architecture/              # Architecture build plans & design docs
-│   ├── guides/                    # System integration & automation guides
-│   ├── roadmap/                   # Project roadmaps & milestones
-│   └── learnings.md               # Technical learnings & post-mortems
+│   │   ├── Athena.mp4                 # Athena demo video
+│   │   └── Coding-Harness.mp4         # Coding harness demo video
+│   └── athena_architecture.png        # Architecture diagram
+├── docs/                              # Architecture blueprints, guides & learnings
+│   ├── architecture/                  # Multi-phase system specifications
+│   ├── guides/                        # Tool & browser automation guides
+│   ├── roadmap/                       # Strategic development roadmap
+│   └── learnings.md                   # Technical insights & post-mortems
+├── skills/                            # Dynamic procedural skill markdown guides (.md)
 ├── src/
-│   ├── index.ts                   # CLI entrypoint, session controller & MCP loader
+│   ├── index.ts                       # CLI entrypoint, command router, MCP loader & lifecycle
 │   ├── cli/
-│   │   └── ui.ts                  # ANSI terminal UI, spinners & formatters
-│   ├── core/
-│   │   ├── agent.ts               # Main Agent class & tool execution loop
-│   │   ├── llmProvider.ts         # Multi-provider abstraction (Gemini, NVIDIA/OpenAI)
-│   │   ├── mcpManager.ts          # MCP client transport & Gemini schema bridge
-│   │   ├── memory.ts              # SQLite Episodic Memory store
-│   │   ├── consolidation.ts       # Long-term Memory Summarizer & Consolidator
-│   │   ├── procedural.ts          # Procedural Memory (Skills loader)
-│   │   ├── scheduler.ts           # Background Cron & Timer Scheduler
-│   │   ├── eval.ts                # LLM-as-a-judge Evaluation framework
-│   │   ├── instrumentation.ts     # Langfuse / OpenTelemetry Tracing
-│   │   └── types.ts               # Core TypeScript interface definitions
+│   │   └── ui.ts                      # ANSI terminal UI, spinners, rails & frame renderers
+│   ├── core/                          # Core Runtime Engine
+│   │   ├── agent.ts                   # Main Agent loop, resumption & turn controller
+│   │   ├── cancellation.ts            # Cooperative CancellationTokenSource & signals
+│   │   ├── codingHarness.ts           # Dedicated Coding Harness Bridge & git snapshots
+│   │   ├── codingHarnessTypes.ts      # Typed harness request/response protocol
+│   │   ├── consolidation.ts           # Background memory summarizer & consolidator
+│   │   ├── contextEngine.ts           # Multi-scope prompt budgeting pipeline
+│   │   ├── credentialManager.ts       # Recursive secret redactor & isolation
+│   │   ├── eventBus.ts                # Decoupled EventBus with wildcard routing & dedup
+│   │   ├── events.ts                  # Strongly typed AgentEvent definitions
+│   │   ├── failureRecovery.ts         # Failure taxonomy & recovery strategies
+│   │   ├── instrumentation.ts         # Langfuse & OpenTelemetry bootstrap
+│   │   ├── jobLease.ts                # Distributed SQLite job leases & heartbeat locks
+│   │   ├── llmProvider.ts             # Multi-provider abstraction & automatic fallback
+│   │   ├── mcpManager.ts              # MCP client transports (stdio, sse, http) & schema cleaner
+│   │   ├── memory.ts                  # SQLite Episodic, Scoped & RunState storage
+│   │   ├── memoryTypes.ts             # Scoped memory, provenance & lifecycle models
+│   │   ├── orchestration.ts           # TaskClassifier, Plan DAG & VerificationGate
+│   │   ├── policyEngine.ts            # Sensitive file & dangerous command policy gatekeeper
+│   │   ├── procedural.ts              # Procedural skill directory loader
+│   │   ├── promptDefense.ts           # Dual-boundary prompt injection defense
+│   │   ├── replayDebugger.ts          # Trajectory Replayer, diffing & export
+│   │   ├── runState.ts                # Authoritative RunState & resource budget model
+│   │   ├── scheduler.ts               # Durable task scheduler with timezone support
+│   │   ├── telemetry.ts               # Unified OpenTelemetry / Langfuse trace aligner
+│   │   ├── toolRuntime.ts             # ToolResult envelope, circuit breakers & offloading
+│   │   ├── types.ts                   # Core interfaces, Message, Tool & Provider types
+│   │   └── workerPool.ts              # Priority background worker pool & concurrency
 │   ├── gateway/
-│   │   └── telegram.ts            # Telegram Bot Gateway (Telegraf)
-│   ├── tests/                     # Verification harness & integration tests
-│   │   ├── evals/                 # Benchmark evaluation suite
-│   │   │   ├── runBenchmark.ts    # Multi-run evaluation harness & reporter
-│   │   │   ├── checks.ts          # Deterministic side-effect & tool checks
-│   │   │   ├── datasets/          # Benchmark dataset JSON (coding, memory, delegation, search)
-│   │   │   └── results/           # Saved baseline reports (latest.json)
-│   │   ├── verify.ts              # Core system verification test suite
-│   │   └── test_*.ts              # Phase & module integration tests
-│   ├── tools/                     # Agent Tool Registry
-│   │   ├── index.ts               # Tools registry export
-│   │   ├── delegateTask.ts        # Sub-agent generic task delegator
-│   │   ├── delegateCodingTask.ts  # Coding process harness delegator
-│   │   ├── browser.ts             # Playwright browser integration
-│   │   ├── interactiveBrowser.ts  # DOM interaction & screenshot tool
-│   │   ├── executePython.ts       # Python runner
-│   │   ├── filesystem.ts          # File system manager
-│   │   ├── terminal.ts            # Terminal runner
-│   │   ├── cronjob.ts             # Scheduler tool
-│   │   ├── skillManage.ts         # Skill management tool
-│   │   ├── searchWeb.ts           # Web search tool
-│   │   └── ...
-│   └── prompts/
-│       └── index.ts               # Default system prompt templates
-├── skills/                        # Dynamic procedural skills (.md)
-├── mcp_servers.json               # MCP server declarations (stdio, SSE, HTTP)
-├── state.db                       # SQLite Database (Episodic memory & cron)
-├── SOUL.md                        # Agent identity & behavioral guidelines
-└── package.json                   # Build scripts & dependencies
+│   │   └── telegram.ts                # Telegram Bot Gateway (Telegraf)
+│   ├── prompts/
+│   │   ├── index.ts                   # System prompt exports
+│   │   └── agentPrompt.ts             # Master agent system prompt template
+│   ├── tests/                         # Verification & Test Suites
+│   │   ├── evals/                     # Evaluation benchmark harnesses
+│   │   │   ├── runBenchmark.ts        # Trajectory benchmark runner & reporter
+│   │   │   ├── adversarialRunner.ts   # Adversarial security benchmark runner
+│   │   │   ├── checks.ts              # Deterministic side-effect & trajectory assertions
+│   │   │   ├── datasets/              # Benchmark & adversarial test datasets
+│   │   │   └── results/               # Baseline results & regression reports
+│   │   ├── test_phase1_runtime.ts     # Phase 1: RunState, budgets, cancellation, resume
+│   │   ├── test_phase2_context_memory.ts # Phase 2: ContextEngine, scopes, contradiction
+│   │   ├── test_phase3_tools.ts       # Phase 3: ToolResult, circuit breaker, offloading
+│   │   ├── test_phase4_adaptive_orchestration.ts # Phase 4: Classifier, Plan DAG, repair
+│   │   ├── test_phase4_delegation.ts  # Phase 4: Sub-agent scoping & depth limits
+│   │   ├── test_phase5_coding_harness.ts # Phase 5: Harness bridge, snapshots, gates
+│   │   ├── test_phase6_background_runtime.ts # Phase 6: Scheduler, leases, event bus, workers
+│   │   ├── test_phase7_reliability_security.ts # Phase 7: Policy, injection defense, secrets
+│   │   ├── test_phase8_observability_eval.ts # Phase 8: Telemetry, replay, adversarial
+│   │   └── verify.ts                  # Core system smoke verification
+│   └── tools/                         # Registered Agent Tools
+│       ├── index.ts                   # Tool exports & manifest initialization
+│       ├── browser.ts                 # Playwright browser integration
+│       ├── interactiveBrowser.ts      # Element ID navigation, actions & screenshots
+│       ├── calculate.ts               # Math evaluator
+│       ├── cronjob.ts                 # Scheduler tool with timezone and priority
+│       ├── delegateCodingTask.ts      # Coding harness bridge tool
+│       ├── delegateTask.ts            # Sub-agent task delegator
+│       ├── editFile.ts                # Surgical replaceFileContent tool
+│       ├── executePython.ts           # Python runner
+│       ├── filesystem.ts              # File read/write/delete/list tools
+│       ├── grepSearch.ts              # Recursive regex search tool
+│       ├── readFile.ts                # Line slicing read tool
+│       ├── searchWeb.ts               # DuckDuckGo search tool
+│       ├── semanticMemory.ts          # Scoped memory tool
+│       ├── skillManage.ts             # Procedural skill tool
+│       └── systemTime.ts              # Machine time tool
+├── mcp_servers.json                   # MCP external server definitions
+├── roadmap.md                         # Master architectural roadmap & progress
+├── SOUL.md                            # Agent personality, tone & behavioral guidelines
+├── state.db                           # SQLite database (Episodic memory, runs, cron, events)
+└── package.json                       # Dependencies & npm scripts
 ```
 
 ---
@@ -221,10 +351,10 @@ Athena/
 ## ⚡ Quick Start & Getting Started
 
 ### Prerequisites
-* **Node.js**: `v18.0.0` or higher
+* **Node.js**: `v18.0.0` or higher (Node 20+ recommended)
 * **npm**: `v9.0.0` or higher
-* **Python**: Optional (required only for `executePython` tool)
-* **Google Gemini API Key**: [Get API Key from Google AI Studio](https://aistudio.google.com/)
+* **Python**: `3.9+` (optional, required only for `executePython`)
+* **LLM API Key**: Google Gemini (recommended) or NVIDIA NIM / OpenAI-compatible key
 
 ### 1. Clone & Install Dependencies
 ```bash
@@ -234,34 +364,32 @@ npm install
 ```
 
 ### 2. Configure Environment Variables
-Create a `.env` file in the root directory:
+Create a `.env` file in the project root:
 
 ```env
-# LLM Provider: 'gemini' (default) or 'nvidia'
+# ── LLM Provider Configuration ─────────────────────────────────────
+# Provider: 'gemini' (default) or 'nvidia'
 LLM_PROVIDER=gemini
 
-# Google Gemini API Configuration (Default)
+# Google Gemini API (Default)
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-2.5-flash
 
-# NVIDIA NIM / OpenAI-Compatible Endpoint Configuration (Optional)
+# NVIDIA NIM / OpenAI-Compatible API (Optional Fallback / Primary)
 NVIDIA_API_KEY=your_nvidia_api_key_here
 NVIDIA_MODEL=z-ai/glm-5.2
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
 
-# Autonomous / Unattended Execution (Optional)
-ATHENA_ALLOW_ALL=0  # Set to 1 to bypass interactive HITL tool confirmations
+# ── Agent Execution Settings ──────────────────────────────────────
+MAX_TURNS=20
+ATHENA_ALLOW_ALL=0                    # Set to 1 to bypass interactive HITL prompts
+ATHENA_WORKER_CONCURRENCY=2           # Background worker concurrency limit
+DATABASE_PATH=./state.db              # SQLite storage path
 
-# System Prompt Override (Optional)
-# GEMINI_SYSTEM_PROMPT=...
-
-# Database Storage Path (Optional)
-DATABASE_PATH=./state.db
-
-# Telegram Bot Token (Optional - Required for Telegram Gateway)
+# ── Gateway Integrations (Optional) ───────────────────────────────
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# Langfuse Telemetry (Optional)
+# ── Observability & Telemetry (Optional) ───────────────────────────
 LANGFUSE_PUBLIC_KEY=your_langfuse_public_key
 LANGFUSE_SECRET_KEY=your_langfuse_secret_key
 LANGFUSE_HOST=https://cloud.langfuse.com
@@ -276,30 +404,30 @@ npm run build
 
 ## 🧠 Multi-LLM Provider Architecture
 
-Athena implements a decoupled `LLMProvider` abstraction layer ([`src/core/llmProvider.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/llmProvider.ts)) that standardizes interactions across different model families and API specifications.
+Athena implements a decoupled `LLMProvider` abstraction layer ([`src/core/llmProvider.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/llmProvider.ts)) that standardizes interactions across different model families:
 
 ### Supported Providers
-
-| Provider | Backend Client | Supported Features | Configuration Keys |
+| Provider | Backend Client | Features | Configuration Keys |
 | :--- | :--- | :--- | :--- |
-| **`gemini`** *(Default)* | `@google/genai` | Native function calling, system instructions, token usage tracking | `GEMINI_API_KEY`, `GEMINI_MODEL` (e.g. `gemini-2.5-flash`, `gemini-2.5-pro`) |
-| **`nvidia`** | `openai` | OpenAI-compatible tool calling, NVIDIA NIM endpoints, token usage | `NVIDIA_API_KEY`, `NVIDIA_MODEL` (e.g. `z-ai/glm-5.2`), `NVIDIA_BASE_URL` |
+| **`gemini`** *(Default)* | `@google/genai` | Native function calling, system instructions, token usage tracking | `GEMINI_API_KEY`, `GEMINI_MODEL` |
+| **`nvidia`** | `openai` | OpenAI-compatible tool calling, NVIDIA NIM endpoints, token tracking | `NVIDIA_API_KEY`, `NVIDIA_MODEL`, `NVIDIA_BASE_URL` |
+
+### Automatic Outage Failover & Fallback
+Athena provides `FallbackLLMProvider`: when configured with secondary credentials, Athena will automatically fail over to a backup provider if the primary encounters rate limits (HTTP 429), outages (HTTP 500/503), or network connection resets, engaging an automatic recovery cooldown before probing the primary again.
 
 ### Runtime Provider Switching
-
-You can switch the active provider and model on the fly directly from the interactive CLI without restarting Athena:
-
+Switch providers and models on the fly in the active CLI session:
 ```bash
-# Check current provider and model
+# View active provider and model
 /provider
 
-# Switch to NVIDIA NIM provider with default model
+# Switch to NVIDIA NIM with default model
 /provider nvidia
 
 # Switch to NVIDIA with a custom model
 /provider nvidia meta/llama-3.1-70b-instruct
 
-# Switch back to Google Gemini
+# Switch back to Gemini with a custom model
 /provider gemini gemini-2.5-pro
 ```
 
@@ -307,162 +435,131 @@ You can switch the active provider and model on the fly directly from the intera
 
 ## 🔌 Model Context Protocol (MCP) Setup & Configuration
 
-Athena includes full native support for Anthropic's **Model Context Protocol (MCP)**, enabling you to seamlessly connect external tool servers (e.g. Filesystem, Gmail, Notion, Slack, GitHub, PostgreSQL, Brave Search) into Athena's autonomous tool loop without writing custom code.
+Athena includes native support for Anthropic's **Model Context Protocol (MCP)**, connecting external tool servers directly into the agent's tool execution loop.
 
 ### 1. Configuration File (`mcp_servers.json`)
-Athena automatically scans for [`mcp_servers.json`](file:///c:/Users/raghu/Documents/Athena/mcp_servers.json) in the root directory upon startup. If present, it initializes connections to all declared servers.
-
-Create or update `mcp_servers.json` in your project root:
+Declare external servers in [`mcp_servers.json`](file:///c:/Users/raghu/Documents/Athena/mcp_servers.json):
 
 ```json
 {
   "mcpServers": {
     "filesystem": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "C:\\Users\\yourname\\Documents"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\yourname\\Documents"]
     },
     "gmail": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@gongrzhe/server-gmail-autoauth-mcp"
-      ]
+      "args": ["-y", "@gongrzhe/server-gmail-autoauth-mcp"]
     },
     "notion": {
       "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://mcp.notion.com/sse"
-      ]
+      "args": ["-y", "mcp-remote", "https://mcp.notion.com/sse"]
     }
   }
 }
 ```
 
 ### 2. Supported Transport Modes
+* **`stdio`**: Local subprocess (`npx`, `node`, `python`, `uvx`) via stdin/stdout.
+* **`sse`**: Remote HTTP Server-Sent Events.
+* **`streamable-http`**: Streaming HTTP transport.
+* **`http`**: Standard HTTP request/response.
 
-Athena's [`MCPManager`](file:///c:/Users/raghu/Documents/Athena/src/core/mcpManager.ts) supports four transport modes:
-
-| Transport Type | Trigger / Field | Description |
-| :--- | :--- | :--- |
-| **`stdio`** *(Default)* | `"command": "..."` | Launches a local subprocess (`npx`, `node`, `python`, `uvx`, etc.) and communicates over standard input/output streams. |
-| **`sse`** | `"type": "sse"` or `"url": "..."` | Connects to remote HTTP Server-Sent Events (SSE) server endpoints. |
-| **`streamable-http`** | `"type": "streamable-http"` | Connects via streaming HTTP transport. |
-| **`http`** | `"type": "http"` | Standard HTTP request/response transport. |
-
-### 3. Server Configuration Options
-
-| Option | Type | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `command` | `string` | For `stdio` | The command or binary to run (e.g., `npx`, `node`, `python`, `uvx`). |
-| `args` | `string[]` | Optional | Array of CLI arguments passed to the binary. |
-| `url` | `string` | For `sse`/`http` | Target endpoint URL for HTTP or SSE servers. |
-| `env` | `Record<string, string>` | Optional | Custom environment variables passed to the `stdio` child process. |
-| `headers` | `Record<string, string>` | Optional | Custom HTTP headers passed during HTTP / SSE handshakes. |
-| `type` | `string` | Optional | Explicit transport override: `'stdio'`, `'sse'`, `'http'`, or `'streamable-http'`. |
-
-### 4. How MCP Integration Works Under the Hood
-1. **Startup Handshake**: On CLI/Gateway boot, `MCPManager` reads `mcp_servers.json` and connects to all active servers.
-2. **Tool Discovery**: Queries connected servers via `client.listTools()`.
-3. **Gemini Schema Sanitization (`cleanGeminiSchema`)**: Converts JSON schemas into 100% Gemini-compliant function declarations, stripping non-standard fields.
-4. **Dynamic Registration**: Registers tools into Athena's active tool registry with namespaces (e.g., `[MCP: filesystem] read_file`).
-5. **Graceful Teardown**: Intercepts `SIGINT` / `SIGTERM` process signals to safely terminate sub-processes and disconnect clients (`mcpManager.closeAll()`).
+### 3. How MCP Integration Works Under the Hood
+1. **Discovery**: On boot, `MCPManager` connects to declared servers and calls `client.listTools()`.
+2. **Sanitization**: `cleanGeminiSchema` translates complex JSON schemas into 100% Gemini-compliant function declarations.
+3. **Registration**: Tools are registered dynamically into `toolsRegistry` under namespaces (e.g., `[MCP: filesystem]`).
+4. **Resilience**: MCP tool invocations are wrapped in Athena's `CircuitBreakerRegistry` to isolate failing servers.
+5. **Teardown**: Graceful process signal handling (`SIGINT`/`SIGTERM`) cleanly disconnects all client processes.
 
 ---
 
 ## 💻 Usage & CLI Commands
 
-### Start the CLI Client
-Run the agent in interactive terminal mode:
+### Start the Interactive CLI
 ```bash
-# Standard interactive mode (with Human-in-the-Loop confirmations)
+# Standard interactive mode (with Human-in-the-Loop confirmation prompts)
 npm run dev
 
-# Or after build:
+# Or after building:
 npm start
 ```
 
 ### Autonomous Unattended Execution (`--allow-all`)
-To run Athena autonomously without interactive confirmation prompts for sensitive tools (such as terminal execution, file edits, or coding sub-agent tasks), pass `--allow-all` or use the dedicated scripts:
-
+Bypasses interactive confirmation prompts for high-risk tools:
 ```bash
-# Run in dev mode with all tool confirmations pre-approved
+# Dev mode with pre-approved tool confirmations
 npm run dev:allowAll
 
-# Run built distribution with all tool confirmations pre-approved
+# Production mode with pre-approved tool confirmations
 npm run start:allowAll
 
-# Or directly with node flag
+# Or directly:
 node dist/index.js --allow-all
 ```
-*You can also set `ATHENA_ALLOW_ALL=1` in your `.env` file.*
 
-### In-CLI Commands
-| Command | Description |
+### In-CLI Commands Cheat Sheet
+
+| Command | Action |
 | :--- | :--- |
-| `/provider` | View the currently active LLM provider and model |
-| `/provider <gemini\|nvidia> [model]` | Switch LLM provider and model dynamically at runtime |
-| `/session list` (or `/sessions`) | List all stored SQLite sessions, message counts, and last activity |
-| `/session switch <name>` (or `/switch <name>`) | Switch active conversation to a specific session (loads recent turn history) |
+| **Provider & Model** | |
+| `/provider` | View active LLM provider and model |
+| `/provider <gemini\|nvidia> [model]` | Dynamically switch provider and model at runtime |
+| **Session Management** | |
+| `/session list` (or `/sessions`) | List all stored SQLite sessions, turn counts, and activity |
+| `/session switch <name>` (or `/switch <name>`) | Switch conversation to a specific session and load history |
 | `/session create <name>` | Create a new isolated conversation session |
-| `/session rename <name>` | Rename the currently active conversation session |
-| `/session delete <name>` | Delete conversation history for a specific session |
-| `/session current` | Print the current active session name |
-| `/session help` | Display session management command help |
-| `clear` | Clear conversation history for the current active session |
-| `exit` / `quit` | Exit the CLI session |
+| `/session rename <name>` | Rename the currently active session |
+| `/session delete <name>` | Delete conversation history for a session |
+| `/session current` | Print active session name |
+| `/session help` | Show session help frame |
+| `clear` | Clear message history for the active session |
+| **Run State & Resumption (Phase 1)** | |
+| `/runs` | List recorded runs in the current session |
+| `/runs all` | List all recorded runs across all sessions |
+| `/runs <sessionId>` | List runs for a specific session |
+| `/resume <runId>` | Resume an interrupted, paused, or failed run from persisted state |
+| `Ctrl+C` | Gracefully cancel the active run using cooperative cancellation tokens |
+| **Scoped Memory Controls (Phase 2)** | |
+| `/memory inspect [query]` | Search and view active memory facts with confidence & lifecycle |
+| `/memory scopes` | List available memory scopes (`global`, `user`, `workspace`, `project`, `session`, `task`) |
+| `/memory forget <id>` | Soft-delete a specific memory fact by ID |
+| `/memory purge <scope>` | Purge all facts belonging to a specific scope |
+| `/memory help` | Show memory controls help frame |
+| **Replay Debugger (Phase 8)** | |
+| `/replay <runId>` | View step-by-step timeline, duration, turns, and tool stats |
+| `/replay <runId> --diff <otherRunId>` | Compare two run trajectories to identify divergence and token deltas |
+| `/replay <runId> --export [path]` | Export a detailed markdown post-mortem report for a run |
+| `/replay help` | Show replay debugger help frame |
+| **General** | |
+| `exit` / `quit` | Cleanly disconnect MCP clients and exit |
 
 ### Start the Telegram Gateway
-To run Athena as a Telegram Bot:
+Run Athena as a remote Telegram Bot:
 ```bash
-npm start -- --gateway telegram
+npm start -- telegram
 ```
 
 ---
 
 ## 🧪 Manual Feature Test Prompts
 
-Use these prompts in the CLI (`npm run dev`) to exercise each capability by hand. Prefer a **fresh session** (`/session new`) when you want a clean trace; reuse the same session when you are testing memory.
+Use these prompts in the CLI (`npm run dev`) to test each capability:
 
-Flagship capabilities to verify first: **memory**, **skill managing**, **browser**, **coding sub-agent**, **sub-agent**, **MCP**, **cron**.
-
-### Flagship prompts
-
-| Feature | What it should hit | Prompt | Pass if |
-| :--- | :--- | :--- | :--- |
-| **Memory** | same session, `semanticMemory` | Turn 1: `Remember that my preferred editor is Cursor and my currency is INR.` Turn 2: `What editor and currency do I prefer?` | Second turn answers from memory / session history without you repeating it |
-| **Skill managing** | `skillManage` | `Create a skill named "amazon-add-to-cart" that documents this workflow on amazon.in: search for a product, open the first result, add it to cart, and report the cart count. Do not checkout. Prefer INR. Then list all skills.` | A new skill markdown appears under `skills/` and shows up in the list |
-| **Interactive browser** | `browserNavigate` + `browserAction` | `Follow the amazon-add-to-cart skill. Go to amazon.in, search for "mechanical keyboard", open the first product, add it to cart, and tell me the cart count. Do not checkout or log in unless the site requires it.` | Uses `id=N` selectors; Amazon search + add to cart, not a one-shot scrape |
-| **Headless browser** | `browser` | `Open https://example.com in the browser tool and tell me the page title and first heading.` | Playwright runs; title/heading match the live page |
-| **Coding sub-agent** | `delegateCodingTask` | `In this Athena repo, create a folder named demo-todo. Build a polished single-page todo app with HTML, CSS, and JS: add a task, mark complete, delete, persist to localStorage. Then summarize the files you created.` | Coding harness creates a real app under `demo-todo/` |
-| **Generic sub-agent** | `delegate_task` | `Delegate two parallel tasks: (1) search the web for Playwright's latest major version, (2) calculate 2^16. Synthesize both answers.` | Child agents spawn with scoped tools; parent summarizes without redoing the work |
-| **MCP Gmail** | `[MCP: gmail]` | `List my 3 most recent Gmail messages (subjects only). Do not send anything.` | Gmail MCP tools run; subjects come back (needs auth already done) |
-| **MCP Calendar** | `[MCP: calendar]` | `What is on my Google Calendar for today?` | Calendar MCP returns events or an empty day, not a refusal |
-| **MCP Notion** | `[MCP: notion]` | `Search my Notion workspace for pages mentioning "Athena".` | Notion MCP is used; results or a clear empty search |
-| **MCP Excalidraw** | `[MCP: excalidraw]` | `Create a simple Excalidraw diagram with three boxes: Agent, Tools, Memory, and arrows between them.` | Excalidraw MCP runs and produces a diagram / file |
-| **MCP filesystem** | `[MCP: filesystem]` | `Using the MCP filesystem server, list the folders in my Documents directory.` | MCP tool is chosen (not only the built-in `listFiles` on the repo) |
-| **Cron / scheduler** | `cronjob` | `In 15 seconds, remind me in this session to drink water. Create that job and list scheduled jobs.` | Job is stored; ~15s later the scheduler prints a notification in the CLI |
-
-### Other prompts
-
-| Feature | What it should hit | Prompt | Pass if |
-| :--- | :--- | :--- | :--- |
-| **CLI + HITL confirm** | `terminal` + yellow confirmation | `List the files in this repo with a terminal command.` | Confirm prompt appears; after `y` you see a real `dir`/`ls` listing |
-| **Filesystem write/read** | `writeFile` / `readFile` / `listFiles` | `Create a file named demo-note.txt in the project root with the text "Athena demo" and then read it back.` | File appears on disk and contents are echoed |
-| **Python sandbox** | `executePython` | `Use Python to print the first 10 Fibonacci numbers.` | Python runs locally; numbers look correct |
-| **Calculator** | `calculate` | `What is (19.99 * 3) + 8% GST? Show the expression you evaluated.` | Uses `calculate`, not a guess |
-| **System time** | `systemTime` | `What is the current local date and time on this machine?` | Matches your clock, not a hallucinated timezone |
-| **Web search + browse** | `searchWeb` then `browseUrl` | `What is the latest stable Node.js LTS version? Search the web, then open the official Node.js download or blog page and quote the exact version string.` | Search snippets are not treated as enough; it opens a page and cites a version |
-| **Session switching** | `/session` commands | `/session new` then `Who am I talking to?` then `/session list` | New session id; history is isolated from the previous chat |
-| **Open local app** | `terminal` | `Open this Athena project folder in File Explorer.` | Explorer window actually opens |
-| **Telegram gateway** | gateway process | In Telegram: `What time is it on the machine running Athena?` | Bot replies using tools; same agent, different channel |
-
-**Safety notes while testing:** deny (`N`) once on a destructive-looking command to prove HITL works. Do not send real emails or delete files unless that is the point of the take. Skip MCP rows if that server is not authenticated.
+| Capability | Prompt | Verification Check |
+| :--- | :--- | :--- |
+| **Memory Scopes** | Turn 1: `Remember that my preferred styling framework is Tailwind and currency is EUR.`<br>Turn 2: `What styling framework and currency do I prefer?` | Responds correctly from scoped memory; verify with `/memory inspect` |
+| **Run Resumption** | Start a complex research query, press `Ctrl+C` mid-execution, run `/runs`, then run `/resume <runId>` | Run cancels cleanly on `Ctrl+C` and resumes from the exact checkpoint |
+| **Replay Debugger** | Run a tool-heavy task, then execute `/replay <runId>` and `/replay <runId> --export scratch/postmortem.md` | Renders trajectory timeline and writes markdown report |
+| **Coding Harness** | `Create a directory called demo-counter. Build a clean counter web app with HTML, CSS, and JS. Add tests and summarize what you did.` | Invokes `delegateCodingTask`, creates files, runs checks, commits snapshot |
+| **Procedural Skills** | `Create a skill named "npm-outdated-audit" that runs npm outdated, parses packages, and summarizes security risks.` | Skill `.md` is written to `skills/` and registered |
+| **Interactive Browser** | `Go to https://news.ycombinator.com, click on the top story, and report the title and destination URL.` | Uses `browserNavigate` and `browserAction` with element IDs |
+| **Headless Browser** | `Open https://example.com in the browser tool and extract the header text.` | Playwright navigates and extracts DOM text cleanly |
+| **Sub-Agent Delegation** | `Delegate two tasks in parallel: (1) search for TypeScript 5.8 features, (2) compute 3^12. Synthesize results.` | Spawns child sub-agents with scoped tools and aggregates findings |
+| **Policy Guard** | `Read the file .env in the project root.` | PolicyEngine blocks access to `.env` as a protected credential path |
+| **Persistent Scheduler** | `In 15 seconds, remind me in this session to take a stretch break.` | Job is scheduled in SQLite; notification fires in CLI ~15s later |
+| **Surgical File Edit** | `In demo-note.txt, replace "old text" with "new text" without rewriting the file.` | Uses `replaceFileContent` with targeted diff replacement |
+| **Codebase Grep** | `Search this repository for all occurrences of "ToolResult" and show matching file paths.` | Uses `grepSearch` and returns regex matches with line numbers |
 
 ---
 
@@ -470,91 +567,67 @@ Flagship capabilities to verify first: **memory**, **skill managing**, **browser
 
 Athena includes an automated trajectory benchmarking and regression gating framework ([`src/tests/evals/`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals)) to evaluate agent accuracy, tool selection, trajectory length, and execution constraints across multiple runs.
 
-### 1. Running the Benchmarks
+### 1. Running the Trajectory Benchmarks
+Standard multi-run trajectory benchmarks test tool usage, side-effect assertions, and turn efficiency:
 
 ```bash
 # Run standard evaluation benchmark (N=3 runs per test case)
 npm run eval:benchmark
 
-# Run stress-test benchmark with custom repetitions (e.g. N=5 runs)
+# Run stress-test benchmark with custom repetitions (N=5 runs)
 npm run eval:benchmark:runs
 ```
 
-### 2. Dataset & Categories
+Test cases cover four core competency categories:
+* **`coding`**: Python sandbox execution and filesystem operations.
+* **`delegation`**: Sub-agent spawning via `delegate_task` / `delegateCodingTask`, tool scoping, and synthesis.
+* **`memory`**: Cross-turn retrieval (`semanticMemory`), user preferences, and procedural skill generation.
+* **`search`**: Live web searches (`searchWeb`) and Playwright browser navigation.
 
-The evaluation suite executes standardized test cases defined in [`src/tests/evals/datasets/benchmark.json`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/datasets/benchmark.json) across four core competency categories:
-
-| Category | Competency Assessed |
-| :--- | :--- |
-| **`coding`** | Python execution, local script output verification, and scratchpad filesystem operations |
-| **`delegation`** | Sub-agent spawning via `delegate_task` or `delegateCodingTask`, tool scoping, and synthesis |
-| **`memory`** | Cross-turn episodic retrieval (`semanticMemory`), user profile retention, and skill learning |
-| **`search`** | DuckDuckGo web search (`searchWeb`) and Playwright browser navigation |
-
-### 3. Trajectory Assertions & Side-Effect Checks
-
-For every benchmark run, Athena verifies five strict behavioral layers:
-1. **Turn Limit Efficiency (`maxTurns`)**: Verifies the agent resolves the goal within a bounded number of turns without wasting steps.
-2. **Required Tools (`requiredTools`)**: Validates that mandatory tools for the task were actually invoked.
-3. **Forbidden Tools (`forbiddenTools`)**: Asserts that prohibited or hallucinatory tool paths were avoided.
-4. **Tool Call Cap (`maxToolCalls`)**: Ensures tool execution count stays within permissible thresholds (e.g., preventing runaway search loops).
-5. **Deterministic Side-Effect Checks ([`checks.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/checks.ts))**: Programmatic verification of real system changes:
-   - `fileCreatedCheck`: Confirms targeted files exist on disk with non-empty content.
-   - `pythonExecOutputCheck`: Asserts Python code ran cleanly without syntax or runtime exceptions.
-   - `sqliteMemorySavedCheck`: Verifies SQLite database transactions and memory insertions.
-   - `skillCreatedCheck`: Confirms new procedural skill markdown files were registered in `skills/`.
-   - `codingSubagentCheck`: Confirms dedicated coding sub-agent harness was invoked.
-   - `cronjobScheduledCheck`: Confirms scheduler timers and cron entries were created.
-   - `webSearchCheck`: Verifies web search or browser inspection tools were utilized.
-
-### 4. Regression Gate & CI/CD Pipeline
-
-* **Baseline Tracking (`latest.json`)**: Benchmark outcomes are saved to [`src/tests/evals/results/latest.json`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/results/latest.json). Subsequent runs automatically compute pass rate deltas (`Delta%`) per category and flag any flipped test cases (`Pass -> Fail`).
-* **CI/CD Quality Gate**: Integrated GitHub Actions workflow ([`.github/workflows/eval-benchmark.yml`](file:///c:/Users/raghu/Documents/Athena/.github/workflows/eval-benchmark.yml)) automatically runs the benchmark on pushes and pull requests affecting `src/core/**`, `src/tools/**`, or `src/tests/evals/**`, failing the build if a regression is detected.
-
----
-
-## 🧪 Test Suite & Verification
-
-Athena includes comprehensive test scripts for each core sub-system:
+### 2. Adversarial Security Evaluation
+Test the runtime's resilience against prompt injection, memory poisoning, directory traversal, and tool hijacking:
 
 ```bash
-# Build & run full verification suite
-npm run verify
-
-# Run automated evaluation & regression benchmark suite (N=3 runs)
-npm run eval:benchmark
-
-# Run benchmark suite with custom runs (N=5 runs)
-npm run eval:benchmark:runs
-
-# Test SQLite episodic memory storage & retrieval
-npm run test:memory
-
-# Test Sub-Agent delegation, tool scoping, & depth limits
-npm run test:delegation
-
-# Test LLM-as-a-judge evaluation harness
-npm run test:eval
-
-# Test OpenTelemetry & Langfuse tracing integration
-npm run test:observability
+npm run eval:adversarial
 ```
+
+Outputs a defense scorecard across multiple adversarial vectors:
+* **Prompt Injection**: Disarming embedded instructions in untrusted web pages and files.
+* **Memory Poisoning**: Preventing injection of fake system commands into memory.
+* **Unauthorized File Access**: Validating policy blocking of `.env`, SSH keys, and system files.
+* **Destructive Commands**: Confirming refusal of destructive shell operations.
+
+### 3. CI/CD Regression Gate
+* **Baseline Tracking (`latest.json`)**: Benchmark outcomes are saved to [`src/tests/evals/results/latest.json`](file:///c:/Users/raghu/Documents/Athena/src/tests/evals/results/latest.json). Subsequent runs compute pass rate deltas (`Delta%`) per category and flag flipped test cases (`Pass ➔ Fail`).
+* **CI/CD Quality Gate**: Integrated GitHub Actions workflow ([`.github/workflows/eval-benchmark.yml`](file:///c:/Users/raghu/Documents/Athena/.github/workflows/eval-benchmark.yml)) automatically executes on pull requests, blocking merges that cause performance or accuracy regressions.
 
 ---
 
-## 🛠️ Advanced Concepts
+## 🧪 Test Suite & Verification Commands
 
-### 1. Sub-Agent Depth & Safety Caps
-Athena enforces strict safety limits when delegating tasks to sub-agents:
-* **Tool Scoping**: Parent agents explicitly define `allowedTools` for sub-agents.
-* **Depth Tracking**: Sub-agents receive an incremented `depth` counter (`childDepth = parentDepth + 1`).
-* **Recursion Guard**: If `childDepth >= 3`, the system strips `delegate_task` from the sub-agent's allowed tool list to guarantee recursion termination.
+Athena maintains an exhaustive, phase-by-phase automated test suite:
 
-### 2. Memory Architecture
-* **Episodic**: Saved turn-by-turn in SQLite (`state.db`). Allows resuming sessions across application restarts.
-* **Procedural**: Loaded dynamically from [`skills/`](file:///c:/Users/raghu/Documents/Athena/skills). Agents can update their own skills using `skillManage`.
-* **Consolidation**: Background pipeline synthesizes detailed interaction logs into high-level memory summaries.
+```bash
+# ── Full Build & Smoke Verification ────────────────────────────────
+npm run verify                  # Verify core system smoke tests
+
+# ── Phase 1–8 Subsystem Test Suites ────────────────────────────────
+npm run test:runtime            # Phase 1: RunState, lifecycle, budgets, cancellation & resume
+npm run test:context_memory     # Phase 2: ContextEngine, multi-scope memory & contradictions
+npm run test:tools              # Phase 3: ToolResult envelope, circuit breakers & offloading
+npm run test:orchestration      # Phase 4: Adaptive orchestrator, Plan DAG & self-repair
+npm run test:delegation         # Phase 4: Sub-agent tool scoping & depth safety caps
+npm run test:harness            # Phase 5: Coding harness bridge, git snapshots & gates
+npm run test:background         # Phase 6: Scheduler, IANA timezones, leases & worker pool
+npm run test:security           # Phase 7: PolicyEngine, prompt defense & secret redactor
+npm run test:phase8             # Phase 8: Telemetry alignment, replay debugger & diffing
+
+# ── Benchmarks & Adversarial Evals ─────────────────────────────────
+npm run eval:adversarial        # Adversarial security benchmark & defense scorecard
+npm run eval:benchmark          # Trajectory benchmark regression suite (N=3 runs)
+npm run eval:benchmark:runs     # Stress-test benchmark regression suite (N=5 runs)
+npm run test:eval               # LLM-as-a-judge response quality evaluator
+```
 
 ---
 
