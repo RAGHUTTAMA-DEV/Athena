@@ -26,6 +26,8 @@
     "test:evolution": "tsc && node dist/tests/test_p3_self_evolution.js",
     "test:runtime": "tsc && node dist/tests/test_phase1_runtime.js",
     "test:v2p1": "tsc && node dist/tests/test_v2_p1_agent_foundation.js",
+    "test:v2p2": "tsc && node dist/tests/test_v2_p2_persistent_autonomy.js",
+    "demo:v2": "tsc && node dist/demo_live_v2.js",
     "test:context_memory": "tsc && node dist/tests/test_phase2_context_memory.js",
     "eval:benchmark": "tsc && node dist/tests/evals/runBenchmark.js",
     "eval:benchmark:runs": "tsc && node dist/tests/evals/runBenchmark.js --runs=5"

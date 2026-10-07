@@ -29,6 +29,21 @@ import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
 import { TelemetryManager } from './telemetry.js';
 import { TrajectoryReplayer } from './replayDebugger.js';
+import {
+  Goal,
+  GoalStatus,
+  GoalPriority,
+  GoalBudget,
+  GoalUsage,
+  Task,
+  TaskStatus,
+  RunWait,
+  WaitType,
+  createInitialGoalUsage
+} from './goalTypes.js';
+import { WaitingEngine } from './waitingEngine.js';
+import { CrashResumeSweeper } from './crashSweeper.js';
+import { EventBus } from './eventBus.js';
 
 const TOOL_ALIASES: Record<string, string> = {
   'jobs_schedule': 'cronjob',
@@ -132,6 +147,195 @@ export class Agent {
   }
 
 
+  private waitingEngine: WaitingEngine | null = null;
+
+  public getWaitingEngine(): WaitingEngine | null {
+    return this.waitingEngine;
+  }
+
+  public async createGoal(params: {
+    title: string;
+    description?: string;
+    priority?: GoalPriority;
+    workspaceId?: number | null;
+    projectId?: number | null;
+    budget?: GoalBudget;
+    deadline?: number | null;
+    metadata?: Record<string, any>;
+  }): Promise<Goal> {
+    if (!this.memory) throw new Error('Database must be initialized.');
+    const goalStore = this.memory.getGoalStore();
+    if (!goalStore) throw new Error('GoalStore is not initialized.');
+
+    const goalId = `goal_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const goal: Goal = {
+      id: goalId,
+      workspaceId: params.workspaceId !== undefined ? params.workspaceId : (this.activeWorkspace?.id ?? null),
+      projectId: params.projectId !== undefined ? params.projectId : null,
+      title: params.title,
+      description: params.description,
+      status: 'proposed',
+      priority: params.priority || 'normal',
+      deadline: params.deadline || null,
+      progress: 0.0,
+      dependencies: [],
+      artifacts: [],
+      budget: params.budget || {},
+      usage: createInitialGoalUsage(),
+      metadata: params.metadata,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    return goalStore.save(goal);
+  }
+
+  public async getGoal(goalId: string): Promise<Goal | null> {
+    if (!this.memory) return null;
+    const goalStore = this.memory.getGoalStore();
+    return goalStore ? goalStore.get(goalId) : null;
+  }
+
+  public async listGoals(filter?: { workspaceId?: number; status?: GoalStatus; limit?: number }): Promise<Goal[]> {
+    if (!this.memory) return [];
+    const goalStore = this.memory.getGoalStore();
+    return goalStore ? goalStore.list(filter) : [];
+  }
+
+  public async planGoal(goalId: string): Promise<Task[]> {
+    if (!this.memory) throw new Error('Database must be initialized.');
+    const goalStore = this.memory.getGoalStore();
+    const taskStore = this.memory.getTaskStore();
+    if (!goalStore || !taskStore) throw new Error('Stores are not initialized.');
+
+    const goal = await goalStore.get(goalId);
+    if (!goal) throw new Error(`Goal "${goalId}" not found.`);
+
+    const tasks = await Planner.planGoalToTasks(goal, taskStore);
+    await goalStore.update(goalId, { status: 'active' });
+    return tasks;
+  }
+
+  public async executeGoal(
+    goalId: string,
+    options?: Partial<RunOptions>
+  ): Promise<{ goal: Goal; tasks: Task[]; results: Record<string, string> }> {
+    if (!this.memory) throw new Error('Database must be initialized.');
+    const goalStore = this.memory.getGoalStore();
+    const taskStore = this.memory.getTaskStore();
+    if (!goalStore || !taskStore) throw new Error('Stores are not initialized.');
+
+    let goal = await goalStore.get(goalId);
+    if (!goal) throw new Error(`Goal "${goalId}" not found.`);
+
+    let tasks = await taskStore.listByGoal(goalId);
+    if (tasks.length === 0) {
+      tasks = await this.planGoal(goalId);
+    }
+
+    const results: Record<string, string> = {};
+
+    return TelemetryManager.getInstance().startGoalSpan(
+      { id: goal.id, title: goal.title },
+      async () => {
+        while (true) {
+          const readyTasks = await taskStore.getReadyTasks(goalId);
+          if (readyTasks.length === 0) break;
+
+          for (const task of readyTasks) {
+            await taskStore.update(task.id, { status: 'in_progress', attempts: task.attempts + 1 });
+
+            try {
+              const taskResult = await TelemetryManager.getInstance().startTaskSpan(
+                { id: task.id, goalId: goal!.id, title: task.title },
+                async () => {
+                  return this.run(task.title, [], {
+                    goalId: goal!.id,
+                    taskId: task.id,
+                    ...options
+                  });
+                }
+              );
+
+              await taskStore.update(task.id, {
+                status: 'completed',
+                result: taskResult
+              });
+              results[task.id] = taskResult;
+            } catch (err: any) {
+              await taskStore.update(task.id, {
+                status: 'failed',
+                error: err.message
+              });
+              throw err;
+            }
+          }
+        }
+
+        const allTasks = await taskStore.listByGoal(goalId);
+        const allCompleted = allTasks.every(t => t.status === 'completed');
+        const anyFailed = allTasks.some(t => t.status === 'failed');
+
+        const finalStatus: GoalStatus = anyFailed ? 'failed' : (allCompleted ? 'completed' : 'active');
+        const updatedGoal = await goalStore.update(goalId, {
+          status: finalStatus,
+          progress: allCompleted ? 1.0 : (allTasks.filter(t => t.status === 'completed').length / Math.max(1, allTasks.length))
+        });
+
+        return {
+          goal: updatedGoal,
+          tasks: allTasks,
+          results
+        };
+      }
+    );
+  }
+
+  public async parkRun(runId: string, params: {
+    waitType: WaitType;
+    eventPattern?: string | null;
+    matcherCriteria?: Record<string, any> | null;
+    deadline?: number | null;
+    metadata?: Record<string, any> | null;
+  }): Promise<RunWait> {
+    if (!this.waitingEngine) {
+      throw new Error('WaitingEngine is not initialized.');
+    }
+    return this.waitingEngine.parkRun({
+      runId,
+      waitType: params.waitType,
+      eventPattern: params.eventPattern,
+      matcherCriteria: params.matcherCriteria,
+      deadline: params.deadline,
+      metadata: params.metadata
+    });
+  }
+
+  private async initPersistentAutonomy(): Promise<void> {
+    if (!this.memory) return;
+    const runStore = this.memory.getRunStore();
+    const waitStore = this.memory.getRunWaitStore();
+
+    if (runStore) {
+      try {
+        const sweeper = new CrashResumeSweeper(runStore);
+        await sweeper.sweep();
+      } catch (err: any) {
+        console.warn(`[Agent Warning] Crash recovery sweep failed: ${err.message}`);
+      }
+    }
+
+    if (runStore && waitStore) {
+      const bus = EventBus.getInstance();
+      if (this.memory) bus.setMemory(this.memory);
+      this.waitingEngine = new WaitingEngine(
+        waitStore,
+        runStore,
+        bus
+      );
+    }
+  }
+
   // Load the soul persona from file system
   async init() {
     const skillsPath = this.config.skillsPath || './skills';
@@ -151,6 +355,7 @@ export class Agent {
           this.memory = new EpisodicMemory(resolvedPath);
           await this.memory.init();
           await this.initIdentity();
+          await this.initPersistentAutonomy();
         } catch (err: any) {
           console.warn(`[Agent Warning] Failed to initialize SQLite database at ${this.config.dbPath}: ${err.message}`);
         }
@@ -238,6 +443,8 @@ export class Agent {
           parentRunId,
           rootRunId,
           sessionId: activeSessionId,
+          goalId: options.goalId,
+          taskId: options.taskId,
           task: userPrompt,
           modelName: this.config.modelName,
           maxTurns: this.config.maxTurns,
@@ -320,6 +527,8 @@ export class Agent {
           parentRunId,
           rootRunId,
           sessionId,
+          goalId: options.goalId,
+          taskId: options.taskId,
           task: userPrompt,
           budget: {
             maxTurns: this.config.maxTurns,
@@ -330,6 +539,42 @@ export class Agent {
           try {
             await this.memory.saveRunState(runState);
           } catch (e) {}
+        }
+      }
+
+      // Goal budget checking (Phase 2 Persistent Autonomy)
+      let goal: Goal | null = null;
+      const goalStore = this.memory?.getGoalStore();
+      if (options.goalId && goalStore) {
+        goal = await goalStore.get(options.goalId);
+        if (goal) {
+          if (['completed', 'failed', 'cancelled'].includes(goal.status)) {
+            throw new Error(`Cannot run task for goal "${goal.id}" with status "${goal.status}"`);
+          }
+          if (
+            (goal.budget.maxTurns && goal.usage.turnsCount >= goal.budget.maxTurns) ||
+            (goal.budget.maxTimeMs && goal.usage.elapsedTimeMs >= goal.budget.maxTimeMs) ||
+            (goal.budget.maxToolCalls && goal.usage.toolCallsCount >= goal.budget.maxToolCalls) ||
+            (goal.budget.maxCostUsd && goal.usage.costUsd >= goal.budget.maxCostUsd) ||
+            (goal.budget.maxTokens && goal.usage.tokens.total >= goal.budget.maxTokens)
+          ) {
+            await goalStore.update(goal.id, {
+              status: 'failed',
+              metadata: { ...goal.metadata, failureReason: 'budget_exceeded' }
+            });
+            runState.status = 'failed';
+            runState.terminationReason = 'budget_exceeded';
+            runState.error = {
+              category: 'budget',
+              code: 'GOAL_BUDGET_EXCEEDED',
+              message: `Goal budget exhausted for "${goal.id}".`,
+              retryable: false
+            };
+            if (this.memory) {
+              await this.memory.saveRunState(runState);
+            }
+            throw new Error(`Goal budget exceeded for goal "${goal.id}". Execution halted.`);
+          }
         }
       }
 
@@ -471,6 +716,38 @@ export class Agent {
         runState.currentTurn = turns;
         runState.usage.turnsCount = turns;
         runState.usage.elapsedTimeMs = Date.now() - startTime;
+
+        // Check goal budget constraints before executing the turn
+        if (goal && (
+          (goal.budget.maxTurns && (goal.usage.turnsCount + turns) > goal.budget.maxTurns) ||
+          (goal.budget.maxTimeMs && (goal.usage.elapsedTimeMs + (Date.now() - startTime)) > goal.budget.maxTimeMs)
+        )) {
+          runState.status = 'failed';
+          runState.terminationReason = 'budget_exceeded';
+          runState.error = {
+            category: 'budget',
+            code: 'GOAL_BUDGET_EXCEEDED',
+            message: `Goal budget exceeded (${goal.usage.turnsCount + turns} turns / ${goal.usage.elapsedTimeMs + (Date.now() - startTime)}ms).`,
+            retryable: false
+          };
+          runState.updatedAt = Date.now();
+          if (this.memory) {
+            try {
+              await this.memory.saveRunState(runState);
+            } catch (e) {}
+          }
+          if (goalStore) {
+            await goalStore.update(goal.id, {
+              status: 'failed',
+              usage: {
+                ...goal.usage,
+                turnsCount: goal.usage.turnsCount + turns,
+                elapsedTimeMs: goal.usage.elapsedTimeMs + (Date.now() - startTime)
+              }
+            });
+          }
+          throw new Error(`Goal budget exceeded for goal "${goal.id}". Execution halted.`);
+        }
 
         // Check cancellation token before every turn
         if (cancellationToken?.isCancelled) {
@@ -816,6 +1093,9 @@ export class Agent {
                   runId,
                   parentRunId: runId,
                   rootRunId,
+                  goalId: options.goalId,
+                  taskId: options.taskId,
+                  isBackground: options.isBackground,
                   cancellationToken,
                   budget: runState!.budget,
                   events,
@@ -1065,6 +1345,27 @@ export class Agent {
           runState.usage.turnsCount = turns;
           runState.usage.elapsedTimeMs = Date.now() - startTime;
           runState.updatedAt = Date.now();
+          if (goal && goalStore) {
+            try {
+              const currentGoal = await goalStore.get(goal.id);
+              if (currentGoal) {
+                await goalStore.update(goal.id, {
+                  usage: {
+                    elapsedTimeMs: currentGoal.usage.elapsedTimeMs + (Date.now() - startTime),
+                    tokens: {
+                      input: currentGoal.usage.tokens.input + runState.usage.tokens.input,
+                      output: currentGoal.usage.tokens.output + runState.usage.tokens.output,
+                      total: currentGoal.usage.tokens.total + runState.usage.tokens.total
+                    },
+                    costUsd: currentGoal.usage.costUsd + runState.usage.costUsd,
+                    toolCallsCount: currentGoal.usage.toolCallsCount + runState.usage.toolCallsCount,
+                    turnsCount: currentGoal.usage.turnsCount + turns
+                  },
+                  status: currentGoal.status === 'proposed' ? 'active' : currentGoal.status
+                });
+              }
+            } catch (e) {}
+          }
           if (this.memory) {
             try {
               await this.memory.saveRunState(runState);
@@ -1134,6 +1435,26 @@ export class Agent {
       runState.usage.turnsCount = turns;
       runState.usage.elapsedTimeMs = Date.now() - startTime;
       runState.updatedAt = Date.now();
+      if (goal && goalStore) {
+        try {
+          const currentGoal = await goalStore.get(goal.id);
+          if (currentGoal) {
+            await goalStore.update(goal.id, {
+              usage: {
+                elapsedTimeMs: currentGoal.usage.elapsedTimeMs + (Date.now() - startTime),
+                tokens: {
+                  input: currentGoal.usage.tokens.input + runState.usage.tokens.input,
+                  output: currentGoal.usage.tokens.output + runState.usage.tokens.output,
+                  total: currentGoal.usage.tokens.total + runState.usage.tokens.total
+                },
+                costUsd: currentGoal.usage.costUsd + runState.usage.costUsd,
+                toolCallsCount: currentGoal.usage.toolCallsCount + runState.usage.toolCallsCount,
+                turnsCount: currentGoal.usage.turnsCount + turns
+              }
+            });
+          }
+        } catch (e) {}
+      }
       if (this.memory) {
         try {
           await this.memory.saveRunState(runState);

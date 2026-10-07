@@ -114,6 +114,18 @@ export class EpisodicMemory {
     return this.stores ? this.stores.event : null;
   }
 
+  getGoalStore(): SqliteStores['goal'] | null {
+    return this.stores ? this.stores.goal : null;
+  }
+
+  getTaskStore(): SqliteStores['task'] | null {
+    return this.stores ? this.stores.task : null;
+  }
+
+  getRunWaitStore(): SqliteStores['runWait'] | null {
+    return this.stores ? this.stores.runWait : null;
+  }
+
   private requireRunStore(): SqliteStores['run'] {
     if (!this.stores) throw new Error('Database not initialized. Call init() first.');
     return this.stores.run;

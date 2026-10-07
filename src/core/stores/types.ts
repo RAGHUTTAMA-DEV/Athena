@@ -1,4 +1,4 @@
-import { RunState } from '../runState.js';
+import { RunState, RunStatus } from '../runState.js';
 import { AgentEvent } from '../events.js';
 import {
   AgentProfile,
@@ -7,9 +7,17 @@ import {
   Workspace,
   Project
 } from '../identityTypes.js';
+import {
+  Goal,
+  GoalStatus,
+  Task,
+  TaskStatus,
+  RunWait,
+  WaitStatus
+} from '../goalTypes.js';
 
 /**
- * Athena V2 store interfaces (P1).
+ * Athena V2 store interfaces (P1 + P2).
  *
  * Persistence is written against these interfaces. P12 adds a PostgreSQL
  * adapter; callers and the EpisodicMemory facade do not change.
@@ -56,9 +64,38 @@ export interface RunStore {
   get(runId: string): Promise<RunState | null>;
   update(runId: string, updates: Partial<RunState>): Promise<void>;
   list(sessionId?: string, limit?: number): Promise<RunState[]>;
+  listByGoal?(goalId: string): Promise<RunState[]>;
+  listByStatus?(status: RunStatus): Promise<RunState[]>;
 }
 
 export interface EventStore {
   saveRunEvent(event: AgentEvent): Promise<void>;
   getRunEvents(runId: string): Promise<AgentEvent[]>;
 }
+
+export interface GoalStore {
+  get(id: string): Promise<Goal | null>;
+  save(goal: Goal): Promise<Goal>;
+  update(id: string, updates: Partial<Goal>): Promise<Goal>;
+  list(filter?: { workspaceId?: number; status?: GoalStatus; limit?: number }): Promise<Goal[]>;
+  delete(id: string): Promise<boolean>;
+}
+
+export interface TaskStore {
+  get(id: string): Promise<Task | null>;
+  save(task: Task): Promise<Task>;
+  update(id: string, updates: Partial<Task>): Promise<Task>;
+  listByGoal(goalId: string): Promise<Task[]>;
+  getReadyTasks(goalId: string): Promise<Task[]>;
+  delete(id: string): Promise<boolean>;
+}
+
+export interface RunWaitStore {
+  create(wait: RunWait): Promise<RunWait>;
+  get(id: string): Promise<RunWait | null>;
+  getByRunId(runId: string): Promise<RunWait | null>;
+  listActive(): Promise<RunWait[]>;
+  update(id: string, updates: Partial<RunWait>): Promise<RunWait>;
+  delete(id: string): Promise<boolean>;
+}
+

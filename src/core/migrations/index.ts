@@ -296,7 +296,88 @@ const migrationV2P1AgentFoundation: Migration = {
   }
 };
 
+const migrationV2P2PersistentAutonomy: Migration = {
+  version: 3,
+  name: 'v2_p2_persistent_autonomy',
+  up: async (db) => {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS goals (
+        id TEXT PRIMARY KEY,
+        workspace_id INTEGER REFERENCES workspaces(id),
+        project_id INTEGER REFERENCES projects(id),
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'proposed',
+        priority TEXT NOT NULL DEFAULT 'normal',
+        deadline INTEGER,
+        progress REAL DEFAULT 0.0,
+        dependencies TEXT,
+        artifacts TEXT,
+        budget TEXT,
+        usage TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_goals_workspace ON goals(workspace_id);
+      CREATE INDEX IF NOT EXISTS idx_goals_project ON goals(project_id);
+      CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        goal_id TEXT NOT NULL REFERENCES goals(id),
+        parent_task_id TEXT REFERENCES tasks(id),
+        title TEXT NOT NULL,
+        description TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        priority TEXT NOT NULL DEFAULT 'normal',
+        dependencies TEXT,
+        assigned_agent_id TEXT REFERENCES agent_profiles(id),
+        attempts INTEGER DEFAULT 0,
+        max_attempts INTEGER DEFAULT 3,
+        result TEXT,
+        error TEXT,
+        recurring TEXT,
+        delegated INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_tasks_goal ON tasks(goal_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+
+      CREATE TABLE IF NOT EXISTS run_waits (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL REFERENCES runs(run_id),
+        wait_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'waiting',
+        event_pattern TEXT,
+        matcher_criteria TEXT,
+        deadline INTEGER,
+        wait_result TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_run_waits_run ON run_waits(run_id);
+      CREATE INDEX IF NOT EXISTS idx_run_waits_status ON run_waits(status);
+      CREATE INDEX IF NOT EXISTS idx_run_waits_deadline ON run_waits(deadline);
+    `);
+
+    // Add goal_id and task_id to runs
+    for (const alter of [
+      'ALTER TABLE runs ADD COLUMN goal_id TEXT REFERENCES goals(id)',
+      'ALTER TABLE runs ADD COLUMN task_id TEXT REFERENCES tasks(id)'
+    ]) {
+      await tryExec(db, alter);
+    }
+    await tryExec(db, 'CREATE INDEX IF NOT EXISTS idx_runs_goal ON runs(goal_id)');
+    await tryExec(db, 'CREATE INDEX IF NOT EXISTS idx_runs_task ON runs(task_id)');
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
-  migrationV2P1AgentFoundation
+  migrationV2P1AgentFoundation,
+  migrationV2P2PersistentAutonomy
 ];

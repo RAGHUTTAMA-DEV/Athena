@@ -1,8 +1,14 @@
 export type RunStatus =
+  | 'created'
   | 'queued'
+  | 'planning'
   | 'running'
   | 'waiting'
+  | 'blocked'
+  | 'approval_required'
   | 'verifying'
+  | 'reviewing'
+  | 'repairing'
   | 'completed'
   | 'failed'
   | 'cancelled';
@@ -62,6 +68,8 @@ export interface RunState {
   parentRunId?: string;
   rootRunId: string;
   sessionId: string;
+  goalId?: string;
+  taskId?: string;
   task: string;
   status: RunStatus;
   currentTurn: number;
@@ -80,7 +88,10 @@ export function createInitialRunState(params: {
   parentRunId?: string;
   rootRunId?: string;
   sessionId: string;
+  goalId?: string;
+  taskId?: string;
   task: string;
+  status?: RunStatus;
   budget?: RunBudget;
 }): RunState {
   const runId = params.runId || `run_${Math.random().toString(36).substring(2, 10)}`;
@@ -92,8 +103,10 @@ export function createInitialRunState(params: {
     parentRunId: params.parentRunId,
     rootRunId,
     sessionId: params.sessionId,
+    goalId: params.goalId,
+    taskId: params.taskId,
     task: params.task,
-    status: 'queued',
+    status: params.status || 'queued',
     currentTurn: 0,
     budget: {
       maxTurns: 25,

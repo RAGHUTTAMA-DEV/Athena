@@ -429,7 +429,12 @@ export class ToolExecutor {
     const breaker = this.circuitBreakers.getBreaker(manifest.name);
 
     // 0. Security Policy Evaluation Gate
-    const policyResult = this.policyEngine.evaluateToolCall(manifest.name, args, manifest.permissions);
+    const policyResult = this.policyEngine.evaluateToolCall(
+      manifest.name,
+      args,
+      manifest.permissions,
+      { isBackground: context?.isBackground }
+    );
     if (!policyResult.allowed) {
       return {
         success: false,

@@ -2,6 +2,8 @@ import { RunState } from './runState.js';
 import { AgentEventEmitter } from './events.js';
 import { LLMProvider } from './llmProvider.js';
 import { Message, ToolContext } from './types.js';
+import { Goal, Task } from './goalTypes.js';
+import { TaskStore } from './stores/types.js';
 
 export type TaskComplexity = 'simple' | 'medium' | 'complex' | 'high_risk';
 
@@ -198,6 +200,44 @@ export class Planner {
       if (step.status !== 'pending') return false;
       return step.dependencies.every(depId => completedIds.has(depId));
     });
+  }
+
+  static async planGoalToTasks(goal: Goal, taskStore: TaskStore): Promise<Task[]> {
+    const promptText = goal.description ? `${goal.title}: ${goal.description}` : goal.title;
+    const plan = Planner.decomposeGoal(promptText);
+    const stepIdToTaskId = new Map<string, string>();
+    const tasks: Task[] = [];
+    const now = Date.now();
+
+    for (let i = 0; i < plan.steps.length; i++) {
+      const step = plan.steps[i];
+      const taskId = `task_${goal.id}_${i + 1}`;
+      stepIdToTaskId.set(step.stepId, taskId);
+
+      const taskDeps = step.dependencies
+        .map(depStepId => stepIdToTaskId.get(depStepId))
+        .filter((id): id is string => !!id);
+
+      const task: Task = {
+        id: taskId,
+        goalId: goal.id,
+        title: step.description,
+        description: step.acceptanceCriteria,
+        status: 'pending',
+        priority: goal.priority,
+        dependencies: taskDeps,
+        attempts: 0,
+        maxAttempts: 3,
+        delegated: false,
+        createdAt: now + i,
+        updatedAt: now + i
+      };
+
+      const saved = await taskStore.save(task);
+      tasks.push(saved);
+    }
+
+    return tasks;
   }
 }
 

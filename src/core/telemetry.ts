@@ -33,6 +33,8 @@ export interface TraceContext {
   parentRunId?: string;
   rootRunId?: string;
   sessionId?: string;
+  goalId?: string;
+  taskId?: string;
 }
 
 export interface GenerationSpanOptions {
@@ -131,8 +133,11 @@ export class TelemetryManager {
     }
     if (this.activeContext) {
       if (this.activeContext.runId) carrier['runId'] = this.activeContext.runId;
+      if (this.activeContext.parentRunId) carrier['parentRunId'] = this.activeContext.parentRunId;
       if (this.activeContext.rootRunId) carrier['rootRunId'] = this.activeContext.rootRunId;
       if (this.activeContext.sessionId) carrier['sessionId'] = this.activeContext.sessionId;
+      if (this.activeContext.goalId) carrier['goalId'] = this.activeContext.goalId;
+      if (this.activeContext.taskId) carrier['taskId'] = this.activeContext.taskId;
     }
     return carrier;
   }
@@ -159,7 +164,9 @@ export class TelemetryManager {
       runId: carrier['runId'],
       parentRunId: carrier['parentRunId'],
       rootRunId: carrier['rootRunId'],
-      sessionId: carrier['sessionId']
+      sessionId: carrier['sessionId'],
+      goalId: carrier['goalId'],
+      taskId: carrier['taskId']
     };
   }
 
@@ -188,7 +195,113 @@ export class TelemetryManager {
   }
 
   /**
-   * Starts a root trace for an Agent execution, aligning attributes
+   * Starts a root trace/span for a Goal execution.
+   */
+  public async startGoalSpan<T>(
+    goal: { id: string; title: string },
+    fn: (ctx: TraceContext) => Promise<T>
+  ): Promise<T> {
+    const traceId = this.activeContext?.traceId || this.generateTraceId();
+    const spanId = `span_goal_${Math.random().toString(36).substring(2, 10)}`;
+    const startTime = Date.now();
+    const previousContext = this.activeContext;
+
+    const ctx: TraceContext = {
+      traceId,
+      spanId,
+      goalId: goal.id,
+      traceparent: this.buildTraceparent(traceId, spanId)
+    };
+    this.activeContext = ctx;
+
+    const record: TelemetrySpanRecord = {
+      id: spanId,
+      name: `Goal: ${goal.title}`,
+      traceId,
+      parentSpanId: previousContext?.spanId,
+      type: 'trace',
+      startTime,
+      attributes: {
+        'athena.goal_id': goal.id,
+        'athena.goal_title': goal.title
+      },
+      status: 'ok'
+    };
+    this.recordSpan(record);
+
+    try {
+      const result = await fn(ctx);
+      record.endTime = Date.now();
+      record.durationMs = record.endTime - startTime;
+      record.status = 'ok';
+      return result;
+    } catch (err: any) {
+      record.endTime = Date.now();
+      record.durationMs = record.endTime - startTime;
+      record.error = err.message;
+      record.status = 'error';
+      throw err;
+    } finally {
+      this.activeContext = previousContext;
+    }
+  }
+
+  /**
+   * Starts a child span for a Task execution under a Goal.
+   */
+  public async startTaskSpan<T>(
+    task: { id: string; goalId: string; title: string },
+    fn: (ctx: TraceContext) => Promise<T>
+  ): Promise<T> {
+    const traceId = this.activeContext?.traceId || this.generateTraceId();
+    const spanId = `span_task_${Math.random().toString(36).substring(2, 10)}`;
+    const startTime = Date.now();
+    const previousContext = this.activeContext;
+
+    const ctx: TraceContext = {
+      traceId,
+      spanId,
+      goalId: task.goalId,
+      taskId: task.id,
+      traceparent: this.buildTraceparent(traceId, spanId)
+    };
+    this.activeContext = ctx;
+
+    const record: TelemetrySpanRecord = {
+      id: spanId,
+      name: `Task: ${task.title}`,
+      traceId,
+      parentSpanId: previousContext?.spanId,
+      type: 'span',
+      startTime,
+      attributes: {
+        'athena.goal_id': task.goalId,
+        'athena.task_id': task.id,
+        'athena.task_title': task.title
+      },
+      status: 'ok'
+    };
+    this.recordSpan(record);
+
+    try {
+      const result = await fn(ctx);
+      record.endTime = Date.now();
+      record.durationMs = record.endTime - startTime;
+      record.status = 'ok';
+      return result;
+    } catch (err: any) {
+      record.endTime = Date.now();
+      record.durationMs = record.endTime - startTime;
+      record.error = err.message;
+      record.status = 'error';
+      throw err;
+    } finally {
+      this.activeContext = previousContext;
+    }
+  }
+
+  /**
+   * Starts a trace for an Agent execution, aligning attributes
    */
   public async startAgentTrace<T>(
     name: string,
@@ -197,6 +310,8 @@ export class TelemetryManager {
       parentRunId?: string;
       rootRunId: string;
       sessionId: string;
+      goalId?: string;
+      taskId?: string;
       task: string;
       modelName: string;
       maxTurns?: number;
@@ -209,6 +324,8 @@ export class TelemetryManager {
     const startTime = Date.now();
 
     const previousContext = this.activeContext;
+    const parentSpanId = previousContext?.spanId;
+
     this.activeContext = {
       traceId,
       spanId,
@@ -216,6 +333,8 @@ export class TelemetryManager {
       parentRunId: metadata.parentRunId,
       rootRunId: metadata.rootRunId,
       sessionId: metadata.sessionId,
+      goalId: metadata.goalId || previousContext?.goalId,
+      taskId: metadata.taskId || previousContext?.taskId,
       traceparent: this.buildTraceparent(traceId, spanId)
     };
 
@@ -223,6 +342,7 @@ export class TelemetryManager {
       id: spanId,
       name,
       traceId,
+      parentSpanId,
       type: 'trace',
       startTime,
       attributes: {
@@ -230,6 +350,8 @@ export class TelemetryManager {
         'athena.parent_run_id': metadata.parentRunId,
         'athena.root_run_id': metadata.rootRunId,
         'athena.session_id': metadata.sessionId,
+        'athena.goal_id': metadata.goalId || previousContext?.goalId,
+        'athena.task_id': metadata.taskId || previousContext?.taskId,
         'athena.task': metadata.task,
         'athena.model': metadata.modelName,
         'athena.max_turns': metadata.maxTurns,
@@ -242,41 +364,57 @@ export class TelemetryManager {
 
     try {
       let result: T;
-      try {
-        result = await startActiveObservation(
-          name,
-          async (traceSpan) => {
-            traceSpan.update({
-              input: metadata.task,
-              metadata: {
-                ...record.attributes,
-                traceId,
-                spanId,
-              }
-            });
-
-            return propagateAttributes(
-              {
-                sessionId: metadata.sessionId,
-                tags: [name, metadata.runId],
-                metadata: {
-                  runId: metadata.runId,
-                  parentRunId: metadata.parentRunId || '',
-                  rootRunId: metadata.rootRunId,
-                }
-              },
-              async () => fn(traceSpan)
-            );
-          }
-        );
-      } catch (err: any) {
-        // Fallback execution if observation wrapper is unavailable or errors
+      if (!this.isLangfuseEnabled()) {
         result = await fn({
           update: (data: any) => {
             if (data.output) record.output = data.output;
             if (data.metadata) Object.assign(record.attributes, data.metadata);
           }
         });
+      } else {
+        let fnExecuted = false;
+        try {
+          result = await startActiveObservation(
+            name,
+            async (traceSpan) => {
+              traceSpan.update({
+                input: metadata.task,
+                metadata: {
+                  ...record.attributes,
+                  traceId,
+                  spanId,
+                }
+              });
+
+              return propagateAttributes(
+                {
+                  sessionId: metadata.sessionId,
+                  tags: [name, metadata.runId],
+                  metadata: {
+                    runId: metadata.runId,
+                    parentRunId: metadata.parentRunId || '',
+                    rootRunId: metadata.rootRunId,
+                  }
+                },
+                async () => {
+                  fnExecuted = true;
+                  return fn(traceSpan);
+                }
+              );
+            }
+          );
+        } catch (err: any) {
+          if (fnExecuted) {
+            throw err;
+          }
+          // Fallback execution if observation wrapper itself is unavailable or errors
+          result = await fn({
+            update: (data: any) => {
+              if (data.output) record.output = data.output;
+              if (data.metadata) Object.assign(record.attributes, data.metadata);
+            }
+          });
+        }
       }
 
       record.endTime = Date.now();
@@ -338,33 +476,44 @@ export class TelemetryManager {
         if (data.metadata) Object.assign(record.attributes, data.metadata);
       };
 
-      try {
-        res = await startActiveObservation(
-          name,
-          async (generation) => {
-            generation.update({
-              input: typeof options.input === 'string' ? options.input : JSON.stringify(options.input),
-              model: options.model,
-              metadata: {
-                turn: options.turn,
-                runId: options.runId || this.activeContext?.runId
-              }
-            });
-            const wrappedGen = {
-              update: (data: any) => {
-                try { generation.update(data); } catch {}
-                handleUpdate(data);
-              }
-            };
-            return fn(wrappedGen);
-          },
-          { asType: 'generation' }
-        );
-      } catch {
-        // Fallback
+      if (!this.isLangfuseEnabled()) {
         res = await fn({
           update: handleUpdate
         });
+      } else {
+        let fnExecuted = false;
+        try {
+          res = await startActiveObservation(
+            name,
+            async (generation) => {
+              generation.update({
+                input: typeof options.input === 'string' ? options.input : JSON.stringify(options.input),
+                model: options.model,
+                metadata: {
+                  turn: options.turn,
+                  runId: options.runId || this.activeContext?.runId
+                }
+              });
+              const wrappedGen = {
+                update: (data: any) => {
+                  try { generation.update(data); } catch {}
+                  handleUpdate(data);
+                }
+              };
+              fnExecuted = true;
+              return fn(wrappedGen);
+            },
+            { asType: 'generation' }
+          );
+        } catch (err: any) {
+          if (fnExecuted) {
+            throw err;
+          }
+          // Fallback
+          res = await fn({
+            update: handleUpdate
+          });
+        }
       }
 
       record.endTime = Date.now();
@@ -416,30 +565,41 @@ export class TelemetryManager {
         if (data.metadata) Object.assign(record.attributes, data.metadata);
       };
 
-      try {
-        res = await startActiveObservation(
-          `tool:${options.toolName}`,
-          async (toolSpan) => {
-            toolSpan.update({
-              input: JSON.stringify(options.args || {}),
-              metadata: {
-                ...record.attributes,
-              }
-            });
-            const wrappedSpan = {
-              update: (data: any) => {
-                try { toolSpan.update(data); } catch {}
-                handleToolUpdate(data);
-              }
-            };
-            return fn(wrappedSpan);
-          },
-          { asType: 'tool' }
-        );
-      } catch {
+      if (!this.isLangfuseEnabled()) {
         res = await fn({
           update: handleToolUpdate
         });
+      } else {
+        let fnExecuted = false;
+        try {
+          res = await startActiveObservation(
+            `tool:${options.toolName}`,
+            async (toolSpan) => {
+              toolSpan.update({
+                input: JSON.stringify(options.args || {}),
+                metadata: {
+                  ...record.attributes,
+                }
+              });
+              const wrappedSpan = {
+                update: (data: any) => {
+                  try { toolSpan.update(data); } catch {}
+                  handleToolUpdate(data);
+                }
+              };
+              fnExecuted = true;
+              return fn(wrappedSpan);
+            },
+            { asType: 'tool' }
+          );
+        } catch (err: any) {
+          if (fnExecuted) {
+            throw err;
+          }
+          res = await fn({
+            update: handleToolUpdate
+          });
+        }
       }
 
       record.endTime = Date.now();

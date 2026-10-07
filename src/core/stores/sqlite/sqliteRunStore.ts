@@ -17,6 +17,8 @@ function rowToRunState(row: any): RunState {
     parentRunId: row.parent_run_id || undefined,
     rootRunId: row.root_run_id,
     sessionId: row.session_id,
+    goalId: row.goal_id || undefined,
+    taskId: row.task_id || undefined,
     task: row.task,
     status: row.status,
     currentTurn: row.current_turn,
@@ -38,14 +40,16 @@ export class SqliteRunStore implements RunStore {
   async save(state: RunState): Promise<void> {
     await this.db.run(
       `INSERT OR REPLACE INTO runs (
-        run_id, parent_run_id, root_run_id, session_id, task, status,
+        run_id, parent_run_id, root_run_id, session_id, goal_id, task_id, task, status,
         current_turn, budget, usage, idempotency_keys, termination_reason,
         error, result, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       state.runId,
       state.parentRunId || null,
       state.rootRunId,
       state.sessionId,
+      state.goalId || null,
+      state.taskId || null,
       state.task,
       state.status,
       state.currentTurn,
@@ -83,6 +87,22 @@ export class SqliteRunStore implements RunStore {
     query += ` ORDER BY created_at DESC LIMIT ?`;
     params.push(limit);
     const rows = await this.db.all(query, ...params);
+    return rows.map(rowToRunState);
+  }
+
+  async listByGoal(goalId: string): Promise<RunState[]> {
+    const rows = await this.db.all(
+      `SELECT * FROM runs WHERE goal_id = ? ORDER BY created_at DESC`,
+      goalId
+    );
+    return rows.map(rowToRunState);
+  }
+
+  async listByStatus(status: any): Promise<RunState[]> {
+    const rows = await this.db.all(
+      `SELECT * FROM runs WHERE status = ? ORDER BY created_at DESC`,
+      status
+    );
     return rows.map(rowToRunState);
   }
 }

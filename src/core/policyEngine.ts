@@ -217,7 +217,25 @@ export class PolicyEngine {
    * immediately. require_confirmation is flagged for the executor.
    * allow falls through so the V1 hardcoded rules still apply.
    */
-  public evaluateToolCall(toolName: string, args: any, toolPermissions?: string[]): PolicyCheckResult {
+  public evaluateToolCall(
+    toolName: string,
+    args: any,
+    toolPermissions?: string[],
+    options?: { isBackground?: boolean }
+  ): PolicyCheckResult {
+    if (options?.isBackground) {
+      const unsafeBackgroundTools = ['executeCommand', 'writeFile', 'replaceFileContent', 'deleteFile'];
+      if (unsafeBackgroundTools.includes(toolName)) {
+        return {
+          allowed: false,
+          action: 'deny',
+          reason: `Background execution is restricted to safe/read-only tools until P4A sandbox is available (tool "${toolName}" is blocked).`,
+          severity: 'high',
+          ruleId: 'BACKGROUND_SAFE_TOOL_RESTRICTION'
+        };
+      }
+    }
+
     const rule = this.matchPermissionRule(toolName, toolPermissions);
     if (rule && rule.effect === 'deny') {
       return {

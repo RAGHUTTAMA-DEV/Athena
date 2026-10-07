@@ -63,6 +63,9 @@ export interface ToolContext {
   runId?: string;
   parentRunId?: string;
   rootRunId?: string;
+  goalId?: string;
+  taskId?: string;
+  isBackground?: boolean;
   cancellationToken?: CancellationToken;
   budget?: RunBudget;
   events?: AgentEventEmitter;
@@ -79,6 +82,9 @@ export interface RunOptions {
   parentRunId?: string;
   rootRunId?: string;
   sessionId?: string;
+  goalId?: string;
+  taskId?: string;
+  isBackground?: boolean;
   budget?: RunBudget;
   cancellationToken?: CancellationToken;
   events?: AgentEventEmitter;
