@@ -15,13 +15,100 @@ import {
   RunWait,
   WaitStatus
 } from '../../autonomy/goalTypes.js';
+import {
+  ScopedMemoryItem,
+  MemoryScope,
+  MemoryLifecycle,
+  MemoryType
+} from '../../memory/memoryTypes.js';
 
 /**
- * Athena V2 store interfaces (P1 + P2).
+ * Athena V2 store interfaces (P1 + P2 + P3).
  *
  * Persistence is written against these interfaces. P12 adds a PostgreSQL
  * adapter; callers and the EpisodicMemory facade do not change.
  */
+
+export interface SessionSearchEntry {
+  id: string;
+  category: string;
+  contentText: string;
+  sessionId?: string;
+  runId?: string;
+  goalId?: string;
+  taskId?: string;
+  workspaceId?: number;
+  projectId?: number;
+  agentId?: string;
+  metadata?: Record<string, any>;
+  timestamp: number;
+}
+
+export interface SessionSearchFilter {
+  query: string;
+  categories?: string[];
+  sessionId?: string;
+  runId?: string;
+  goalId?: string;
+  taskId?: string;
+  workspaceId?: number;
+  projectId?: number;
+  agentId?: string;
+  timeRange?: { start?: number; end?: number };
+  limit?: number;
+}
+
+export interface SessionSearchResult {
+  id: string;
+  category: string;
+  contentText: string;
+  sessionId?: string;
+  runId?: string;
+  goalId?: string;
+  taskId?: string;
+  workspaceId?: number;
+  projectId?: number;
+  agentId?: string;
+  metadata?: Record<string, any>;
+  timestamp: number;
+  rank?: number;
+}
+
+export interface MemoryStore {
+  save(item: Omit<ScopedMemoryItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<number>;
+  get(id: number): Promise<ScopedMemoryItem | null>;
+  updateLifecycle(id: number, lifecycle: MemoryLifecycle, supersededBy?: number): Promise<void>;
+  validate(id: number, evidence?: string): Promise<void>;
+  reinforce(id: number, delta?: number): Promise<void>;
+  contradict(id: number, evidence?: string): Promise<void>;
+  quarantine(id: number, reason: string): Promise<void>;
+  search(params: {
+    query: string;
+    scope?: MemoryScope | MemoryScope[];
+    type?: MemoryType | MemoryType[];
+    limit?: number;
+    threshold?: number;
+    minConfidence?: number;
+    lifecycles?: MemoryLifecycle[];
+    sessionId?: string;
+    workspaceId?: number;
+    projectId?: number;
+    agentId?: string;
+    goalId?: string;
+    includeQuarantined?: boolean;
+    queryEmbedding?: number[] | null;
+  }): Promise<ScopedMemoryItem[]>;
+  inspect(query?: string, scope?: MemoryScope, limit?: number): Promise<ScopedMemoryItem[]>;
+  delete(id: number): Promise<void>;
+}
+
+export interface SessionSearchStore {
+  indexEntry(entry: SessionSearchEntry): Promise<void>;
+  search(filter: SessionSearchFilter): Promise<SessionSearchResult[]>;
+  deleteByRun(runId: string): Promise<void>;
+  deleteBySession(sessionId: string): Promise<void>;
+}
+
 
 export interface AgentStore {
   get(id: string): Promise<AgentProfile | null>;

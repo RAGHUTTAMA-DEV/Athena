@@ -376,8 +376,95 @@ const migrationV2P2PersistentAutonomy: Migration = {
   }
 };
 
+const migrationV2P3MemoryContext: Migration = {
+  version: 4,
+  name: 'v2_p3_memory_context',
+  up: async (db) => {
+    // 1. Scoped memory enhancements
+    for (const alter of [
+      "ALTER TABLE scoped_memory ADD COLUMN memory_type TEXT DEFAULT 'fact'",
+      'ALTER TABLE scoped_memory ADD COLUMN goal_id TEXT REFERENCES goals(id)',
+      "ALTER TABLE scoped_memory ADD COLUMN security_status TEXT DEFAULT 'clean'",
+      'ALTER TABLE scoped_memory ADD COLUMN quarantine_reason TEXT'
+    ]) {
+      await tryExec(db, alter);
+    }
+    await tryExec(db, 'CREATE INDEX IF NOT EXISTS idx_scoped_memory_type ON scoped_memory(memory_type)');
+    await tryExec(db, 'CREATE INDEX IF NOT EXISTS idx_scoped_goal ON scoped_memory(goal_id)');
+    await tryExec(db, 'CREATE INDEX IF NOT EXISTS idx_scoped_security ON scoped_memory(security_status)');
+
+    // 2. Universal Session Search backing table
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS session_search_entries (
+        id TEXT PRIMARY KEY,
+        category TEXT NOT NULL,
+        content_text TEXT NOT NULL,
+        session_id TEXT,
+        run_id TEXT,
+        goal_id TEXT,
+        task_id TEXT,
+        workspace_id INTEGER,
+        project_id INTEGER,
+        agent_id TEXT,
+        metadata TEXT,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_sse_category ON session_search_entries(category);
+      CREATE INDEX IF NOT EXISTS idx_sse_session ON session_search_entries(session_id);
+      CREATE INDEX IF NOT EXISTS idx_sse_run ON session_search_entries(run_id);
+      CREATE INDEX IF NOT EXISTS idx_sse_goal ON session_search_entries(goal_id);
+      CREATE INDEX IF NOT EXISTS idx_sse_workspace ON session_search_entries(workspace_id);
+      CREATE INDEX IF NOT EXISTS idx_sse_project ON session_search_entries(project_id);
+      CREATE INDEX IF NOT EXISTS idx_sse_timestamp ON session_search_entries(timestamp);
+
+      CREATE VIRTUAL TABLE IF NOT EXISTS session_search_fts USING fts5(
+        entry_id UNINDEXED,
+        category,
+        content_text,
+        session_id,
+        run_id,
+        goal_id,
+        task_id,
+        workspace_id,
+        project_id,
+        agent_id
+      );
+
+      CREATE TRIGGER IF NOT EXISTS trg_sse_ai AFTER INSERT ON session_search_entries BEGIN
+        INSERT INTO session_search_fts(entry_id, category, content_text, session_id, run_id, goal_id, task_id, workspace_id, project_id, agent_id)
+        VALUES (new.id, new.category, new.content_text, new.session_id, new.run_id, new.goal_id, new.task_id, new.workspace_id, new.project_id, new.agent_id);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_sse_ad AFTER DELETE ON session_search_entries BEGIN
+        DELETE FROM session_search_fts WHERE entry_id = old.id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS trg_sse_au AFTER UPDATE ON session_search_entries BEGIN
+        DELETE FROM session_search_fts WHERE entry_id = old.id;
+        INSERT INTO session_search_fts(entry_id, category, content_text, session_id, run_id, goal_id, task_id, workspace_id, project_id, agent_id)
+        VALUES (new.id, new.category, new.content_text, new.session_id, new.run_id, new.goal_id, new.task_id, new.workspace_id, new.project_id, new.agent_id);
+      END;
+    `);
+
+    // 3. Backfill session_search_entries from existing episodic_memory and run_events if present
+    try {
+      await db.exec(`
+        INSERT OR IGNORE INTO session_search_entries (id, category, content_text, session_id, timestamp)
+        SELECT 'msg_' || id, 'message', content, session_id, timestamp FROM episodic_memory;
+
+        INSERT OR IGNORE INTO session_search_entries (id, category, content_text, run_id, timestamp)
+        SELECT 'event_' || id, event_type, payload, run_id, timestamp FROM run_events;
+      `);
+    } catch {
+      // Best-effort backfill
+    }
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
-  migrationV2P2PersistentAutonomy
+  migrationV2P2PersistentAutonomy,
+  migrationV2P3MemoryContext
 ];
+

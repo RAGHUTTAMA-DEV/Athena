@@ -6,6 +6,8 @@ import { SqliteRunStore, SqliteEventStore } from './sqliteRunStore.js';
 import { SqliteGoalStore } from './sqliteGoalStore.js';
 import { SqliteTaskStore } from './sqliteTaskStore.js';
 import { SqliteRunWaitStore } from './sqliteRunWaitStore.js';
+import { SqliteMemoryStore } from './sqliteMemoryStore.js';
+import { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -14,6 +16,8 @@ export { SqliteRunStore, SqliteEventStore } from './sqliteRunStore.js';
 export { SqliteGoalStore } from './sqliteGoalStore.js';
 export { SqliteTaskStore } from './sqliteTaskStore.js';
 export { SqliteRunWaitStore } from './sqliteRunWaitStore.js';
+export { SqliteMemoryStore } from './sqliteMemoryStore.js';
+export { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -25,6 +29,8 @@ export interface SqliteStores {
   goal: SqliteGoalStore;
   task: SqliteTaskStore;
   runWait: SqliteRunWaitStore;
+  memory: SqliteMemoryStore;
+  sessionSearch: SqliteSessionSearchStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -37,7 +43,10 @@ export function createSqliteStores(db: Database): SqliteStores {
     event: new SqliteEventStore(db),
     goal: new SqliteGoalStore(db),
     task: new SqliteTaskStore(db),
-    runWait: new SqliteRunWaitStore(db)
+    runWait: new SqliteRunWaitStore(db),
+    memory: new SqliteMemoryStore(db),
+    sessionSearch: new SqliteSessionSearchStore(db)
   };
 }
+
 

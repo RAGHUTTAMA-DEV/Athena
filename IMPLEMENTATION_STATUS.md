@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P2: Persistent Autonomy — ✅ COMPLETE** |
-| **Next phase** | P3: Memory and Context — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P3: Memory and Context — ✅ COMPLETE** |
+| **Next phase** | P4: Action System (P4A: Registry, Discovery, Sandbox, FS, Terminal) — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1 & V2 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, & V2 P3 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -25,8 +25,8 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **V1 baseline** | Phases 1–8: runtime, memory, tools, orchestration, harness, background, security, observability/evals | ✅ shipped | `roadmap.md`, commits on `main` |
 | **P1** | **Agent Foundation** — versioned migrations, AgentProfile + version history, User model, Workspace/Project entities, candidate memory lifecycle, permission model, store interfaces | ✅ **done** (`6846f5c`) | `npm run test:v2p1` — 9/9 |
 | **P2** | **Persistent Autonomy** — Goal/Task entities, extended run lifecycle (12 states), `run_waits`, crash-safe resume, per-goal budgets, Goal→Task→Run spans, background safe tool guard | ✅ **done** | `npm run test:v2p2` — 11/11 |
-| **P3** | Memory and Context | ⏳ awaiting approval | — |
-| **P4** | Action System | ⛔ not started | — |
+| **P3** | **Memory and Context** — Memory model per spec (scopes `agent`, `goal`, types `fact`, `preference`, etc., lifecycle `quarantined`, `archived`), Section 65 Secure Memory Write Pipeline (sanitize, prompt injection quarantine, credential masking), Universal Session Search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors), Bounded Context References (`@file`, `@folder`, `@repo`, `@run`, `@goal`, `@task`, `@memory`, `@project`), Cache-Friendly Layered ContextEngine, Token & Cost Accounting | ✅ **done** | `npm run test:v2p3` — 9/9 |
+| **P4** | Action System (P4A: Registry, Discovery, ExecutionBackend, FS, Terminal) | ⏳ awaiting approval | — |
 | **P5** | Learning | ⛔ not started | — |
 | **P6** | Multi-Agent | ⛔ not started | — |
 | **P7** | Proactive Agent | ⛔ not started | — |
@@ -68,6 +68,17 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Goal Budgets** — Authoritative goal budgets (`maxTurns`, `maxTimeMs`, etc.) enforced strictly above run-level budgets.
 - **ADR** — [`docs/decisions/0005-goal-task-run-waits-persistent-autonomy.md`](docs/decisions/0005-goal-task-run-waits-persistent-autonomy.md).
 
+### Added by V2 P3
+- **Schema Migration 4** — `v2_p3_memory_context`: altered `scoped_memory` with `memory_type`, `goal_id`, `security_status`, `quarantine_reason`; created backing table `session_search_entries` and FTS5 virtual table `session_search_fts` with auto-sync triggers.
+- **Memory Model Expansion** — scopes `agent` and `goal`; types `fact`, `preference`, `relationship`, `procedural`, `semantic`, `episodic`; lifecycle states `archived` and `quarantined`.
+- **Section 65 Secure Memory Write Pipeline** — `MemoryWritePipeline`: 6 stages (`sanitize` $\rightarrow$ `security check` $\rightarrow$ `secret detection` $\rightarrow$ `provenance` $\rightarrow$ `confidence` $\rightarrow$ `store`). Prompt injection attacks are quarantined and given confidence 0.0 with full threat rationale, guaranteeing zero leakage into reasoning context. Credentials automatically masked with `[REDACTED_*]` tokens.
+- **Universal Session Search Engine** — `SessionSearchEngine`: searches and filters across messages, tool calls, tool results/outputs, plans, thoughts, decisions, errors, and runs with multi-dimensional filtering.
+- **Bounded Context Reference Resolvers** — `ContextRefResolver`: parses `@file`, `@folder`, `@repo`, `@url`, `@session`, `@run`, `@goal`, `@task`, `@memory`, `@artifact`, `@project`. Enforces strict token caps; `@repo` summarizes structure and packages without wholesale directory tree dumps.
+- **Cache-Friendly Layered ContextEngine** — Strict assembly: Layer 1 (Identity) $\rightarrow$ Layer 2 (Directives) $\rightarrow$ Layer 3 (Skills) $\rightarrow$ Layer 4 (Tools) $\rightarrow$ Layer 5 (Task State) $\rightarrow$ Layer 6 (Memory) $\rightarrow$ Layer 7 (Live Context & References). Deterministic prefix stability preserves LLM prompt prefix caches.
+- **Token & Cost Accounting** — `TokenAccountant`: measures input, output, cached tokens, latency ms, and estimated cost per call, per run, and cumulative per goal across standard model pricing tiers.
+- **Store Interfaces & Implementations** — `MemoryStore` (`SqliteMemoryStore`) and `SessionSearchStore` (`SqliteSessionSearchStore`).
+- **ADR** — [`docs/decisions/0006-memory-model-session-search-and-context-refs.md`](docs/decisions/0006-memory-model-session-search-and-context-refs.md).
+
 ---
 
 ## Test suite status
@@ -76,7 +87,8 @@ Run: 2026-10-07. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P2 (new, 11 tests)** | `npm run test:v2p2` | ✅ 11/11 |
+| **V2 P3 (new, 9 tests)** | `npm run test:v2p3` | ✅ 9/9 |
+| **V2 P2 (11 tests)** | `npm run test:v2p2` | ✅ 11/11 |
 | **V2 P1 (9 tests)** | `npm run test:v2p1` | ✅ 9/9 |
 | Memory (V1) | `npm run test:memory` | ✅ |
 | Runtime (V1) | `npm run test:runtime` | ✅ |
@@ -95,6 +107,11 @@ Run: 2026-10-07. `npx tsc --noEmit` clean.
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
 
+### P3 exit criteria — all PASS
+1. Injection payload written to memory is blocked or quarantined (adversarial test) — **PASS** (TEST 2)
+2. Session search recalls an exact tool output from a past run (eval) — **PASS** (TEST 4)
+3. `@repo` on a large repo stays within the context budget (test) — **PASS** (TEST 5)
+
 ### P2 exit criteria — all PASS
 1. Create goal $\rightarrow$ plan $\rightarrow$ execute $\rightarrow$ kill process mid-flight $\rightarrow$ restart $\rightarrow$ resume $\rightarrow$ complete — **PASS** (TEST 5)
 2. Execute $\rightarrow$ durable wait parked in `run_waits` $\rightarrow$ process exits $\rightarrow$ event published to EventBus $\rightarrow$ resume — **PASS** (TEST 6)
@@ -106,6 +123,7 @@ Run: 2026-10-07. `npx tsc --noEmit` clean.
 2. Workspace switch never leaks memory or files — **PASS** (TEST 5, TEST 8)
 3. Model-asserted fact stays `candidate` until validated — **PASS** (TEST 6)
 4. V1 DB migrates cleanly on populated DB — **PASS** (TEST 2)
+
 
 ---
 

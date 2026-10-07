@@ -3,15 +3,28 @@ export type MemoryScope =
   | 'user'
   | 'workspace'
   | 'project'
+  | 'agent'
   | 'session'
-  | 'task';
+  | 'task'
+  | 'goal';
+
+export type MemoryType =
+  | 'fact'
+  | 'preference'
+  | 'relationship'
+  | 'procedural'
+  | 'semantic'
+  | 'episodic';
 
 export type MemoryLifecycle =
   | 'candidate'
+  | 'validated'
   | 'active'
   | 'confirmed'
   | 'contradicted'
   | 'superseded'
+  | 'archived'
+  | 'quarantined'
   | 'deleted';
 
 export interface MemoryProvenance {
@@ -29,6 +42,7 @@ export interface ScopedMemoryItem {
   tags: string[];
   confidence: number; // Calibrated 0.0 to 1.0
   lifecycle: MemoryLifecycle;
+  type?: MemoryType;
   provenance: MemoryProvenance;
   supersededBy?: number;
   embedding?: number[];
@@ -37,6 +51,9 @@ export interface ScopedMemoryItem {
   workspaceId?: number;
   projectId?: number;
   agentId?: string;
+  goalId?: string;
+  securityStatus?: 'clean' | 'quarantined' | 'flagged';
+  quarantineReason?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -56,12 +73,52 @@ export interface SkillRegistryEntry {
   updatedAt: number;
 }
 
+export type ContextRefType =
+  | 'file'
+  | 'folder'
+  | 'repo'
+  | 'url'
+  | 'session'
+  | 'run'
+  | 'goal'
+  | 'task'
+  | 'memory'
+  | 'artifact'
+  | 'project';
+
+export interface ContextRef {
+  type: ContextRefType;
+  target: string;
+  raw: string;
+}
+
+export interface ResolvedContextRef {
+  ref: ContextRef;
+  content: string;
+  tokenCount: number;
+  truncated: boolean;
+  metadata?: Record<string, any>;
+}
+
 export interface ContextBudget {
   maxContextTokens?: number;      // Total prompt context token cap
   systemPromptTokenLimit?: number;
   memoryTokenLimit?: number;       // Token budget allocated for semantic/scoped memory
   skillsTokenLimit?: number;       // Token budget allocated for procedural skills
   historyTokenLimit?: number;      // Token budget allocated for conversation history
+  contextRefsTokenLimit?: number;  // Token budget allocated for resolved context references
+}
+
+export interface LayeredContextBreakdown {
+  identityTokens: number;
+  stableInstructionsTokens: number;
+  skillsTokens: number;
+  toolsTokens: number;
+  taskStateTokens: number;
+  memoryTokens: number;
+  liveContextTokens: number;
+  historyTokens: number;
+  totalTokens: number;
 }
 
 export interface AssembledContext {
@@ -69,6 +126,8 @@ export interface AssembledContext {
   includedFacts: ScopedMemoryItem[];
   includedSkills: any[];
   workingHistory: any[];
+  resolvedRefs?: ResolvedContextRef[];
+  layerBreakdown?: LayeredContextBreakdown;
   tokenEstimate: {
     system: number;
     memory: number;
@@ -77,3 +136,17 @@ export interface AssembledContext {
     total: number;
   };
 }
+
+export interface TokenUsageRecord {
+  callId: string;
+  runId?: string;
+  goalId?: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  latencyMs: number;
+  costUsd: number;
+  timestamp: number;
+}
+

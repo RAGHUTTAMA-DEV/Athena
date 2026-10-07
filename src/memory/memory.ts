@@ -6,7 +6,10 @@ import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 import { RunState } from '../runtime/runState.js';
 import { AgentEvent } from '../runtime/events.js';
-import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry } from './memoryTypes.js';
+import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
+import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
+import { SessionSearchEngine } from './sessionSearch.js';
+import { MemoryStore, SessionSearchStore } from '../storage/stores/types.js';
 
 export interface SemanticFact {
   id?: number;
@@ -20,6 +23,8 @@ export class EpisodicMemory {
   private db: Database | null = null;
   private dbPath: string;
   private stores: SqliteStores | null = null;
+  private pipeline: MemoryWritePipeline | null = null;
+  private sessionSearchEngine: SessionSearchEngine | null = null;
   private ai: GoogleGenAI | null = null;
   private openAIClient: OpenAI | null = null;
   private apiKey?: string;
@@ -45,7 +50,7 @@ export class EpisodicMemory {
     return this.ai;
   }
 
-  private async generateEmbedding(text: string): Promise<number[] | null> {
+  public async generateEmbedding(text: string): Promise<number[] | null> {
     const geminiKey = this.apiKey || process.env.GEMINI_API_KEY;
     if (geminiKey) {
       const ai = this.getAI();
@@ -88,6 +93,8 @@ export class EpisodicMemory {
     // to live here is now migration "v1_baseline".
     this.db = await openDatabase(this.dbPath);
     this.stores = createSqliteStores(this.db);
+    this.pipeline = new MemoryWritePipeline(this.stores.memory);
+    this.sessionSearchEngine = new SessionSearchEngine(this.stores.sessionSearch);
   }
 
   getAgentStore(): SqliteStores['agent'] | null {
@@ -126,6 +133,22 @@ export class EpisodicMemory {
     return this.stores ? this.stores.runWait : null;
   }
 
+  getMemoryStore(): MemoryStore | null {
+    return this.stores ? this.stores.memory : null;
+  }
+
+  getSessionSearchStore(): SessionSearchStore | null {
+    return this.stores ? this.stores.sessionSearch : null;
+  }
+
+  getMemoryPipeline(): MemoryWritePipeline | null {
+    return this.pipeline;
+  }
+
+  getSessionSearchEngine(): SessionSearchEngine | null {
+    return this.sessionSearchEngine;
+  }
+
   private requireRunStore(): SqliteStores['run'] {
     if (!this.stores) throw new Error('Database not initialized. Call init() first.');
     return this.stores.run;
@@ -148,7 +171,17 @@ export class EpisodicMemory {
       JSON.stringify(parts),
       Date.now()
     );
+
+    if (this.sessionSearchEngine) {
+      const textPart = Array.isArray(parts) ? parts.map((p: any) => p?.text || JSON.stringify(p)).join(' ') : String(parts);
+      await this.sessionSearchEngine.indexMessage({
+        sessionId,
+        role,
+        text: textPart
+      }).catch(() => {});
+    }
   }
+
 
   async loadHistory(
     sessionId: string,
@@ -576,6 +609,46 @@ export class EpisodicMemory {
 
   async saveRunEvent(event: AgentEvent): Promise<void> {
     await this.requireEventStore().saveRunEvent(event);
+
+    if (this.sessionSearchEngine) {
+      try {
+        if (event.type === 'tool_call') {
+          const tc = event as any;
+          await this.sessionSearchEngine.indexToolCall({
+            runId: tc.runId,
+            toolName: tc.toolName,
+            args: tc.args || {}
+          });
+        } else if (event.type === 'tool_result') {
+          const tr = event as any;
+          await this.sessionSearchEngine.indexToolOutput({
+            runId: tr.runId,
+            toolName: tr.toolName,
+            output: typeof tr.result === 'string' ? tr.result : JSON.stringify(tr.result)
+          });
+        } else if (event.type === 'thought') {
+          const th = event as any;
+          await this.sessionSearchEngine.indexThought({
+            runId: th.runId,
+            thoughtText: th.text
+          });
+        } else if (event.type === 'plan_created') {
+          const pc = event as any;
+          await this.sessionSearchEngine.indexPlan({
+            runId: pc.runId,
+            planText: JSON.stringify(pc.plan)
+          });
+        } else if (event.type === 'error') {
+          const er = event as any;
+          await this.sessionSearchEngine.indexError({
+            runId: er.runId,
+            errorText: JSON.stringify(er.error)
+          });
+        }
+      } catch {
+        // Non-blocking telemetry indexing
+      }
+    }
   }
 
   async getRunEvents(runId: string): Promise<AgentEvent[]> {
@@ -586,217 +659,91 @@ export class EpisodicMemory {
     return this.requireRunStore().list(sessionId, limit);
   }
 
-  // --- Phase 2: Scoped Memory Methods ---
+  // --- Phase 2 & 3: Scoped Memory & Secure Write Pipeline ---
 
   async saveScopedMemory(params: {
     scope: MemoryScope;
     fact: string;
     tags?: string[];
     confidence?: number;
+    lifecycle?: MemoryLifecycle;
+    type?: MemoryType;
     provenance: MemoryProvenance;
     embedding?: number[];
     workspaceId?: number | null;
     projectId?: number | null;
     agentId?: string | null;
+    goalId?: string | null;
   }): Promise<number> {
-    if (!this.db) {
+    if (!this.db || !this.pipeline) {
       throw new Error('Database not initialized. Call init() first.');
     }
 
-    let embedding = params.embedding || null;
-    if (!embedding) {
-      try {
-        embedding = await this.generateEmbedding(params.fact);
-      } catch (err: any) {
-        // Soft fallback if embedding API key is absent in local unit test
-      }
+    const res = await this.pipeline.processAndStore({
+      fact: params.fact,
+      scope: params.scope,
+      tags: params.tags,
+      type: params.type || 'fact',
+      confidence: params.confidence,
+      lifecycle: params.lifecycle,
+      provenance: params.provenance,
+      workspaceId: params.workspaceId ?? undefined,
+      projectId: params.projectId ?? undefined,
+      agentId: params.agentId ?? undefined,
+      goalId: params.goalId ?? undefined,
+      embedding: params.embedding
+    }, (text) => this.generateEmbedding(text));
+
+    return res.id;
+  }
+
+  async writeSecureMemory(request: MemoryWriteRequest): Promise<MemoryWriteResult> {
+    if (!this.db || !this.pipeline) {
+      throw new Error('Database not initialized. Call init() first.');
     }
-
-    const now = Date.now();
-    const tagsStr = params.tags && params.tags.length > 0 ? params.tags.join(',') : null;
-    const confidence = params.confidence !== undefined ? Math.max(0.0, Math.min(1.0, params.confidence)) : 1.0;
-
-    // Model-inferred facts about the user stay candidate until validated.
-    // Everything else keeps the V1 behavior (inserted as active).
-    const isModelInferred =
-      params.provenance.source === 'agent_reflection' || params.provenance.source === 'subagent';
-    const initialLifecycle: MemoryLifecycle =
-      params.scope === 'user' && isModelInferred ? 'candidate' : 'active';
-
-    const result = await this.db.run(
-      `INSERT INTO scoped_memory (
-        scope, fact, tags, confidence, lifecycle, source, timestamp,
-        run_id, session_id, evidence, embedding, created_at, updated_at,
-        workspace_id, project_id, agent_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      params.scope,
-      params.fact,
-      tagsStr,
-      confidence,
-      initialLifecycle,
-      params.provenance.source,
-      params.provenance.timestamp || now,
-      params.provenance.runId || null,
-      params.provenance.sessionId || null,
-      params.provenance.evidence || null,
-      embedding ? JSON.stringify(embedding) : null,
-      now,
-      now,
-      params.workspaceId ?? null,
-      params.projectId ?? null,
-      params.agentId ?? null
-    );
-
-    return result.lastID!;
+    return this.pipeline.processAndStore(request, (text) => this.generateEmbedding(text));
   }
 
   async searchScopedMemory(params: {
     query: string;
     scope?: MemoryScope | MemoryScope[];
+    type?: MemoryType | MemoryType[];
     limit?: number;
     threshold?: number;
     minConfidence?: number;
     lifecycles?: MemoryLifecycle[];
     sessionId?: string;
-    /** When set, only facts bound to this workspace or unbound (NULL) are returned. */
     workspaceId?: number;
     projectId?: number;
     agentId?: string;
+    goalId?: string;
+    includeQuarantined?: boolean;
   }): Promise<ScopedMemoryItem[]> {
-    if (!this.db) {
+    if (!this.db || !this.stores) {
       throw new Error('Database not initialized. Call init() first.');
     }
-
-    const lifecycles = params.lifecycles || ['active', 'confirmed'];
-    const minConfidence = params.minConfidence ?? 0.0;
-    const limit = params.limit ?? 5;
-    const threshold = params.threshold ?? 0.50;
-
-    let querySql = `SELECT * FROM scoped_memory WHERE confidence >= ?`;
-    const sqlParams: any[] = [minConfidence];
-
-    // Filter by lifecycles
-    const lifecyclePlaceholders = lifecycles.map(() => '?').join(',');
-    querySql += ` AND lifecycle IN (${lifecyclePlaceholders})`;
-    sqlParams.push(...lifecycles);
-
-    // Filter by scope
-    if (params.scope) {
-      const scopes = Array.isArray(params.scope) ? params.scope : [params.scope];
-      const scopePlaceholders = scopes.map(() => '?').join(',');
-      querySql += ` AND scope IN (${scopePlaceholders})`;
-      sqlParams.push(...scopes);
-    }
-
-    // Filter by session if task or session scoped
-    if (params.sessionId) {
-      querySql += ` AND (session_id IS NULL OR session_id = ?)`;
-      sqlParams.push(params.sessionId);
-    }
-
-    // NULL bindings stay visible everywhere (cross-workspace, V1 semantics).
-    if (params.workspaceId !== undefined) {
-      querySql += ` AND (workspace_id IS NULL OR workspace_id = ?)`;
-      sqlParams.push(params.workspaceId);
-    }
-    if (params.projectId !== undefined) {
-      querySql += ` AND (project_id IS NULL OR project_id = ?)`;
-      sqlParams.push(params.projectId);
-    }
-    if (params.agentId !== undefined) {
-      querySql += ` AND (agent_id IS NULL OR agent_id = ?)`;
-      sqlParams.push(params.agentId);
-    }
-
-    const rows = await this.db.all(querySql, ...sqlParams);
-    if (rows.length === 0) return [];
 
     let queryEmbedding: number[] | null = null;
     try {
       queryEmbedding = await this.generateEmbedding(params.query);
-    } catch (e) {}
-
-    const results: ScopedMemoryItem[] = [];
-    const queryTokens = params.query.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 2);
-
-    for (const row of rows) {
-      let score = 0;
-      if (queryEmbedding && row.embedding) {
-        const dbEmb = JSON.parse(row.embedding) as number[];
-        score = cosineSimilarity(queryEmbedding, dbEmb);
-      } else {
-        // Fallback token match
-        const factLower = row.fact.toLowerCase();
-        const matches = queryTokens.filter(t => factLower.includes(t));
-        score = queryTokens.length > 0 ? (matches.length / queryTokens.length) * 0.8 : 0.5;
-      }
-
-      if (score >= threshold) {
-        results.push({
-          id: row.id,
-          scope: row.scope as MemoryScope,
-          fact: row.fact,
-          tags: row.tags ? row.tags.split(',') : [],
-          confidence: row.confidence,
-          lifecycle: row.lifecycle as MemoryLifecycle,
-          provenance: {
-            source: row.source,
-            timestamp: row.timestamp,
-            runId: row.run_id || undefined,
-            sessionId: row.session_id || undefined,
-            evidence: row.evidence || undefined
-          },
-          supersededBy: row.superseded_by || undefined,
-          workspaceId: row.workspace_id ?? undefined,
-          projectId: row.project_id ?? undefined,
-          agentId: row.agent_id || undefined,
-          score,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at
-        });
-      }
+    } catch {
+      // Soft fallback
     }
 
-    // Sort by confidence-weighted relevance: (score * confidence)
-    return results.sort((a, b) => (b.score! * b.confidence) - (a.score! * a.confidence)).slice(0, limit);
+    return this.stores.memory.search({
+      ...params,
+      queryEmbedding
+    });
   }
 
   async getScopedMemory(id: number): Promise<ScopedMemoryItem | null> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    const row = await this.db.get(`SELECT * FROM scoped_memory WHERE id = ?`, id);
-    if (!row) return null;
-    return {
-      id: row.id,
-      scope: row.scope as MemoryScope,
-      fact: row.fact,
-      tags: row.tags ? row.tags.split(',') : [],
-      confidence: row.confidence,
-      lifecycle: row.lifecycle as MemoryLifecycle,
-      provenance: {
-        source: row.source,
-        timestamp: row.timestamp,
-        runId: row.run_id || undefined,
-        sessionId: row.session_id || undefined,
-        evidence: row.evidence || undefined
-      },
-      supersededBy: row.superseded_by || undefined,
-      workspaceId: row.workspace_id ?? undefined,
-      projectId: row.project_id ?? undefined,
-      agentId: row.agent_id || undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    return this.stores.memory.get(id);
   }
 
   async updateMemoryLifecycle(id: number, lifecycle: MemoryLifecycle, supersededBy?: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    await this.db.run(
-      `UPDATE scoped_memory SET lifecycle = ?, superseded_by = ?, updated_at = ? WHERE id = ?`,
-      lifecycle,
-      supersededBy || null,
-      Date.now(),
-      id
-    );
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    await this.stores.memory.updateLifecycle(id, lifecycle, supersededBy);
   }
 
   /**
@@ -804,40 +751,27 @@ export class EpisodicMemory {
    * path; model writes never do this themselves.
    */
   async validateMemory(id: number, evidence?: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    await this.db.run(
-      `UPDATE scoped_memory SET lifecycle = 'active', evidence = COALESCE(?, evidence), updated_at = ? WHERE id = ?`,
-      evidence || null,
-      Date.now(),
-      id
-    );
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    await this.stores.memory.validate(id, evidence);
   }
 
   async reinforceMemory(id: number, delta: number = 0.1): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    const row = await this.db.get(`SELECT confidence FROM scoped_memory WHERE id = ?`, id);
-    if (!row) return;
-    const newConf = Math.min(1.0, row.confidence + delta);
-    await this.db.run(
-      `UPDATE scoped_memory SET confidence = ?, lifecycle = 'confirmed', updated_at = ? WHERE id = ?`,
-      newConf,
-      Date.now(),
-      id
-    );
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    await this.stores.memory.reinforce(id, delta);
   }
 
   async contradictMemory(id: number, evidence?: string): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    await this.db.run(
-      `UPDATE scoped_memory SET lifecycle = 'contradicted', confidence = MAX(0.0, confidence - 0.5), evidence = COALESCE(?, evidence), updated_at = ? WHERE id = ?`,
-      evidence || null,
-      Date.now(),
-      id
-    );
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    await this.stores.memory.contradict(id, evidence);
+  }
+
+  async quarantineMemory(id: number, reason: string): Promise<void> {
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    await this.stores.memory.quarantine(id, reason);
   }
 
   async resolveContradiction(existingId: number, newFact: string, provenance: MemoryProvenance): Promise<number> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    if (!this.db || !this.stores) throw new Error('Database not initialized. Call init() first.');
     const existing = await this.getScopedMemory(existingId);
     if (!existing) throw new Error(`Memory fact ${existingId} not found.`);
 
@@ -850,7 +784,8 @@ export class EpisodicMemory {
       provenance,
       workspaceId: existing.workspaceId ?? null,
       projectId: existing.projectId ?? null,
-      agentId: existing.agentId ?? null
+      agentId: existing.agentId ?? null,
+      goalId: existing.goalId ?? null
     });
 
     // 2. Mark older fact as superseded
@@ -859,8 +794,8 @@ export class EpisodicMemory {
   }
 
   async deleteScopedMemory(id: number): Promise<void> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    await this.db.run(`UPDATE scoped_memory SET lifecycle = 'deleted', updated_at = ? WHERE id = ?`, Date.now(), id);
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    await this.stores.memory.delete(id);
   }
 
   async purgeScope(scope: MemoryScope, sessionId?: string): Promise<number> {
@@ -876,43 +811,10 @@ export class EpisodicMemory {
   }
 
   async inspectMemory(query?: string, scope?: MemoryScope, limit: number = 30): Promise<ScopedMemoryItem[]> {
-    if (!this.db) throw new Error('Database not initialized. Call init() first.');
-    let sql = `SELECT * FROM scoped_memory WHERE lifecycle != 'deleted'`;
-    const params: any[] = [];
-    if (scope) {
-      sql += ` AND scope = ?`;
-      params.push(scope);
-    }
-    if (query) {
-      sql += ` AND fact LIKE ?`;
-      params.push(`%${query}%`);
-    }
-    sql += ` ORDER BY updated_at DESC LIMIT ?`;
-    params.push(limit);
-
-    const rows = await this.db.all(sql, ...params);
-    return rows.map((row: any) => ({
-      id: row.id,
-      scope: row.scope as MemoryScope,
-      fact: row.fact,
-      tags: row.tags ? row.tags.split(',') : [],
-      confidence: row.confidence,
-      lifecycle: row.lifecycle as MemoryLifecycle,
-      provenance: {
-        source: row.source,
-        timestamp: row.timestamp,
-        runId: row.run_id || undefined,
-        sessionId: row.session_id || undefined,
-        evidence: row.evidence || undefined
-      },
-      supersededBy: row.superseded_by || undefined,
-      workspaceId: row.workspace_id ?? undefined,
-      projectId: row.project_id ?? undefined,
-      agentId: row.agent_id || undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    }));
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    return this.stores.memory.inspect(query, scope, limit);
   }
+
 
   // --- Phase 2: Skill Registry Tracking Methods ---
 

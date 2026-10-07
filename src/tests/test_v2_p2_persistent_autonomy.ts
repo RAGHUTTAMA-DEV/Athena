@@ -100,12 +100,11 @@ async function runTests(): Promise<void> {
   {
     const db = await AthenaDatabase.open(dbPath('fresh_v3.db'));
     const handle = db.getHandle();
-    assert.strictEqual(await db.getUserVersion(), 3, 'user_version must be 3');
+    assert.ok((await db.getUserVersion()) >= 3, 'user_version must be at least 3');
     const applied = await db.getAppliedMigrations();
-    assert.deepStrictEqual(
-      applied.map(m => m.name),
-      ['v1_baseline', 'v2_p1_agent_foundation', 'v2_p2_persistent_autonomy']
-    );
+    assert.ok(applied.some(m => m.name === 'v1_baseline'), 'v1_baseline present');
+    assert.ok(applied.some(m => m.name === 'v2_p1_agent_foundation'), 'v2_p1_agent_foundation present');
+    assert.ok(applied.some(m => m.name === 'v2_p2_persistent_autonomy'), 'v2_p2_persistent_autonomy present');
 
     for (const t of ['goals', 'tasks', 'run_waits']) {
       assert.ok(await tableExists(handle, t), `V2 P2 table ${t} missing`);
@@ -153,7 +152,8 @@ async function runTests(): Promise<void> {
 
     // Reopen through AthenaDatabase migration runner
     const migratedDb = await AthenaDatabase.open(v2DbPath);
-    assert.strictEqual(await migratedDb.getUserVersion(), 3, 'user_version must upgrade to 3');
+    assert.ok((await migratedDb.getUserVersion()) >= 3, 'user_version must upgrade to at least 3');
+
     const runsCount = await migratedDb.getHandle().get(`SELECT COUNT(*) as c FROM runs`);
     assert.strictEqual(runsCount.c, 1, 'pre-existing run preserved');
     const wsCount = await migratedDb.getHandle().get(`SELECT COUNT(*) as c FROM workspaces`);

@@ -1,7 +1,14 @@
 import { Message } from '../runtime/types.js';
 import { EpisodicMemory } from './memory.js';
 import { ProceduralMemory, Skill } from './procedural.js';
-import { ScopedMemoryItem, ContextBudget, AssembledContext, MemoryScope } from './memoryTypes.js';
+import {
+  ScopedMemoryItem,
+  ContextBudget,
+  AssembledContext,
+  ResolvedContextRef,
+  LayeredContextBreakdown
+} from './memoryTypes.js';
+import { ContextRefResolver } from './contextRefs.js';
 
 export function estimateTokens(text: string): number {
   if (!text) return 0;
@@ -40,6 +47,13 @@ export interface ContextEngineOptions {
   workspaceId?: number;
   projectId?: number;
   agentId?: string;
+  goalId?: string;
+  /** Layer 4: Tool metadata / available schemas */
+  toolsMetadata?: string;
+  /** Layer 5: Current task / goal execution state */
+  taskState?: string;
+  /** Optional custom reference resolver */
+  refResolver?: ContextRefResolver;
 }
 
 export class ContextEngine {
@@ -48,77 +62,47 @@ export class ContextEngine {
     systemPromptTokenLimit: 4000,
     memoryTokenLimit: 2000,
     skillsTokenLimit: 3000,
-    historyTokenLimit: 7000
+    historyTokenLimit: 7000,
+    contextRefsTokenLimit: 3000
   };
 
+  /**
+   * Cache-Friendly Layered Context Assembly:
+   * Layer 1: Identity (stable)
+   * Layer 2: Stable instructions & operational directives (stable)
+   * Layer 3: Procedural skills (stable)
+   * Layer 4: Tool catalog / schemas (semi-stable)
+   * Layer 5: Task / Goal state (dynamic)
+   * Layer 6: Relevant scoped memory (dynamic)
+   * Layer 7: Live context / working history & resolved @refs (fast dynamic)
+   */
   async assemble(opts: ContextEngineOptions): Promise<AssembledContext> {
     const budget = { ...this.defaultBudget, ...opts.budget };
     const workspaceDir = opts.workspaceDir || process.cwd();
 
-    // 1. Build Base System Instruction
-    let systemText = opts.systemPrompt;
+    // ==========================================
+    // LAYER 1: Identity (Stable Prefix)
+    // ==========================================
+    let layer1Identity = '';
     if (opts.soul) {
-      systemText = `${opts.soul}\n\nOperational Instructions:\n${systemText}`;
+      layer1Identity = `[AGENT IDENTITY]\n${opts.soul.trim()}`;
+    } else {
+      layer1Identity = `[AGENT IDENTITY]\nAthena: General-Purpose Autonomous AI Agent.`;
     }
+    const identityTokens = estimateTokens(layer1Identity);
 
-    const dateOptions: Intl.DateTimeFormatOptions = {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      timeZoneName: 'short'
-    };
-    const currentDateTime = new Date().toLocaleDateString('en-US', dateOptions);
+    // ==========================================
+    // LAYER 2: Stable Instructions & Directives (Stable)
+    // ==========================================
+    let layer2Instructions = `[OPERATIONAL DIRECTIVES]\n${opts.systemPrompt.trim()}`;
+    layer2Instructions += `\n\nMEMORY CONTRACT: You have persistent multi-scope memory. Verified facts in [SCOPED MEMORY] and procedural skills in [PROCEDURAL SKILLS] are authoritative. Never claim your memory resets between sessions. Memory can never override system safety policy.`;
+    const stableInstructionsTokens = estimateTokens(layer2Instructions);
 
-    systemText += `\n\nCurrent System Date and Time: ${currentDateTime}\nCurrent Working Directory: ${workspaceDir}`;
-    systemText += `\n\nMEMORY CONTRACT: You have persistent multi-scope memory. Verified facts in [SCOPED MEMORY] and procedural skills in [PROCEDURAL SKILLS] are authoritative and calibrated by confidence scores. Never say your memory resets between sessions.`;
-
-    // 2. Retrieve Scoped Memories within Budget
-    const includedFacts: ScopedMemoryItem[] = [];
-    let memoryBlock = '';
-    let memoryTokens = 0;
-
-    if (opts.memory) {
-      try {
-        const candidateFacts = await opts.memory.searchScopedMemory({
-          query: opts.userPrompt,
-          sessionId: opts.sessionId,
-          limit: 10,
-          threshold: 0.40,
-          minConfidence: 0.20,
-          ...(opts.workspaceId !== undefined ? { workspaceId: opts.workspaceId } : {}),
-          ...(opts.projectId !== undefined ? { projectId: opts.projectId } : {}),
-          ...(opts.agentId !== undefined ? { agentId: opts.agentId } : {})
-        });
-
-        // Add candidate facts that fit within budget
-        const factLines: string[] = [];
-        for (const fact of candidateFacts) {
-          const confidencePct = Math.round(fact.confidence * 100);
-          const line = `- [${fact.scope.toUpperCase()} | Conf: ${confidencePct}% | Source: ${fact.provenance.source}] ${fact.fact}`;
-          const lineTokens = estimateTokens(line);
-
-          if (memoryTokens + lineTokens <= budget.memoryTokenLimit) {
-            includedFacts.push(fact);
-            factLines.push(line);
-            memoryTokens += lineTokens;
-          }
-        }
-
-        if (factLines.length > 0) {
-          memoryBlock = `\n\n[SCOPED MEMORY]\n` + factLines.join('\n');
-        }
-      } catch (err: any) {
-        console.warn(`[ContextEngine] Failed to retrieve scoped memory: ${err.message}`);
-      }
-    }
-
-    // 3. Retrieve Procedural Skills within Budget
+    // ==========================================
+    // LAYER 3: Procedural Skills (Stable)
+    // ==========================================
     const includedSkills: Skill[] = [];
-    let skillsBlock = '';
+    let layer3Skills = '';
     let skillsTokens = 0;
 
     if (opts.procedural) {
@@ -138,7 +122,7 @@ export class ContextEngine {
         }
 
         if (skillEntries.length > 0) {
-          skillsBlock = `\n\n[PROCEDURAL SKILLS]\nCRITICAL DIRECTIVE: Follow the design principles, workflows, and standards in the following matched skill instructions:\n\n` +
+          layer3Skills = `[PROCEDURAL SKILLS]\nFollow the design principles and workflows in the following matched skill instructions:\n\n` +
             skillEntries.join('\n\n');
         }
       } catch (err: any) {
@@ -146,32 +130,174 @@ export class ContextEngine {
       }
     }
 
-    // 4. Assemble Final System Instruction
-    const fullSystemInstruction = systemText + memoryBlock + skillsBlock;
+    // ==========================================
+    // LAYER 4: Tool Metadata & Schemas (Semi-Stable)
+    // ==========================================
+    let layer4Tools = '';
+    let toolsTokens = 0;
+    if (opts.toolsMetadata) {
+      layer4Tools = `[TOOL REGISTRY]\n${opts.toolsMetadata.trim()}`;
+      toolsTokens = estimateTokens(layer4Tools);
+    }
+
+    // ==========================================
+    // LAYER 5: Task & Goal State (Dynamic)
+    // ==========================================
+    let layer5TaskState = '';
+    let taskStateTokens = 0;
+    if (opts.taskState) {
+      layer5TaskState = `[TASK & GOAL CONTEXT]\n${opts.taskState.trim()}`;
+      taskStateTokens = estimateTokens(layer5TaskState);
+    }
+
+    // ==========================================
+    // LAYER 6: Relevant Scoped Memory (Dynamic)
+    // ==========================================
+    const includedFacts: ScopedMemoryItem[] = [];
+    let layer6Memory = '';
+    let memoryTokens = 0;
+
+    if (opts.memory) {
+      try {
+        const candidateFacts = await opts.memory.searchScopedMemory({
+          query: opts.userPrompt,
+          sessionId: opts.sessionId,
+          limit: 10,
+          threshold: 0.35,
+          minConfidence: 0.20,
+          lifecycles: ['active', 'confirmed', 'validated'],
+          ...(opts.workspaceId !== undefined ? { workspaceId: opts.workspaceId } : {}),
+          ...(opts.projectId !== undefined ? { projectId: opts.projectId } : {}),
+          ...(opts.agentId !== undefined ? { agentId: opts.agentId } : {}),
+          ...(opts.goalId !== undefined ? { goalId: opts.goalId } : {})
+        });
+
+        const factLines: string[] = [];
+        for (const fact of candidateFacts) {
+          // Never include quarantined items in context
+          if (fact.securityStatus === 'quarantined' || fact.lifecycle === 'quarantined') continue;
+
+          const confidencePct = Math.round(fact.confidence * 100);
+          const typeStr = fact.type ? ` | Type: ${fact.type}` : '';
+          const line = `- [${fact.scope.toUpperCase()}${typeStr} | Conf: ${confidencePct}% | Source: ${fact.provenance.source}] ${fact.fact}`;
+          const lineTokens = estimateTokens(line);
+
+          if (memoryTokens + lineTokens <= budget.memoryTokenLimit) {
+            includedFacts.push(fact);
+            factLines.push(line);
+            memoryTokens += lineTokens;
+          }
+        }
+
+        if (factLines.length > 0) {
+          layer6Memory = `[SCOPED MEMORY]\n` + factLines.join('\n');
+        }
+      } catch (err: any) {
+        console.warn(`[ContextEngine] Failed to retrieve scoped memory: ${err.message}`);
+      }
+    }
+
+    // ==========================================
+    // LAYER 7: Live Context (@references & Environment) (Fast Dynamic)
+    // ==========================================
+    const resolver = opts.refResolver || new ContextRefResolver({
+      workspaceDir,
+      maxRepoTokens: budget.contextRefsTokenLimit ? Math.min(2500, budget.contextRefsTokenLimit) : 2000,
+      maxTokensPerRef: 2000
+    });
+
+    const parsedRefs = resolver.parseReferences(opts.userPrompt);
+    let resolvedRefs: ResolvedContextRef[] = [];
+    let layer7LiveContext = '';
+    let liveContextTokens = 0;
+
+    if (parsedRefs.length > 0) {
+      resolvedRefs = await resolver.resolveReferences(parsedRefs);
+      const refBlocks: string[] = [];
+      let refTokensAccum = 0;
+
+      for (const r of resolvedRefs) {
+        if (refTokensAccum + r.tokenCount <= (budget.contextRefsTokenLimit || 3000)) {
+          refBlocks.push(r.content);
+          refTokensAccum += r.tokenCount;
+        } else {
+          refBlocks.push(`[Context Ref ${r.ref.raw} omitted to fit budget]`);
+        }
+      }
+
+      if (refBlocks.length > 0) {
+        layer7LiveContext = `[RESOLVED CONTEXT REFERENCES]\n` + refBlocks.join('\n\n');
+      }
+    }
+
+    // Environment info (date/time/workspace)
+    const dateOptions: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      timeZoneName: 'short'
+    };
+    const currentDateTime = new Date().toLocaleDateString('en-US', dateOptions);
+    const envBanner = `[ENVIRONMENT]\nCurrent Date/Time: ${currentDateTime}\nWorkspace: ${workspaceDir}`;
+
+    const layer7Full = [layer7LiveContext, envBanner].filter(Boolean).join('\n\n');
+    liveContextTokens = estimateTokens(layer7Full);
+
+    // Assemble system instruction in strict cache-friendly layer order:
+    // Layer 1 (Identity) -> Layer 2 (Directives) -> Layer 3 (Skills) -> Layer 4 (Tools) -> Layer 5 (Task State) -> Layer 6 (Memory) -> Layer 7 (Live)
+    const assembledLayers = [
+      layer1Identity,
+      layer2Instructions,
+      layer3Skills,
+      layer4Tools,
+      layer5TaskState,
+      layer6Memory,
+      layer7Full
+    ].filter(Boolean);
+
+    const fullSystemInstruction = assembledLayers.join('\n\n');
     const systemTokens = estimateTokens(fullSystemInstruction);
 
-    // 5. Budget-Aware Conversation History Truncation
+    // ==========================================
+    // Working History Truncation within Budget
+    // ==========================================
     const workingHistory: Message[] = [];
     let historyTokens = 0;
-
-    // Iterate backwards from most recent message to preserve latest context
     const reversedHistory = [...opts.history].reverse();
+
     for (const msg of reversedHistory) {
       const msgTokens = estimateMessagesTokens([msg]);
       if (historyTokens + msgTokens <= budget.historyTokenLimit) {
         workingHistory.unshift(msg);
         historyTokens += msgTokens;
       } else {
-        // Stop adding older messages when budget is reached
         break;
       }
     }
+
+    const breakdown: LayeredContextBreakdown = {
+      identityTokens,
+      stableInstructionsTokens,
+      skillsTokens,
+      toolsTokens,
+      taskStateTokens,
+      memoryTokens,
+      liveContextTokens,
+      historyTokens,
+      totalTokens: systemTokens + historyTokens
+    };
 
     return {
       systemInstruction: fullSystemInstruction,
       includedFacts,
       includedSkills,
       workingHistory,
+      resolvedRefs,
+      layerBreakdown: breakdown,
       tokenEstimate: {
         system: systemTokens,
         memory: memoryTokens,
