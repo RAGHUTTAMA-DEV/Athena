@@ -6,40 +6,23 @@ import { PolicyEngine } from '../security/policyEngine.js';
 import { PromptDefense } from '../security/promptDefense.js';
 import { CredentialManager } from '../security/credentialManager.js';
 import { TelemetryManager } from '../observability/telemetry.js';
+import { ExecutionBackend, LocalExecutionBackend } from './executionBackend.js';
+import { FilesystemEngine } from './filesystemEngine.js';
+import { SearchableToolRegistry } from './toolRegistry.js';
+import { ToolDiscoveryPipeline } from './toolDiscovery.js';
 
-export type ToolRiskLevel = 'safe' | 'confirm' | 'destructive';
-export type ToolPermission = 'fs:read' | 'fs:write' | 'net:http' | 'cmd:exec' | 'browser' | 'memory' | 'system';
-
-export interface ToolManifest {
-  name: string;
-  version?: string;
-  description?: string;
-  riskLevel: ToolRiskLevel;
-  parallelSafe: boolean;
-  timeoutMs?: number;
-  permissions?: ToolPermission[];
-  tags?: string[];
-  maxOutputBytes?: number;
-}
-
-export interface ToolResult<T = any> {
-  success: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-    details?: any;
-  };
-  retryable: boolean;
-  metadata?: {
-    durationMs?: number;
-    truncated?: boolean;
-    artifactPath?: string;
-    originalSize?: number;
-    circuitBreakerState?: 'closed' | 'open' | 'half-open';
-    [key: string]: any;
-  };
-}
+export type {
+  ToolRiskLevel,
+  ToolPermission,
+  ToolManifest,
+  ToolResult
+} from './toolTypes.js';
+import type {
+  ToolRiskLevel,
+  ToolPermission,
+  ToolManifest,
+  ToolResult
+} from './toolTypes.js';
 
 export interface CircuitBreakerOptions {
   failureThreshold?: number; // Consecutive failures before tripping to open (default: 3)
@@ -209,12 +192,20 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     tags: ['fs']
   },
   executeCommand: {
-    riskLevel: 'destructive',
+    riskLevel: 'confirm',
     parallelSafe: false,
     timeoutMs: 60000,
     permissions: ['cmd:exec'],
     maxOutputBytes: 20480,
     tags: ['terminal', 'exec']
+  },
+  processManage: {
+    riskLevel: 'safe',
+    parallelSafe: false,
+    timeoutMs: 15000,
+    permissions: ['cmd:exec'],
+    maxOutputBytes: 16384,
+    tags: ['terminal', 'process', 'exec']
   },
   executePython: {
     riskLevel: 'confirm',
@@ -304,6 +295,8 @@ export class ToolExecutor {
   private promptDefense: PromptDefense;
   private credentialManager: CredentialManager;
   private artifactsDir: string;
+  private executionBackend: ExecutionBackend;
+  private filesystemEngine: FilesystemEngine;
 
   constructor(options?: {
     artifactsDir?: string;
@@ -311,12 +304,16 @@ export class ToolExecutor {
     policyEngine?: PolicyEngine;
     promptDefense?: PromptDefense;
     credentialManager?: CredentialManager;
+    executionBackend?: ExecutionBackend;
+    filesystemEngine?: FilesystemEngine;
   }) {
     this.artifactsDir = options?.artifactsDir || path.resolve(process.cwd(), 'scratch', 'artifacts');
     this.circuitBreakers = options?.circuitBreakers || CircuitBreakerRegistry.getInstance();
     this.policyEngine = options?.policyEngine || PolicyEngine.getInstance();
     this.promptDefense = options?.promptDefense || PromptDefense.getInstance();
     this.credentialManager = options?.credentialManager || CredentialManager.getInstance();
+    this.executionBackend = options?.executionBackend || new LocalExecutionBackend();
+    this.filesystemEngine = options?.filesystemEngine || new FilesystemEngine();
   }
 
   public getPolicyEngine(): PolicyEngine {
@@ -329,6 +326,22 @@ export class ToolExecutor {
 
   public getCredentialManager(): CredentialManager {
     return this.credentialManager;
+  }
+
+  public getExecutionBackend(): ExecutionBackend {
+    return this.executionBackend;
+  }
+
+  public setExecutionBackend(backend: ExecutionBackend): void {
+    this.executionBackend = backend;
+  }
+
+  public getFilesystemEngine(): FilesystemEngine {
+    return this.filesystemEngine;
+  }
+
+  public setFilesystemEngine(engine: FilesystemEngine): void {
+    this.filesystemEngine = engine;
   }
 
   resolveManifest(tool: Tool): ToolManifest {
@@ -429,11 +442,16 @@ export class ToolExecutor {
     const breaker = this.circuitBreakers.getBreaker(manifest.name);
 
     // 0. Security Policy Evaluation Gate
+    const backend = (context as any)?.executionBackend || this.executionBackend;
     const policyResult = this.policyEngine.evaluateToolCall(
       manifest.name,
       args,
       manifest.permissions,
-      { isBackground: context?.isBackground }
+      {
+        isBackground: context?.isBackground,
+        backendType: backend?.type,
+        sandboxed: backend?.type === 'sandbox'
+      }
     );
     if (!policyResult.allowed) {
       return {
@@ -666,7 +684,7 @@ export class ToolSelector {
 
   private static TOOL_GROUPS: Record<string, string[]> = {
     code: ['readFile', 'replaceFileContent', 'writeFile', 'deleteFile', 'listFiles', 'grepSearch'],
-    terminal: ['executeCommand'],
+    terminal: ['executeCommand', 'processManage'],
     web: ['searchWeb', 'browser', 'browserNavigate', 'browserAction', 'browserScreenshot'],
     python: ['executePython', 'calculate'],
     agent: ['delegateTask', 'delegateCodingTask'],
@@ -674,109 +692,27 @@ export class ToolSelector {
   };
 
   /**
-   * Filter available tools based on user prompt/task keywords and recent conversation context.
-   * If intent is ambiguous or tools count is <= 8, returns all permitted tools.
+   * Filter available tools using the 5-stage ToolDiscoveryPipeline.
+   * Scales gracefully to 100+ registered tools while keeping prompt size bounded.
    */
-  static selectRelevantTools(userPrompt: string, availableTools: Tool[], context?: string): Tool[] {
+  static selectRelevantTools(
+    userPrompt: string,
+    availableTools: Tool[],
+    context?: string,
+    options?: { policyEngine?: PolicyEngine; isBackground?: boolean }
+  ): Tool[] {
     if (availableTools.length <= 8) {
       return availableTools;
     }
 
-    const combinedText = context ? `${context} ${userPrompt}` : userPrompt;
-    const promptLower = combinedText.toLowerCase();
-    const promptTokens = new Set(promptLower.split(/[^a-z0-9_-]+/).filter(Boolean));
-    const activeToolNames = new Set<string>(ToolSelector.CORE_TOOLS);
-
-    // Match keywords against groups with word-boundary awareness
-    for (const [group, keywords] of Object.entries(ToolSelector.INTENT_KEYWORDS)) {
-      const matches = keywords.some(kw => {
-        if (kw.includes(' ')) {
-          return promptLower.includes(kw);
-        }
-        return promptTokens.has(kw);
-      });
-      if (matches) {
-        // Built-in tools in this group
-        const toolsInGroup = ToolSelector.TOOL_GROUPS[group] || [];
-        for (const toolName of toolsInGroup) {
-          activeToolNames.add(toolName);
-        }
-
-        // Dynamically include MCP tools matching the active group
-        if (group === 'github') {
-          for (const tool of availableTools) {
-            if (tool.definition.name.startsWith('github_') || tool.definition.name.startsWith('mcp_github_')) {
-              activeToolNames.add(tool.definition.name);
-            }
-          }
-        } else if (group === 'email') {
-          for (const tool of availableTools) {
-            if (tool.definition.name.startsWith('gmail_') || tool.definition.name.startsWith('mcp_gmail_')) {
-              activeToolNames.add(tool.definition.name);
-            }
-          }
-        } else if (group === 'calendar') {
-          for (const tool of availableTools) {
-            if (tool.definition.name.startsWith('calendar_') || tool.definition.name.startsWith('mcp_calendar_')) {
-              activeToolNames.add(tool.definition.name);
-            }
-          }
-        } else if (group === 'notion') {
-          for (const tool of availableTools) {
-            if (tool.definition.name.startsWith('notion_') || tool.definition.name.startsWith('mcp_notion_')) {
-              activeToolNames.add(tool.definition.name);
-            }
-          }
-        } else if (group === 'diagram') {
-          for (const tool of availableTools) {
-            if (tool.definition.name.startsWith('excalidraw_') || tool.definition.name.startsWith('mcp_excalidraw_')) {
-              activeToolNames.add(tool.definition.name);
-            }
-          }
-        } else if (group === 'code') {
-          for (const tool of availableTools) {
-            if (tool.definition.name.startsWith('filesystem_') || tool.definition.name.startsWith('mcp_filesystem_')) {
-              activeToolNames.add(tool.definition.name);
-            }
-          }
-        }
-      }
-    }
-
-    // Dynamic token and namespace matching for any tools
-    for (const tool of availableTools) {
-      const toolNameLower = tool.definition.name.toLowerCase();
-      // If exact tool name or part of it is in prompt
-      if (promptLower.includes(toolNameLower)) {
-        activeToolNames.add(tool.definition.name);
-        continue;
-      }
-
-      // Check server namespace prefix (e.g. github, gmail, notion)
-      const parts = toolNameLower.split('_');
-      if (parts.length > 1) {
-        const prefix = parts[0];
-        if (promptTokens.has(prefix) || promptLower.includes(prefix)) {
-          activeToolNames.add(tool.definition.name);
-          continue;
-        }
-
-        // Check if individual keywords in tool name match prompt tokens (e.g., "repositories", "commits", "issues")
-        const matchingParts = parts.filter(p => p.length >= 4 && promptTokens.has(p));
-        if (matchingParts.length >= 1) {
-          activeToolNames.add(tool.definition.name);
-          continue;
-        }
-      }
-    }
-
-    const filtered = availableTools.filter(t => activeToolNames.has(t.definition.name));
-
-    // Fallback: If filtered list is too small, return all tools
-    if (filtered.length < 3) {
-      return availableTools;
-    }
-
-    return filtered;
+    const registry = new SearchableToolRegistry(availableTools);
+    return ToolDiscoveryPipeline.discover(registry, userPrompt, {
+      recentContext: context,
+      policyEngine: options?.policyEngine,
+      isBackground: options?.isBackground,
+      maxPromptTokens: 2500,
+      maxTools: 15,
+      forcedTools: Array.from(ToolSelector.CORE_TOOLS)
+    });
   }
 }

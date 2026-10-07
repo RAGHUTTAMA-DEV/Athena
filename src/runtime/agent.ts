@@ -57,7 +57,12 @@ const TOOL_ALIASES: Record<string, string> = {
   'read_file': 'readFile',
   'write_file': 'writeFile',
   'execute_command': 'executeCommand',
-  'run_command': 'executeCommand'
+  'run_command': 'executeCommand',
+  'executeShellCommand': 'executeCommand',
+  'execute_shell_command': 'executeCommand',
+  'shell': 'executeCommand',
+  'bash': 'executeCommand',
+  'terminal': 'executeCommand'
 };
 
 export class Agent {
@@ -676,7 +681,10 @@ export class Agent {
       const recentContext = history.slice(-4)
         .map(m => m.parts?.map((p: any) => p.text || '').join(' ') || '')
         .join(' ');
-      const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools, recentContext);
+      const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools, recentContext, {
+        policyEngine: this.getPolicyEngine(),
+        isBackground: options?.isBackground
+      });
       const functionDeclarations = activeTools.map(tool => cleanGeminiSchema(tool.definition, true));
 
       // Adaptive Orchestration: classify task complexity and initialize plan if complex

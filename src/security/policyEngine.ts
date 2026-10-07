@@ -1,6 +1,8 @@
 import * as path from 'path';
+import * as fs from 'fs';
 import { PermissionModel, ToolPermissionRule } from '../identity/identityTypes.js';
 import { isEmptyPermissionModel } from '../identity/identity.js';
+import { ObfuscationDetector } from './obfuscationDetector.js';
 
 export type PolicyAction = 'allow' | 'deny' | 'require_confirmation';
 export type PolicySeverity = 'low' | 'medium' | 'high' | 'critical';
@@ -58,6 +60,7 @@ export class PolicyEngine {
     /\b(shutdown|reboot|init\s+0|poweroff)\b/i,                                     // OS shutdown/reboot
     /\bdrop\s+database\b/i,                                                         // Direct SQL database drop
     /\bcurl\s+.*(@\.env|--data\s+.*process\.env)/i,                                // Secret exfiltration via curl
+    /\b(cat|type|more|less|head|tail|get-content)\s+.*(\.env|id_(rsa|dsa|ecdsa|ed25519)|\.aws[/\\]credentials|\.ssh[/\\])/i, // Shell secret reads
   ];
 
   constructor(config?: SecurityPolicyConfig) {
@@ -169,6 +172,63 @@ export class PolicyEngine {
       };
     }
 
+    // Symlink escape defense: if declared path is inside workspace, ensure canonical target is also inside
+    if (!isOutsideWorkspace) {
+      try {
+        if (fs.existsSync(resolvedPath)) {
+          const canonical = fs.realpathSync(resolvedPath);
+          const canRel = path.relative(this.workspaceRoot, canonical);
+          const isCanonicalOutside = canRel.startsWith('..') || path.isAbsolute(canRel);
+          if (isCanonicalOutside) {
+            const extraRoots = this.permissionModel?.fileWriteRoots || [];
+            const insideExtra = extraRoots.some(root => {
+              const r = path.relative(path.resolve(root), canonical);
+              return !r.startsWith('..') && !path.isAbsolute(r);
+            });
+            if (!insideExtra) {
+              return {
+                allowed: false,
+                action: 'deny',
+                reason: `Symlink escape detected: real path "${canonical}" targets outside the workspace root.`,
+                severity: 'critical',
+                ruleId: 'SYMLINK_ESCAPE_DETECTED'
+              };
+            }
+          }
+        } else {
+          // Path doesn't exist yet (e.g. write target); check parent directories for symlinks targeting outside
+          let curr = path.dirname(resolvedPath);
+          while (curr && curr !== path.dirname(curr)) {
+            if (fs.existsSync(curr)) {
+              const canonical = fs.realpathSync(curr);
+              const canRel = path.relative(this.workspaceRoot, canonical);
+              const isOutside = canRel.startsWith('..') || path.isAbsolute(canRel);
+              if (isOutside) {
+                const extraRoots = this.permissionModel?.fileWriteRoots || [];
+                const insideExtra = extraRoots.some(root => {
+                  const r = path.relative(path.resolve(root), canonical);
+                  return !r.startsWith('..') && !path.isAbsolute(r);
+                });
+                if (!insideExtra) {
+                  return {
+                    allowed: false,
+                    action: 'deny',
+                    reason: `Symlink parent escape detected: directory "${curr}" resolves to "${canonical}" outside the workspace root.`,
+                    severity: 'critical',
+                    ruleId: 'SYMLINK_PARENT_ESCAPE_DETECTED'
+                  };
+                }
+              }
+              break;
+            }
+            curr = path.dirname(curr);
+          }
+        }
+      } catch {
+        // Ignore filesystem inspection errors on non-filesystem paths
+      }
+    }
+
     return {
       allowed: true,
       action: 'allow'
@@ -176,7 +236,7 @@ export class PolicyEngine {
   }
 
   /**
-   * Evaluates terminal command execution
+   * Evaluates terminal command execution, unmasking obfuscated payloads.
    */
   public evaluateCommand(command: string): PolicyCheckResult {
     if (!command || typeof command !== 'string') {
@@ -190,17 +250,27 @@ export class PolicyEngine {
     }
 
     const trimmed = command.trim();
+    const obfuscation = ObfuscationDetector.getInstance().analyze(trimmed);
+    const candidateCommands = [trimmed];
+    if (obfuscation.isObfuscated && obfuscation.decodedCommand !== trimmed) {
+      candidateCommands.push(obfuscation.decodedCommand);
+    }
 
     if (!this.allowDestructiveCommands) {
-      for (const pattern of this.blockedCommandPatterns) {
-        if (pattern.test(trimmed)) {
-          return {
-            allowed: false,
-            action: 'deny',
-            reason: `Execution of potentially destructive command blocked by policy: "${trimmed.slice(0, 60)}..."`,
-            severity: 'critical',
-            ruleId: 'DESTRUCTIVE_COMMAND_BLOCKED'
-          };
+      for (const cmd of candidateCommands) {
+        for (const pattern of this.blockedCommandPatterns) {
+          if (pattern.test(cmd)) {
+            const isObf = obfuscation.isObfuscated && cmd === obfuscation.decodedCommand;
+            return {
+              allowed: false,
+              action: 'deny',
+              reason: isObf
+                ? `Obfuscated destructive command blocked (${obfuscation.techniques.join(', ')}): "${cmd.slice(0, 60)}..."`
+                : `Execution of potentially destructive command blocked by policy: "${cmd.slice(0, 60)}..."`,
+              severity: 'critical',
+              ruleId: isObf ? 'OBFUSCATED_DESTRUCTIVE_COMMAND' : 'DESTRUCTIVE_COMMAND_BLOCKED'
+            };
+          }
         }
       }
     }
@@ -221,15 +291,16 @@ export class PolicyEngine {
     toolName: string,
     args: any,
     toolPermissions?: string[],
-    options?: { isBackground?: boolean }
+    options?: { isBackground?: boolean; backendType?: 'local' | 'sandbox'; sandboxed?: boolean }
   ): PolicyCheckResult {
     if (options?.isBackground) {
       const unsafeBackgroundTools = ['executeCommand', 'writeFile', 'replaceFileContent', 'deleteFile'];
-      if (unsafeBackgroundTools.includes(toolName)) {
+      const isSandboxed = options?.backendType === 'sandbox' || options?.sandboxed === true;
+      if (unsafeBackgroundTools.includes(toolName) && !isSandboxed) {
         return {
           allowed: false,
           action: 'deny',
-          reason: `Background execution is restricted to safe/read-only tools until P4A sandbox is available (tool "${toolName}" is blocked).`,
+          reason: `Background execution is restricted: exec/write tools are allowed ONLY inside the sandbox (sandbox backend required for "${toolName}").`,
           severity: 'high',
           ruleId: 'BACKGROUND_SAFE_TOOL_RESTRICTION'
         };

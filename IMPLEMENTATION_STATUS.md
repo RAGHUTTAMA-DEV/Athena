@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P3: Memory and Context — ✅ COMPLETE** |
-| **Next phase** | P4: Action System (P4A: Registry, Discovery, Sandbox, FS, Terminal) — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P4A: Action System (Registry, Discovery, Sandbox, FS, Terminal) — ✅ COMPLETE** |
+| **Next phase** | P4B: Web Research, RAG, and Document Intelligence — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, & V2 P3 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, & V2 P4A test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -26,7 +26,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P1** | **Agent Foundation** — versioned migrations, AgentProfile + version history, User model, Workspace/Project entities, candidate memory lifecycle, permission model, store interfaces | ✅ **done** (`6846f5c`) | `npm run test:v2p1` — 9/9 |
 | **P2** | **Persistent Autonomy** — Goal/Task entities, extended run lifecycle (12 states), `run_waits`, crash-safe resume, per-goal budgets, Goal→Task→Run spans, background safe tool guard | ✅ **done** | `npm run test:v2p2` — 11/11 |
 | **P3** | **Memory and Context** — Memory model per spec (scopes `agent`, `goal`, types `fact`, `preference`, etc., lifecycle `quarantined`, `archived`), Section 65 Secure Memory Write Pipeline (sanitize, prompt injection quarantine, credential masking), Universal Session Search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors), Bounded Context References (`@file`, `@folder`, `@repo`, `@run`, `@goal`, `@task`, `@memory`, `@project`), Cache-Friendly Layered ContextEngine, Token & Cost Accounting | ✅ **done** | `npm run test:v2p3` — 9/9 |
-| **P4** | Action System (P4A: Registry, Discovery, ExecutionBackend, FS, Terminal) | ⏳ awaiting approval | — |
+| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ (P4B: Research/RAG, P4C: Git/Worktrees, P4D: Advanced Actions pending) | 🔄 in progress (P4A done) | `npm run test:v2p4a` — 6/6 |
 | **P5** | Learning | ⛔ not started | — |
 | **P6** | Multi-Agent | ⛔ not started | — |
 | **P7** | Proactive Agent | ⛔ not started | — |
@@ -79,15 +79,26 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Store Interfaces & Implementations** — `MemoryStore` (`SqliteMemoryStore`) and `SessionSearchStore` (`SqliteSessionSearchStore`).
 - **ADR** — [`docs/decisions/0006-memory-model-session-search-and-context-refs.md`](docs/decisions/0006-memory-model-session-search-and-context-refs.md).
 
+### Added by V2 P4A
+- **Tool Definition & Manifest** — `ToolDefinition` implementing schema, capabilities, permissions, risk, timeout, sideEffects, idempotent, and parallelSafe flags.
+- **Obfuscation Detection Engine** — `ObfuscationDetector` unmasks Base64 shell invocations, PowerShell UTF-16LE (`-EncodedCommand`), cmd caret insertions (`d^e^l`), hex/octal escapes, and inline script evaluators (`eval`, `Function`).
+- **PolicyEngine Modernization** — `canonicalPath` realpath symlink escape protection for workspace containment; obfuscated command detection denying masked dangerous operations; background run safety restricting execution/writes strictly to sandbox backends.
+- **Execution Backend Abstraction** — `ExecutionBackend` interface implemented by `LocalExecutionBackend` (process tree tracking, timeouts, signals) and `SandboxedExecutionBackend` (virtual workspace mount, path traversal & symlink jail protection, sensitive host env stripping, resource limits, and policy verification).
+- **Scoped Filesystem Engine** — `FilesystemEngine` providing safe `readFile`, `writeFile`, `editFile`, `searchFiles`, `moveFile`, `copyFile`, `deleteFile`, `inspectPath`, and `watchPath` within canonical jail boundaries.
+- **Terminal Process Manager** — `ProcessManager` supporting foreground and background process tracking, ring-buffer stdout/stderr logging, PID lookup, signal dispatch (`SIGINT`, `SIGTERM`, `SIGKILL`), and agent shutdown cleanup.
+- **Searchable Tool Registry & 5-Stage Discovery** — `ToolRegistry` and `ToolDiscoveryPipeline`: registers 100+ tools, filters via capabilities and permissions, scores by semantic relevance, and bounds prompt schema output strictly within token budgets ($\le 2000$ tokens).
+- **ADR** — [`docs/decisions/0007-action-system-p4a-registry-discovery-sandbox.md`](docs/decisions/0007-action-system-p4a-registry-discovery-sandbox.md).
+
 ---
 
 ## Test suite status
 
-Run: 2026-10-07. `npx tsc --noEmit` clean.
+Run: 2026-10-08. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P3 (new, 9 tests)** | `npm run test:v2p3` | ✅ 9/9 |
+| **V2 P4A (new, 6 tests)** | `npm run test:v2p4a` | ✅ 6/6 |
+| **V2 P3 (9 tests)** | `npm run test:v2p3` | ✅ 9/9 |
 | **V2 P2 (11 tests)** | `npm run test:v2p2` | ✅ 11/11 |
 | **V2 P1 (9 tests)** | `npm run test:v2p1` | ✅ 9/9 |
 | Memory (V1) | `npm run test:memory` | ✅ |
@@ -106,6 +117,11 @@ Run: 2026-10-07. `npx tsc --noEmit` clean.
 | Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 8/12 — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P4A exit criteria — all PASS
+1. 100+ tools registered $\rightarrow$ discovery ranks top tools $\rightarrow$ bounded prompt schema $\le 2000$ tokens — **PASS** (TEST 1)
+2. Obfuscated attack payload unmasked $\rightarrow$ policy engine blocks before execution — **PASS** (TEST 2, TEST 4)
+3. Sandboxed execution environment verified: symlink jail escape blocked, host secrets scrubbed, resource limits enforced — **PASS** (TEST 3)
 
 ### P3 exit criteria — all PASS
 1. Injection payload written to memory is blocked or quarantined (adversarial test) — **PASS** (TEST 2)

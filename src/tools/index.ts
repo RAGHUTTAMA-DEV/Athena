@@ -15,6 +15,7 @@ import { delegateTaskTool } from './delegateTask.js';
 import { cronjobTool } from './cronjob.js';
 import { browserNavigateTool, browserActionTool, browserScreenshotTool } from './interactiveBrowser.js';
 import { delegateCodingTaskTool } from './delegateCodingTask.js';
+import { processManageTool } from './processManage.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -23,6 +24,7 @@ export const tools: Tool[] = [
   replaceFileContentTool,
   grepSearchTool,
   terminalTool,
+  processManageTool,
   writeFileTool,
   deleteFileTool,
   listFilesTool,
@@ -39,6 +41,8 @@ export const tools: Tool[] = [
   delegateCodingTaskTool
 ];
 
+export * from './processManage.js';
+export * from './processManager.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 
@@ -66,6 +70,17 @@ export const toolsRegistry = new Map<string, Tool>(
   tools.map(t => [t.definition.name, t])
 );
 
+import { SearchableToolRegistry } from './toolRegistry.js';
+
+export * from './executionBackend.js';
+export * from './sandboxBackend.js';
+export * from './filesystemEngine.js';
+export * from './processManager.js';
+export * from './toolRegistry.js';
+export * from './toolDiscovery.js';
+
+export const searchableToolRegistry = new SearchableToolRegistry(tools);
+
 export function registerDynamicTools(dynamicTools: Tool[]) {
   for (const tool of dynamicTools) {
     if (!tool.manifest) {
@@ -85,6 +100,7 @@ export function registerDynamicTools(dynamicTools: Tool[]) {
       tools.push(tool);
     }
     toolsRegistry.set(tool.definition.name, tool);
+    searchableToolRegistry.register(tool);
   }
 }
 

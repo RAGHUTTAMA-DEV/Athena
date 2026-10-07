@@ -25,13 +25,24 @@ const allowAll =
 
 let rl: readline.Interface;
 
+function getReadline(): readline.Interface {
+  if (!rl || (rl as any).closed) {
+    rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+  }
+  return rl;
+}
+
 const cliConfirm = (toolName: string, args: any): Promise<boolean> => {
   if (allowAll) {
     return Promise.resolve(true);
   }
   return new Promise((resolve) => {
     ui.confirm(toolName, args);
-    rl.question(ui.confirmAsk(), (answer) => {
+    const activeRl = getReadline();
+    activeRl.question(ui.confirmAsk(), (answer) => {
       const approved = answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes';
       ui.confirmResult(approved);
       resolve(approved);
@@ -118,19 +129,15 @@ async function startCli(mcpTools = 0) {
     return `${diffDay}d ago`;
   }
 
-  rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
   const chatHistory: Message[] = [];
 
   const askPrompt = () => {
-    rl.question(ui.prompt(currentSessionId), async (input) => {
+    const activeRl = getReadline();
+    activeRl.question(ui.prompt(currentSessionId), async (input) => {
       const trimmed = input.trim();
       if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
         ui.sys('farewell');
-        rl.close();
+        activeRl.close();
         process.exit(0);
       }
 

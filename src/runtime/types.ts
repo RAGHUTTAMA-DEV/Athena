@@ -31,19 +31,11 @@ export interface ToolParameter {
     properties?: Record<string, ToolParameter>;
     required?: string[];
     items?: ToolParameter;
+    enum?: string[];
 }
 
-export interface ToolDefinition {
-  name: string;
-  description: string;
-  parameters?: {
-    type: 'OBJECT';
-    properties: Record<string, ToolParameter>;
-    required?: string[];
-  };
-}
-
-import type { ToolManifest } from '../tools/toolRuntime.js';
+import type { ToolDefinition, ToolManifest } from '../tools/toolTypes.js';
+export type { ToolDefinition } from '../tools/toolTypes.js';
 
 export interface Tool {
   definition: ToolDefinition;
