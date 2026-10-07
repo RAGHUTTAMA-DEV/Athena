@@ -429,7 +429,7 @@ export class ToolExecutor {
     const breaker = this.circuitBreakers.getBreaker(manifest.name);
 
     // 0. Security Policy Evaluation Gate
-    const policyResult = this.policyEngine.evaluateToolCall(manifest.name, args);
+    const policyResult = this.policyEngine.evaluateToolCall(manifest.name, args, manifest.permissions);
     if (!policyResult.allowed) {
       return {
         success: false,
@@ -444,6 +444,29 @@ export class ToolExecutor {
           severity: policyResult.severity
         }
       };
+    }
+    if (policyResult.action === 'require_confirmation' && context?.confirm) {
+      let approved = false;
+      try {
+        approved = await context.confirm(manifest.name, args);
+      } catch {
+        approved = false;
+      }
+      if (!approved) {
+        return {
+          success: false,
+          error: {
+            code: 'POLICY_CONFIRMATION_DENIED',
+            message: policyResult.reason || `Tool "${manifest.name}" was not approved by the user.`
+          },
+          retryable: false,
+          metadata: {
+            durationMs: Date.now() - startTime,
+            policyAction: policyResult.action,
+            severity: policyResult.severity
+          }
+        };
+      }
     }
 
     // 1. Circuit breaker guard

@@ -7,6 +7,7 @@ export type MemoryScope =
   | 'task';
 
 export type MemoryLifecycle =
+  | 'candidate'
   | 'active'
   | 'confirmed'
   | 'contradicted'
@@ -32,6 +33,10 @@ export interface ScopedMemoryItem {
   supersededBy?: number;
   embedding?: number[];
   score?: number; // Semantic similarity score on search
+  /** Undefined = unbound / cross-workspace (V1 semantics). */
+  workspaceId?: number;
+  projectId?: number;
+  agentId?: string;
   createdAt: number;
   updatedAt: number;
 }

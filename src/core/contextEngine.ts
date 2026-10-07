@@ -36,6 +36,10 @@ export interface ContextEngineOptions {
   procedural?: ProceduralMemory | null;
   budget?: ContextBudget;
   workspaceDir?: string;
+  /** Active bindings. Facts bound to a different workspace are not retrieved. */
+  workspaceId?: number;
+  projectId?: number;
+  agentId?: string;
 }
 
 export class ContextEngine {
@@ -84,7 +88,10 @@ export class ContextEngine {
           sessionId: opts.sessionId,
           limit: 10,
           threshold: 0.40,
-          minConfidence: 0.20
+          minConfidence: 0.20,
+          ...(opts.workspaceId !== undefined ? { workspaceId: opts.workspaceId } : {}),
+          ...(opts.projectId !== undefined ? { projectId: opts.projectId } : {}),
+          ...(opts.agentId !== undefined ? { agentId: opts.agentId } : {})
         });
 
         // Add candidate facts that fit within budget

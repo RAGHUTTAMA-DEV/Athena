@@ -15,8 +15,10 @@
 | **Phase 5** | **Coding Harness Integration** | Harness Bridge | **100%** | `npm run test:harness` | ✅ **Completed & Verified** |
 | **Phase 6** | **Background + Event Runtime** | Athena Core | **100%** | `npm run test:background` | ✅ **Completed & Verified** |
 | **Phase 7** | **Reliability + Security** | Athena Core | **100%** | `npm run test:security` | ✅ **Completed & Verified** |
-| **Phase 8** | **Observability + Evaluation** | Athena Core | **0%** | `npm run test:observability` | 🟡 **Next Up** |
-| **Phase 9** | **Platform / Production** | Athena Core | **0%** | `npm run test:production` | ⏳ Queued |
+| **Phase 8** | **Observability + Evaluation** | Athena Core | **100%** | `npm run test:observability` | ✅ **Completed & Verified** |
+| **Phase 9** | **Platform / Production** | Athena Core | **0%** | `npm run test:production` | ⏳ Queued (superseded by V2 plan) |
+| **V2 P1** | **Agent Foundation (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p1` | ✅ **Completed & Verified** |
+| **V2 P2+** | **Persistent Autonomy onward (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
 
 ---
 
@@ -175,13 +177,17 @@ flowchart TD
 
 ---
 
-## Phase 8: OBSERVABILITY + EVALUATION — [QUEUED]
+## Phase 8: OBSERVABILITY + EVALUATION — [100% COMPLETE]
 
-- [ ] **OpenTelemetry & Langfuse Alignment**: Unify trace IDs, span hierarchies, and metadata across Athena Core, Sub-agents, and Coding Harness.
-- [ ] **Telemetry Metrics**: Latency histograms, input/output token counts, cost estimations, and failure clustering.
-- [ ] **Run Trajectory Debugger**: Visual timeline replay of model reasoning, tool invocations, and state transitions.
-- [ ] **Replay Benchmarks**: Re-run past agent sessions with recorded tool outputs to test prompt modifications without burning API credits.
-- [ ] **Adversarial Evaluation Suite**: Automated benchmarks testing resistance to memory poisoning, prompt injection, and hallucinated tool calls.
+- [x] **OpenTelemetry & Langfuse Alignment**: Unify trace IDs, span hierarchies, and metadata across Athena Core, Sub-agents, and Coding Harness.
+- [x] **Telemetry Metrics**: Latency histograms, input/output token counts, cost estimations, and failure clustering.
+- [x] **Run Trajectory Debugger**: Visual timeline replay of model reasoning, tool invocations, and state transitions.
+- [x] **Replay Benchmarks**: Re-run past agent sessions with recorded tool outputs to test prompt modifications without burning API credits.
+- [x] **Adversarial Evaluation Suite**: Automated benchmarks testing resistance to memory poisoning, prompt injection, and hallucinated tool calls.
+
+**Verification**:
+* Test file: [`src/tests/test_phase8_observability_eval.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_phase8_observability_eval.ts)
+* Commands: `npm run test:phase8` (6/6 passing) & `npm run test:observability` (passing)
 
 ---
 
@@ -190,5 +196,28 @@ flowchart TD
 - [ ] **Unified Runtime API**: REST / WebSocket / SSE interface exposing `createRun`, `getRun`, `cancelRun`, `resumeRun`, and `streamEvents`.
 - [ ] **Multi-Interface Consistency**: CLI, Telegram Gateway, and future Web Dashboards share the exact same runtime API.
 - [ ] **Control Plane UI**: Modern web dashboard for inspecting active runs, browsing scoped memory, managing scheduled jobs, and viewing artifacts.
-- [ ] **Database Migrations**: Automated migration runner for SQLite/PostgreSQL schemas.
+- [x] **Database Migrations**: Automated migration runner for SQLite/PostgreSQL schemas *(SQLite runner shipped early in V2 P1; PostgreSQL parity lands in V2 P12)*.
 - [ ] **Production Profile**: PostgreSQL + pgvector support for high-throughput enterprise deployments.
+
+---
+
+## ATHENA V2 (branch `athena-v2`) — build in progress
+
+> Plan: [`docs/architecture/athena_v2_build_plan.md`](file:///c:/Users/raghu/Documents/Athena/docs/architecture/athena_v2_build_plan.md). One phase at a time; each phase is committed only after its exit criteria pass.
+
+### V2 P1: AGENT FOUNDATION — [100% COMPLETE]
+
+- [x] **Versioned migration layer**: `PRAGMA user_version` + `schema_migrations` audit table; transactional, rollback-safe, idempotent `v1_baseline` (M001) and `v2_p1_agent_foundation` (M002) ([`src/core/database.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/database.ts), [`src/core/migrations/index.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/migrations/index.ts)).
+- [x] **Versioned `AgentProfile`**: seeded from `SOUL.md`, rendered back to the soul; append-only version history (`agent_profiles` + `agent_profile_versions`) ([`src/core/identity.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/identity.ts), [`src/core/identityTypes.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/identityTypes.ts)).
+- [x] **`User` model**: preferences (style, timezone, working hours, notifications, approvals), permissions, relationships, routines — separate from generic memory.
+- [x] **Workspace / Project entities**: real tables with filesystem roots; ContextEngine and PolicyEngine enforce boundaries ([`src/core/stores/sqlite/sqliteWorkspaceStore.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/stores/sqlite/sqliteWorkspaceStore.ts)).
+- [x] **Candidate memory lifecycle**: model-inferred `user`-scope facts enter as `candidate` and only become permanent via explicit `validateMemory()` ([`src/core/memory.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/memory.ts)).
+- [x] **Workspace binding on `scoped_memory`**: nullable `workspace_id` / `project_id` / `agent_id`; NULL = cross-workspace (V1 visibility preserved); search filters bind-aware.
+- [x] **Permission model**: composed agent + user + tool rules as the primary layer in PolicyEngine; V1 hardcoded rules remain the secondary layer ([`src/core/policyEngine.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/policyEngine.ts), [`src/core/toolRuntime.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/toolRuntime.ts)).
+- [x] **Store interfaces**: `AgentStore`, `UserStore`, `WorkspaceStore`, `ProjectStore`, `RunStore`, `EventStore` with SQLite implementations behind them; `EpisodicMemory` delegates (zero caller changes) ([`src/core/stores/types.ts`](file:///c:/Users/raghu/Documents/Athena/src/core/stores/types.ts)).
+- [x] **ADRs**: [`docs/decisions/`](file:///c:/Users/raghu/Documents/Athena/docs/decisions) — 0001 store interfaces, 0002 migrations, 0003 profile versioning, 0004 permission model.
+
+**Verification**:
+* Test file: [`src/tests/test_v2_p1_agent_foundation.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_v2_p1_agent_foundation.ts)
+* Command: `npm run test:v2p1` (9/9 passing)
+* Full V1 suite re-run: no regressions (all suites pass; `test:evolution` fails identically on the `main` baseline — pre-existing, 0/3 there)

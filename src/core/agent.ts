@@ -13,6 +13,16 @@ import { CancellationToken } from './cancellation.js';
 import { AgentEvent, AgentEventEmitter } from './events.js';
 import { ContextEngine } from './contextEngine.js';
 import { ToolExecutor, ToolSelector, ToolResult } from './toolRuntime.js';
+import { AgentProfile, Workspace } from './identityTypes.js';
+import {
+  DEFAULT_PROFILE_ID,
+  DEFAULT_USER_ID,
+  createDefaultUser,
+  seedAgentProfileFromSoul,
+  renderProfileSoul,
+  composePermissionModels,
+  isEmptyPermissionModel
+} from './identity.js';
 import { TaskClassifier, Planner, VerificationGate, DynamicEscalator, ExecutionPlan, TaskClassification } from './orchestration.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -39,9 +49,46 @@ export class Agent {
   private provider: LLMProvider;
   private config: AgentConfig;
   private soul: string = '';
+  private agentProfile: AgentProfile | null = null;
+  private activeWorkspace: Workspace | null = null;
   private memory: EpisodicMemory | null = null;
   private procedural: ProceduralMemory | null = null;
   private toolExecutor: ToolExecutor = new ToolExecutor();
+
+  public getAgentProfile(): AgentProfile | null {
+    return this.agentProfile;
+  }
+
+  public getActiveWorkspace(): Workspace | null {
+    return this.activeWorkspace;
+  }
+
+  /**
+   * Switch the active workspace. Rebinds memory retrieval and the
+   * PolicyEngine filesystem boundary, and records a new profile version.
+   */
+  public async setActiveWorkspace(workspaceId: number | null): Promise<void> {
+    if (!this.memory || !this.agentProfile) {
+      throw new Error('Identity must be initialized before switching workspaces.');
+    }
+    const agentStore = this.memory.getAgentStore();
+    const workspaceStore = this.memory.getWorkspaceStore();
+    if (!agentStore || !workspaceStore) {
+      throw new Error('Identity stores are not initialized.');
+    }
+    if (workspaceId !== null) {
+      const workspace = await workspaceStore.get(workspaceId);
+      if (!workspace) {
+        throw new Error(`Workspace ${workspaceId} not found.`);
+      }
+      this.activeWorkspace = workspace;
+      this.getPolicyEngine().setWorkspaceRoot(workspace.rootPath);
+    } else {
+      this.activeWorkspace = null;
+      this.getPolicyEngine().setWorkspaceRoot(process.cwd());
+    }
+    this.agentProfile = await agentStore.setActiveWorkspace(this.agentProfile.id, workspaceId, 'workspace-switch');
+  }
 
   public getToolExecutor(): ToolExecutor {
     return this.toolExecutor;
@@ -103,11 +150,56 @@ export class Agent {
           const resolvedPath = path.resolve(this.config.dbPath);
           this.memory = new EpisodicMemory(resolvedPath);
           await this.memory.init();
+          await this.initIdentity();
         } catch (err: any) {
           console.warn(`[Agent Warning] Failed to initialize SQLite database at ${this.config.dbPath}: ${err.message}`);
         }
       }
     }
+
+  /**
+   * Load or seed the persistent AgentProfile and the default user.
+   * Identity is rendered from the stored profile, not re-read as the
+   * source of truth, so it survives model and tool changes.
+   */
+  private async initIdentity(): Promise<void> {
+    if (!this.memory) return;
+    const agentStore = this.memory.getAgentStore();
+    const userStore = this.memory.getUserStore();
+    const workspaceStore = this.memory.getWorkspaceStore();
+    if (!agentStore || !userStore || !workspaceStore) return;
+
+    try {
+      let profile = await agentStore.get(DEFAULT_PROFILE_ID);
+      if (!profile) profile = await agentStore.getByName('Athena');
+      if (!profile) {
+        const soulSeed = this.soul && this.soul.trim().length > 0
+          ? this.soul
+          : 'You are Athena, an intelligent local AI assistant running natively on the user\'s host system.';
+        profile = await agentStore.save(seedAgentProfileFromSoul(soulSeed), 'seed');
+      }
+      this.agentProfile = profile;
+      this.soul = renderProfileSoul(profile);
+
+      let user = await userStore.get(DEFAULT_USER_ID);
+      if (!user) user = await userStore.save(createDefaultUser());
+
+      const composed = composePermissionModels(profile.permissions, user.permissions);
+      this.getPolicyEngine().setPermissionModel(isEmptyPermissionModel(composed) ? null : composed);
+
+      if (profile.workspaceId !== null) {
+        const workspace = await workspaceStore.get(profile.workspaceId);
+        if (workspace) {
+          this.activeWorkspace = workspace;
+          this.getPolicyEngine().setWorkspaceRoot(workspace.rootPath);
+        } else {
+          console.warn(`[Agent Warning] Profile workspace ${profile.workspaceId} not found; running cross-workspace.`);
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[Agent Warning] Identity initialization failed: ${err.message}`);
+    }
+  }
 
     async run(
       userPrompt: string,
@@ -182,9 +274,15 @@ export class Agent {
         }
       };
 
-      // Serialized confirmation handler to avoid interleaved confirmation requests
+      // Serialized confirmation handler to avoid interleaved confirmation requests.
+      // Approvals are memoized per tool+args so the policy layer and the
+      // risk-level gate do not prompt twice for the same call.
       let confirmChain = Promise.resolve();
+      const approvedConfirms = new Set<string>();
       const serializedConfirm = async (toolName: string, args: any): Promise<boolean> => {
+        const key = `${toolName}:${JSON.stringify(args ?? {})}`;
+        if (approvedConfirms.has(key)) return true;
+
         let resolveConfirm: (val: boolean) => void;
         const confirmPromise = new Promise<boolean>((resolve) => {
           resolveConfirm = resolve;
@@ -192,11 +290,13 @@ export class Agent {
 
         confirmChain = confirmChain.then(async () => {
           if (!confirm) {
+            approvedConfirms.add(key);
             resolveConfirm(true);
             return;
           }
           try {
             const approved = await confirm(toolName, args);
+            if (approved) approvedConfirms.add(key);
             resolveConfirm(approved);
           } catch (err) {
             resolveConfirm(false);
@@ -292,7 +392,10 @@ export class Agent {
         soul: this.soul,
         sessionId,
         memory: this.memory,
-        procedural: this.procedural
+        procedural: this.procedural,
+        workspaceDir: this.activeWorkspace ? this.activeWorkspace.rootPath : undefined,
+        workspaceId: this.agentProfile && this.agentProfile.workspaceId !== null ? this.agentProfile.workspaceId : undefined,
+        agentId: this.agentProfile ? this.agentProfile.id : undefined
       });
 
       let systemInstruction = assembled.systemInstruction;
@@ -707,7 +810,7 @@ export class Agent {
 
               try {
                 const toolContext = {
-                  confirm,
+                  confirm: serializedConfirm,
                   memory: this.memory || undefined,
                   depth: this.config.depth || 0,
                   runId,

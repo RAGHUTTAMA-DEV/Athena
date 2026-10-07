@@ -1,5 +1,6 @@
 import { Database } from 'sqlite';
 import { openDatabase } from './database.js';
+import { createSqliteStores, SqliteStores } from './stores/sqlite/index.js';
 import { Message } from './types.js';
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
@@ -18,6 +19,7 @@ export interface SemanticFact {
 export class EpisodicMemory {
   private db: Database | null = null;
   private dbPath: string;
+  private stores: SqliteStores | null = null;
   private ai: GoogleGenAI | null = null;
   private openAIClient: OpenAI | null = null;
   private apiKey?: string;
@@ -85,6 +87,41 @@ export class EpisodicMemory {
     // (see src/core/migrations/index.ts). The V1 baseline DDL that used
     // to live here is now migration "v1_baseline".
     this.db = await openDatabase(this.dbPath);
+    this.stores = createSqliteStores(this.db);
+  }
+
+  getAgentStore(): SqliteStores['agent'] | null {
+    return this.stores ? this.stores.agent : null;
+  }
+
+  getUserStore(): SqliteStores['user'] | null {
+    return this.stores ? this.stores.user : null;
+  }
+
+  getWorkspaceStore(): SqliteStores['workspace'] | null {
+    return this.stores ? this.stores.workspace : null;
+  }
+
+  getProjectStore(): SqliteStores['project'] | null {
+    return this.stores ? this.stores.project : null;
+  }
+
+  getRunStore(): SqliteStores['run'] | null {
+    return this.stores ? this.stores.run : null;
+  }
+
+  getEventStore(): SqliteStores['event'] | null {
+    return this.stores ? this.stores.event : null;
+  }
+
+  private requireRunStore(): SqliteStores['run'] {
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    return this.stores.run;
+  }
+
+  private requireEventStore(): SqliteStores['event'] {
+    if (!this.stores) throw new Error('Database not initialized. Call init() first.');
+    return this.stores.event;
   }
 
   async saveMessage(sessionId: string, role: 'user' | 'model', parts: any[]): Promise<void> {
@@ -511,134 +548,30 @@ export class EpisodicMemory {
     );
   }
 
-  // --- RunState Persistence (Phase 1) ---
+  // --- RunState Persistence (delegated to RunStore / EventStore since V2 P1) ---
 
   async saveRunState(state: RunState): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized. Call init() first.');
-    }
-    await this.db.run(
-      `INSERT OR REPLACE INTO runs (
-        run_id, parent_run_id, root_run_id, session_id, task, status,
-        current_turn, budget, usage, idempotency_keys, termination_reason,
-        error, result, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      state.runId,
-      state.parentRunId || null,
-      state.rootRunId,
-      state.sessionId,
-      state.task,
-      state.status,
-      state.currentTurn,
-      JSON.stringify(state.budget),
-      JSON.stringify(state.usage),
-      JSON.stringify(state.idempotencyKeys),
-      state.terminationReason || null,
-      state.error ? JSON.stringify(state.error) : null,
-      state.result || null,
-      state.createdAt,
-      state.updatedAt
-    );
+    await this.requireRunStore().save(state);
   }
 
   async getRunState(runId: string): Promise<RunState | null> {
-    if (!this.db) {
-      throw new Error('Database not initialized. Call init() first.');
-    }
-    const row = await this.db.get(`SELECT * FROM runs WHERE run_id = ?`, runId);
-    if (!row) return null;
-
-    return {
-      runId: row.run_id,
-      parentRunId: row.parent_run_id || undefined,
-      rootRunId: row.root_run_id,
-      sessionId: row.session_id,
-      task: row.task,
-      status: row.status,
-      currentTurn: row.current_turn,
-      budget: row.budget ? JSON.parse(row.budget) : {},
-      usage: row.usage ? JSON.parse(row.usage) : { elapsedTimeMs: 0, tokens: { input: 0, output: 0, total: 0 }, costUsd: 0, toolCallsCount: 0, turnsCount: 0 },
-      idempotencyKeys: row.idempotency_keys ? JSON.parse(row.idempotency_keys) : [],
-      terminationReason: row.termination_reason || undefined,
-      error: row.error ? JSON.parse(row.error) : undefined,
-      result: row.result || undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
+    return this.requireRunStore().get(runId);
   }
 
   async updateRunState(runId: string, updates: Partial<RunState>): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized. Call init() first.');
-    }
-    const existing = await this.getRunState(runId);
-    if (!existing) {
-      throw new Error(`Cannot update non-existent run "${runId}"`);
-    }
-
-    const merged: RunState = {
-      ...existing,
-      ...updates,
-      updatedAt: Date.now()
-    };
-    await this.saveRunState(merged);
+    await this.requireRunStore().update(runId, updates);
   }
 
   async saveRunEvent(event: AgentEvent): Promise<void> {
-    if (!this.db) {
-      throw new Error('Database not initialized. Call init() first.');
-    }
-    await this.db.run(
-      `INSERT INTO run_events (run_id, event_type, payload, timestamp) VALUES (?, ?, ?, ?)`,
-      event.runId,
-      event.type,
-      JSON.stringify(event),
-      event.timestamp
-    );
+    await this.requireEventStore().saveRunEvent(event);
   }
 
   async getRunEvents(runId: string): Promise<AgentEvent[]> {
-    if (!this.db) {
-      throw new Error('Database not initialized. Call init() first.');
-    }
-    const rows = await this.db.all(
-      `SELECT payload FROM run_events WHERE run_id = ? ORDER BY id ASC`,
-      runId
-    );
-    return rows.map((r: any) => JSON.parse(r.payload));
+    return this.requireEventStore().getRunEvents(runId);
   }
 
   async listRuns(sessionId?: string, limit: number = 50): Promise<RunState[]> {
-    if (!this.db) {
-      throw new Error('Database not initialized. Call init() first.');
-    }
-    let query = `SELECT * FROM runs`;
-    const params: any[] = [];
-    if (sessionId) {
-      query += ` WHERE session_id = ?`;
-      params.push(sessionId);
-    }
-    query += ` ORDER BY created_at DESC LIMIT ?`;
-    params.push(limit);
-
-    const rows = await this.db.all(query, ...params);
-    return rows.map((row: any) => ({
-      runId: row.run_id,
-      parentRunId: row.parent_run_id || undefined,
-      rootRunId: row.root_run_id,
-      sessionId: row.session_id,
-      task: row.task,
-      status: row.status,
-      currentTurn: row.current_turn,
-      budget: row.budget ? JSON.parse(row.budget) : {},
-      usage: row.usage ? JSON.parse(row.usage) : { elapsedTimeMs: 0, tokens: { input: 0, output: 0, total: 0 }, costUsd: 0, toolCallsCount: 0, turnsCount: 0 },
-      idempotencyKeys: row.idempotency_keys ? JSON.parse(row.idempotency_keys) : [],
-      terminationReason: row.termination_reason || undefined,
-      error: row.error ? JSON.parse(row.error) : undefined,
-      result: row.result || undefined,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    }));
+    return this.requireRunStore().list(sessionId, limit);
   }
 
   // --- Phase 2: Scoped Memory Methods ---
@@ -650,6 +583,9 @@ export class EpisodicMemory {
     confidence?: number;
     provenance: MemoryProvenance;
     embedding?: number[];
+    workspaceId?: number | null;
+    projectId?: number | null;
+    agentId?: string | null;
   }): Promise<number> {
     if (!this.db) {
       throw new Error('Database not initialized. Call init() first.');
@@ -668,15 +604,24 @@ export class EpisodicMemory {
     const tagsStr = params.tags && params.tags.length > 0 ? params.tags.join(',') : null;
     const confidence = params.confidence !== undefined ? Math.max(0.0, Math.min(1.0, params.confidence)) : 1.0;
 
+    // Model-inferred facts about the user stay candidate until validated.
+    // Everything else keeps the V1 behavior (inserted as active).
+    const isModelInferred =
+      params.provenance.source === 'agent_reflection' || params.provenance.source === 'subagent';
+    const initialLifecycle: MemoryLifecycle =
+      params.scope === 'user' && isModelInferred ? 'candidate' : 'active';
+
     const result = await this.db.run(
       `INSERT INTO scoped_memory (
         scope, fact, tags, confidence, lifecycle, source, timestamp,
-        run_id, session_id, evidence, embedding, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        run_id, session_id, evidence, embedding, created_at, updated_at,
+        workspace_id, project_id, agent_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       params.scope,
       params.fact,
       tagsStr,
       confidence,
+      initialLifecycle,
       params.provenance.source,
       params.provenance.timestamp || now,
       params.provenance.runId || null,
@@ -684,7 +629,10 @@ export class EpisodicMemory {
       params.provenance.evidence || null,
       embedding ? JSON.stringify(embedding) : null,
       now,
-      now
+      now,
+      params.workspaceId ?? null,
+      params.projectId ?? null,
+      params.agentId ?? null
     );
 
     return result.lastID!;
@@ -698,6 +646,10 @@ export class EpisodicMemory {
     minConfidence?: number;
     lifecycles?: MemoryLifecycle[];
     sessionId?: string;
+    /** When set, only facts bound to this workspace or unbound (NULL) are returned. */
+    workspaceId?: number;
+    projectId?: number;
+    agentId?: string;
   }): Promise<ScopedMemoryItem[]> {
     if (!this.db) {
       throw new Error('Database not initialized. Call init() first.');
@@ -728,6 +680,20 @@ export class EpisodicMemory {
     if (params.sessionId) {
       querySql += ` AND (session_id IS NULL OR session_id = ?)`;
       sqlParams.push(params.sessionId);
+    }
+
+    // NULL bindings stay visible everywhere (cross-workspace, V1 semantics).
+    if (params.workspaceId !== undefined) {
+      querySql += ` AND (workspace_id IS NULL OR workspace_id = ?)`;
+      sqlParams.push(params.workspaceId);
+    }
+    if (params.projectId !== undefined) {
+      querySql += ` AND (project_id IS NULL OR project_id = ?)`;
+      sqlParams.push(params.projectId);
+    }
+    if (params.agentId !== undefined) {
+      querySql += ` AND (agent_id IS NULL OR agent_id = ?)`;
+      sqlParams.push(params.agentId);
     }
 
     const rows = await this.db.all(querySql, ...sqlParams);
@@ -769,6 +735,9 @@ export class EpisodicMemory {
             evidence: row.evidence || undefined
           },
           supersededBy: row.superseded_by || undefined,
+          workspaceId: row.workspace_id ?? undefined,
+          projectId: row.project_id ?? undefined,
+          agentId: row.agent_id || undefined,
           score,
           createdAt: row.created_at,
           updatedAt: row.updated_at
@@ -799,6 +768,9 @@ export class EpisodicMemory {
         evidence: row.evidence || undefined
       },
       supersededBy: row.superseded_by || undefined,
+      workspaceId: row.workspace_id ?? undefined,
+      projectId: row.project_id ?? undefined,
+      agentId: row.agent_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -810,6 +782,20 @@ export class EpisodicMemory {
       `UPDATE scoped_memory SET lifecycle = ?, superseded_by = ?, updated_at = ? WHERE id = ?`,
       lifecycle,
       supersededBy || null,
+      Date.now(),
+      id
+    );
+  }
+
+  /**
+   * Promote a candidate fact to active. This is the explicit validation
+   * path; model writes never do this themselves.
+   */
+  async validateMemory(id: number, evidence?: string): Promise<void> {
+    if (!this.db) throw new Error('Database not initialized. Call init() first.');
+    await this.db.run(
+      `UPDATE scoped_memory SET lifecycle = 'active', evidence = COALESCE(?, evidence), updated_at = ? WHERE id = ?`,
+      evidence || null,
       Date.now(),
       id
     );
@@ -849,7 +835,10 @@ export class EpisodicMemory {
       fact: newFact,
       tags: existing.tags,
       confidence: 1.0,
-      provenance
+      provenance,
+      workspaceId: existing.workspaceId ?? null,
+      projectId: existing.projectId ?? null,
+      agentId: existing.agentId ?? null
     });
 
     // 2. Mark older fact as superseded
@@ -905,6 +894,9 @@ export class EpisodicMemory {
         evidence: row.evidence || undefined
       },
       supersededBy: row.superseded_by || undefined,
+      workspaceId: row.workspace_id ?? undefined,
+      projectId: row.project_id ?? undefined,
+      agentId: row.agent_id || undefined,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }));

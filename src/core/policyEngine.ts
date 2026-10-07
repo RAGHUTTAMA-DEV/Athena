@@ -1,4 +1,6 @@
 import * as path from 'path';
+import { PermissionModel, ToolPermissionRule } from './identityTypes.js';
+import { isEmptyPermissionModel } from './identity.js';
 
 export type PolicyAction = 'allow' | 'deny' | 'require_confirmation';
 export type PolicySeverity = 'low' | 'medium' | 'high' | 'critical';
@@ -23,6 +25,11 @@ export class PolicyEngine {
   private static instance: PolicyEngine;
   private workspaceRoot: string;
   private allowDestructiveCommands: boolean;
+  /**
+   * Data-driven permission model (agent + user). Primary layer.
+   * null means V1 behavior: default-allow, hardcoded rules only.
+   */
+  private permissionModel: PermissionModel | null = null;
 
   // Patterns for sensitive file paths that should never be read, overwritten or leaked
   private blockedFilePatterns: RegExp[] = [
@@ -79,6 +86,30 @@ export class PolicyEngine {
     return this.workspaceRoot;
   }
 
+  /** Install or clear the data-driven permission model. An empty model clears it. */
+  public setPermissionModel(model: PermissionModel | null): void {
+    this.permissionModel = !model || isEmptyPermissionModel(model) ? null : model;
+  }
+
+  public getPermissionModel(): PermissionModel | null {
+    return this.permissionModel;
+  }
+
+  /**
+   * First matching rule wins. composePermissionModels orders user denies
+   * ahead of agent allows, so this walk must not prefer a tool-name match
+   * over an earlier category deny.
+   */
+  private matchPermissionRule(toolName: string, toolPermissions?: string[]): ToolPermissionRule | null {
+    if (!this.permissionModel) return null;
+    for (const rule of this.permissionModel.toolPermissions) {
+      if (rule.pattern === '*' || rule.pattern === toolName || toolPermissions?.includes(rule.pattern)) {
+        return rule;
+      }
+    }
+    return null;
+  }
+
   /**
    * Evaluates filesystem operations (read, write, delete)
    */
@@ -115,6 +146,20 @@ export class PolicyEngine {
     // If file is outside workspace and attempts modification/deletion, restrict or require confirmation
     const isOutsideWorkspace = relative.startsWith('..') || path.isAbsolute(relative);
     if (isOutsideWorkspace && (operation === 'write' || operation === 'delete')) {
+      const extraRoots = this.permissionModel?.fileWriteRoots || [];
+      for (const root of extraRoots) {
+        const resolvedRoot = path.resolve(root);
+        const rel = path.relative(resolvedRoot, resolvedPath);
+        const inside = !rel.startsWith('..') && !path.isAbsolute(rel);
+        if (inside) {
+          return {
+            allowed: true,
+            action: 'allow',
+            reason: `Path permitted by permission model write root: ${resolvedRoot}`,
+            ruleId: 'PERMISSION_MODEL_WRITE_ROOT'
+          };
+        }
+      }
       return {
         allowed: false,
         action: 'deny',
@@ -167,9 +212,32 @@ export class PolicyEngine {
   }
 
   /**
-   * Central evaluation hook for any tool invocation
+   * Central evaluation hook for any tool invocation.
+   * The data-driven permission model is evaluated first. deny blocks
+   * immediately. require_confirmation is flagged for the executor.
+   * allow falls through so the V1 hardcoded rules still apply.
    */
-  public evaluateToolCall(toolName: string, args: any): PolicyCheckResult {
+  public evaluateToolCall(toolName: string, args: any, toolPermissions?: string[]): PolicyCheckResult {
+    const rule = this.matchPermissionRule(toolName, toolPermissions);
+    if (rule && rule.effect === 'deny') {
+      return {
+        allowed: false,
+        action: 'deny',
+        reason: rule.reason || `Tool "${toolName}" is denied by the permission model (pattern: ${rule.pattern}).`,
+        severity: 'high',
+        ruleId: 'PERMISSION_MODEL_DENIED'
+      };
+    }
+    if (rule && rule.effect === 'require_confirmation') {
+      return {
+        allowed: true,
+        action: 'require_confirmation',
+        reason: rule.reason || `Tool "${toolName}" requires confirmation per the permission model (pattern: ${rule.pattern}).`,
+        severity: 'medium',
+        ruleId: 'PERMISSION_MODEL_CONFIRMATION'
+      };
+    }
+
     switch (toolName) {
       case 'readFile': {
         const targetPath = args?.path || args?.filePath;
