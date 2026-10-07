@@ -1,7 +1,7 @@
-import { Tool } from '../core/types.js';
+import { Tool } from '../runtime/types.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { parseFrontmatter } from '../core/procedural.js';
+import { parseFrontmatter } from '../memory/procedural.js';
 
 const SKILLS_DIR = './skills';
 

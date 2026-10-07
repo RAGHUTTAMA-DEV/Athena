@@ -1,10 +1,10 @@
 import { Telegraf, Markup } from 'telegraf';
 import { Gateway } from './index.js';
-import { Agent } from '../core/agent.js';
-import { Message } from '../core/types.js';
+import { Agent } from '../runtime/agent.js';
+import { Message } from '../runtime/types.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/agentPrompt.js';
-import { Scheduler } from '../core/scheduler.js';
-import { EpisodicMemory } from '../core/memory.js';
+import { Scheduler } from '../background/scheduler.js';
+import { EpisodicMemory } from '../memory/memory.js';
 import { getActiveTraceId } from '@langfuse/tracing';
 import { Langfuse } from 'langfuse';
 

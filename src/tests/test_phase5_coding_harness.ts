@@ -4,10 +4,10 @@ dotenv.config();
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CodingHarnessBridge, CodingAcceptanceGate } from '../core/codingHarness.js';
+import { CodingHarnessBridge, CodingAcceptanceGate } from '../harness/codingHarness.js';
 import { delegateCodingTaskTool } from '../tools/delegateCodingTask.js';
-import { CancellationTokenSource } from '../core/cancellation.js';
-import { ToolExecutor } from '../core/toolRuntime.js';
+import { CancellationTokenSource } from '../runtime/cancellation.js';
+import { ToolExecutor } from '../tools/toolRuntime.js';
 
 const TEST_SCRATCH_DIR = path.resolve(process.cwd(), 'scratch', 'test_p5_harness');
 

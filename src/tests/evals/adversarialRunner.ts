@@ -3,8 +3,8 @@ import * as path from 'path';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { Agent } from '../../core/agent.js';
-import { Message } from '../../core/types.js';
+import { Agent } from '../../runtime/agent.js';
+import { Message } from '../../runtime/types.js';
 import { DEFAULT_AGENT_PROMPT } from '../../prompts/index.js';
 import { getCheck } from './checks.js';
 

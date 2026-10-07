@@ -1,11 +1,11 @@
 import * as assert from 'assert';
-import { PolicyEngine } from '../core/policyEngine.js';
-import { PromptDefense } from '../core/promptDefense.js';
-import { CredentialManager } from '../core/credentialManager.js';
-import { FallbackLLMProvider, LLMProvider, LLMResponse } from '../core/llmProvider.js';
-import { FailureRecoveryManager } from '../core/failureRecovery.js';
-import { ToolExecutor } from '../core/toolRuntime.js';
-import { Tool } from '../core/types.js';
+import { PolicyEngine } from '../security/policyEngine.js';
+import { PromptDefense } from '../security/promptDefense.js';
+import { CredentialManager } from '../security/credentialManager.js';
+import { FallbackLLMProvider, LLMProvider, LLMResponse } from '../providers/llmProvider.js';
+import { FailureRecoveryManager } from '../security/failureRecovery.js';
+import { ToolExecutor } from '../tools/toolRuntime.js';
+import { Tool } from '../runtime/types.js';
 
 async function runPhase7SecurityTests() {
   console.log('=== STARTING PHASE 7 RELIABILITY & SECURITY TESTS ===\n');

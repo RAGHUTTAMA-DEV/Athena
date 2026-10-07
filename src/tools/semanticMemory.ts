@@ -1,6 +1,6 @@
-import { Tool, ToolContext } from '../core/types.js';
-import { EpisodicMemory } from '../core/memory.js';
-import { MemoryScope } from '../core/memoryTypes.js';
+import { Tool, ToolContext } from '../runtime/types.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { MemoryScope } from '../memory/memoryTypes.js';
 
 export const semanticMemoryTool: Tool = {
   definition: {

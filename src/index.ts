@@ -1,20 +1,20 @@
-import './core/dnsFix.js';
+import './runtime/dnsFix.js';
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import './core/instrumentation.js';
+import './observability/instrumentation.js';
 
-import { Agent } from './core/agent.js';
-import { Message, ProviderType } from './core/types.js';
+import { Agent } from './runtime/agent.js';
+import { Message, ProviderType } from './runtime/types.js';
 import { DEFAULT_AGENT_PROMPT } from './prompts/index.js';
 import { TelegramGateway } from './gateway/telegram.js';
-import { Scheduler } from './core/scheduler.js';
-import { MCPManager } from './core/mcpManager.js';
+import { Scheduler } from './background/scheduler.js';
+import { MCPManager } from './mcp/mcpManager.js';
 import { registerDynamicTools } from './tools/index.js';
 import { ui } from './cli/ui.js';
-import { CancellationTokenSource } from './core/cancellation.js';
-import { TrajectoryReplayer } from './core/replayDebugger.js';
+import { CancellationTokenSource } from './runtime/cancellation.js';
+import { TrajectoryReplayer } from './observability/replayDebugger.js';
 import * as readline from 'readline';
 
 let currentActiveCts: CancellationTokenSource | null = null;

@@ -1,4 +1,4 @@
-import { Tool } from '../core/types.js';
+import { Tool } from '../runtime/types.js';
 import { calculateTool } from './calculate.js';
 import { systemTimeTool } from './systemTime.js';
 import { readFileTool } from './readFile.js';
@@ -39,7 +39,8 @@ export const tools: Tool[] = [
   delegateCodingTaskTool
 ];
 
-import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from '../core/toolRuntime.js';
+import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
+export * from './toolRuntime.js';
 
 // Attach manifests to all registered tools
 for (const tool of tools) {

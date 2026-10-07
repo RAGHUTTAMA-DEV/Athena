@@ -1,11 +1,11 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { Agent } from '../core/agent.js';
-import { EpisodicMemory } from '../core/memory.js';
-import { createInitialRunState, RunState } from '../core/runState.js';
-import { CancellationTokenSource } from '../core/cancellation.js';
-import { AgentEventEmitter, AgentEvent } from '../core/events.js';
+import { Agent } from '../runtime/agent.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { createInitialRunState, RunState } from '../runtime/runState.js';
+import { CancellationTokenSource } from '../runtime/cancellation.js';
+import { AgentEventEmitter, AgentEvent } from '../runtime/events.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 

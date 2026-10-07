@@ -1,5 +1,5 @@
-import { Tool, ToolContext } from '../core/types.js';
-import { CodingHarnessBridge } from '../core/codingHarness.js';
+import { Tool, ToolContext } from '../runtime/types.js';
+import { CodingHarnessBridge } from '../harness/codingHarness.js';
 
 export const delegateCodingTaskTool: Tool = {
   definition: {

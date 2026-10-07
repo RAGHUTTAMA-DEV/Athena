@@ -23,18 +23,18 @@ import sqlite3 from 'sqlite3';
 
 dotenv.config();
 
-import { AthenaDatabase } from '../core/database.js';
-import { MIGRATIONS } from '../core/migrations/index.js';
-import { EpisodicMemory } from '../core/memory.js';
-import { Agent } from '../core/agent.js';
-import { LLMProvider, LLMResponse } from '../core/llmProvider.js';
-import { Message, ProviderType } from '../core/types.js';
-import { EventBus } from '../core/eventBus.js';
-import { WaitingEngine } from '../core/waitingEngine.js';
-import { CrashResumeSweeper } from '../core/crashSweeper.js';
-import { PolicyEngine } from '../core/policyEngine.js';
-import { TelemetryManager } from '../core/telemetry.js';
-import { Goal, Task, RunWait } from '../core/goalTypes.js';
+import { AthenaDatabase } from '../storage/database.js';
+import { MIGRATIONS } from '../storage/migrations/index.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { Agent } from '../runtime/agent.js';
+import { LLMProvider, LLMResponse } from '../providers/llmProvider.js';
+import { Message, ProviderType } from '../runtime/types.js';
+import { EventBus } from '../background/eventBus.js';
+import { WaitingEngine } from '../autonomy/waitingEngine.js';
+import { CrashResumeSweeper } from '../autonomy/crashSweeper.js';
+import { PolicyEngine } from '../security/policyEngine.js';
+import { TelemetryManager } from '../observability/telemetry.js';
+import { Goal, Task, RunWait } from '../autonomy/goalTypes.js';
 
 const SCRATCH_DIR = path.resolve(process.cwd(), 'scratch', 'test_v2_p2_persistent_autonomy');
 

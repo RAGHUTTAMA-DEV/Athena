@@ -1,11 +1,11 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { EpisodicMemory } from '../core/memory.js';
-import { ProceduralMemory } from '../core/procedural.js';
-import { MemoryConsolidator } from '../core/consolidation.js';
-import { Scheduler } from '../core/scheduler.js';
-import { createLLMProvider } from '../core/llmProvider.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { ProceduralMemory } from '../memory/procedural.js';
+import { MemoryConsolidator } from '../memory/consolidation.js';
+import { Scheduler } from '../background/scheduler.js';
+import { createLLMProvider } from '../providers/llmProvider.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

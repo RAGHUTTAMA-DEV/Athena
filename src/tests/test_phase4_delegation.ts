@@ -1,8 +1,8 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { Agent } from '../core/agent.js';
-import { Message } from '../core/types.js';
+import { Agent } from '../runtime/agent.js';
+import { Message } from '../runtime/types.js';
 import { delegateTaskTool } from '../tools/delegateTask.js';
 import { toolsRegistry } from '../tools/index.js';
 

@@ -1,4 +1,4 @@
-import { Tool } from '../core/types.js';
+import { Tool } from '../runtime/types.js';
 import { chromium } from 'playwright';
 
 export const browserTool: Tool = {

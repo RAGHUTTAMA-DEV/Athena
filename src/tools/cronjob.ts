@@ -1,6 +1,6 @@
-import { Tool } from '../core/types.js';
-import { Scheduler } from '../core/scheduler.js';
-import { JobPriority } from '../core/workerPool.js';
+import { Tool } from '../runtime/types.js';
+import { Scheduler } from '../background/scheduler.js';
+import { JobPriority } from '../background/workerPool.js';
 
 function normalizeSchedule(schedule?: string, intervalSeconds?: number): string | undefined {
   if (intervalSeconds && intervalSeconds > 0) {

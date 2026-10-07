@@ -1,4 +1,4 @@
-import { Tool } from '../core/types.js';
+import { Tool } from '../runtime/types.js';
 
 export const searchWebTool: Tool = {
   definition: {

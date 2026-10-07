@@ -1,8 +1,8 @@
-import { EpisodicMemory } from '../core/memory.js';
-import { Scheduler, cronMatches, getNextCronTime, getDateInTimezone } from '../core/scheduler.js';
-import { JobLeaseManager } from '../core/jobLease.js';
-import { BackgroundWorkerPool } from '../core/workerPool.js';
-import { EventBus } from '../core/eventBus.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { Scheduler, cronMatches, getNextCronTime, getDateInTimezone } from '../background/scheduler.js';
+import { JobLeaseManager } from '../background/jobLease.js';
+import { BackgroundWorkerPool } from '../background/workerPool.js';
+import { EventBus } from '../background/eventBus.js';
 import { cronjobTool } from '../tools/cronjob.js';
 import fs from 'fs';
 import path from 'path';

@@ -1,13 +1,13 @@
 import * as assert from 'assert';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { TelemetryManager } from '../core/telemetry.js';
-import { EpisodicMemory } from '../core/memory.js';
-import { TrajectoryReplayer } from '../core/replayDebugger.js';
-import { BackgroundWorkerPool } from '../core/workerPool.js';
-import { CodingHarnessBridge } from '../core/codingHarness.js';
+import { TelemetryManager } from '../observability/telemetry.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { TrajectoryReplayer } from '../observability/replayDebugger.js';
+import { BackgroundWorkerPool } from '../background/workerPool.js';
+import { CodingHarnessBridge } from '../harness/codingHarness.js';
 import { runAdversarialBenchmark } from './evals/adversarialRunner.js';
-import { createInitialRunState } from '../core/runState.js';
+import { createInitialRunState } from '../runtime/runState.js';
 
 async function runPhase8ObservabilityEvalTests() {
   console.log('=== STARTING PHASE 8 OBSERVABILITY & EVALUATION TESTS ===\n');

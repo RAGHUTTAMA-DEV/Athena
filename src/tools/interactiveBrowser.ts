@@ -1,4 +1,4 @@
-import { Tool } from '../core/types.js';
+import { Tool } from '../runtime/types.js';
 import { chromium, BrowserContext, Page } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs/promises';

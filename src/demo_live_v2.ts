@@ -11,12 +11,12 @@
 
 import path from 'path';
 import fs from 'fs/promises';
-import { Agent } from './core/agent.js';
-import { PolicyEngine } from './core/policyEngine.js';
-import { PermissionModel } from './core/identityTypes.js';
-import { WaitingEngine } from './core/waitingEngine.js';
-import { CrashResumeSweeper } from './core/crashSweeper.js';
-import { EventBus } from './core/eventBus.js';
+import { Agent } from './runtime/agent.js';
+import { PolicyEngine } from './security/policyEngine.js';
+import { PermissionModel } from './identity/identityTypes.js';
+import { WaitingEngine } from './autonomy/waitingEngine.js';
+import { CrashResumeSweeper } from './autonomy/crashSweeper.js';
+import { EventBus } from './background/eventBus.js';
 
 const DEMO_DB = path.resolve(process.cwd(), 'scratch', 'live_demo_v2.db');
 const SOUL_PATH = path.resolve(process.cwd(), 'SOUL.md');

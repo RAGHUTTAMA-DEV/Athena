@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { delegateCodingTaskTool } from '../tools/delegateCodingTask.js';
-import { Agent } from '../core/agent.js';
+import { Agent } from '../runtime/agent.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';

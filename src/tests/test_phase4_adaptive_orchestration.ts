@@ -10,10 +10,10 @@ import {
   VerificationGate,
   DynamicEscalator,
   ExecutionPlan
-} from '../core/orchestration.js';
-import { Agent } from '../core/agent.js';
-import { EpisodicMemory } from '../core/memory.js';
-import { AgentEvent } from '../core/events.js';
+} from '../autonomy/orchestration.js';
+import { Agent } from '../runtime/agent.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { AgentEvent } from '../runtime/events.js';
 
 const TEST_SCRATCH_DIR = path.resolve(process.cwd(), 'scratch', 'test_p4_orchestration');
 const TEST_DB_PATH = path.resolve(TEST_SCRATCH_DIR, 'p4_orchestration.db');

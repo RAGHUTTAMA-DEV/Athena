@@ -1,5 +1,5 @@
-import { Tool, ToolContext } from '../core/types.js';
-import { Agent } from '../core/agent.js';
+import { Tool, ToolContext } from '../runtime/types.js';
+import { Agent } from '../runtime/agent.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 
 export const delegateTaskTool: Tool = {

@@ -1,10 +1,10 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { EpisodicMemory } from '../core/memory.js';
-import { ProceduralMemory } from '../core/procedural.js';
-import { Agent } from '../core/agent.js';
-import { Message } from '../core/types.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { ProceduralMemory } from '../memory/procedural.js';
+import { Agent } from '../runtime/agent.js';
+import { Message } from '../runtime/types.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

@@ -19,23 +19,23 @@ import sqlite3 from 'sqlite3';
 
 dotenv.config();
 
-import { AthenaDatabase } from '../core/database.js';
-import { MIGRATIONS } from '../core/migrations/index.js';
-import { EpisodicMemory } from '../core/memory.js';
-import { ContextEngine } from '../core/contextEngine.js';
-import { PolicyEngine } from '../core/policyEngine.js';
-import { ToolExecutor } from '../core/toolRuntime.js';
-import { Agent } from '../core/agent.js';
-import { Tool } from '../core/types.js';
-import { createInitialRunState } from '../core/runState.js';
+import { AthenaDatabase } from '../storage/database.js';
+import { MIGRATIONS } from '../storage/migrations/index.js';
+import { EpisodicMemory } from '../memory/memory.js';
+import { ContextEngine } from '../memory/contextEngine.js';
+import { PolicyEngine } from '../security/policyEngine.js';
+import { ToolExecutor } from '../tools/toolRuntime.js';
+import { Agent } from '../runtime/agent.js';
+import { Tool } from '../runtime/types.js';
+import { createInitialRunState } from '../runtime/runState.js';
 import {
   DEFAULT_PROFILE_ID,
   DEFAULT_USER_ID,
   createDefaultUser,
   renderProfileSoul,
   composePermissionModels
-} from '../core/identity.js';
-import { PermissionModel } from '../core/identityTypes.js';
+} from '../identity/identity.js';
+import { PermissionModel } from '../identity/identityTypes.js';
 
 const SCRATCH_DIR = path.resolve(process.cwd(), 'scratch', 'test_v2_p1_agent_foundation');
 const WS_A_DIR = path.join(SCRATCH_DIR, 'workspace_alpha');

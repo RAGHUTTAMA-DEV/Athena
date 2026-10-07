@@ -1,5 +1,5 @@
-import { Scheduler } from '../core/scheduler.js';
-import { EpisodicMemory } from '../core/memory.js';
+import { Scheduler } from '../background/scheduler.js';
+import { EpisodicMemory } from '../memory/memory.js';
 import { cronjobTool } from '../tools/cronjob.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';

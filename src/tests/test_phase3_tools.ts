@@ -11,11 +11,11 @@ import {
   CircuitBreakerRegistry,
   ToolResult,
   ToolManifest
-} from '../core/toolRuntime.js';
-import { Tool, ToolContext } from '../core/types.js';
-import { CancellationTokenSource } from '../core/cancellation.js';
-import { Agent } from '../core/agent.js';
-import { EpisodicMemory } from '../core/memory.js';
+} from '../tools/toolRuntime.js';
+import { Tool, ToolContext } from '../runtime/types.js';
+import { CancellationTokenSource } from '../runtime/cancellation.js';
+import { Agent } from '../runtime/agent.js';
+import { EpisodicMemory } from '../memory/memory.js';
 import { tools, toolsRegistry } from '../tools/index.js';
 
 const TEST_SCRATCH_DIR = path.resolve(process.cwd(), 'scratch', 'test_p3_tools');
@@ -236,7 +236,7 @@ async function runPhase3ToolTests() {
   assert.ok(!webToolNames.includes('deleteFile'), 'destructive file deletion should not be included for web search');
 
   // Query 2: Coding task
-  const codePrompt = 'Edit the file src/core/agent.ts and replace the function';
+  const codePrompt = 'Edit the file src/runtime/agent.ts and replace the function';
   const codeSelected = ToolSelector.selectRelevantTools(codePrompt, allRegisteredTools);
   const codeToolNames = codeSelected.map(t => t.definition.name);
   assert.ok(codeToolNames.includes('replaceFileContent'), 'replaceFileContent must be included for code editing');

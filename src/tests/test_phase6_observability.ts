@@ -2,10 +2,10 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // MUST import instrumentation first!
-import '../core/instrumentation.js';
+import '../observability/instrumentation.js';
 
-import { Agent } from '../core/agent.js';
-import { Message } from '../core/types.js';
+import { Agent } from '../runtime/agent.js';
+import { Message } from '../runtime/types.js';
 import { getActiveTraceId } from '@langfuse/tracing';
 import { Langfuse } from 'langfuse';
 

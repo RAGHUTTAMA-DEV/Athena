@@ -1,4 +1,4 @@
-import { Tool } from '../core/types.js';
+import { Tool } from '../runtime/types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
