@@ -11,7 +11,7 @@ import { cleanGeminiSchema } from '../mcp/mcpManager.js';
 import { RunState, RunStatus, RunBudget, createInitialRunState, StructuredFailure } from './runState.js';
 import { CancellationToken } from './cancellation.js';
 import { AgentEvent, AgentEventEmitter } from './events.js';
-import { ContextEngine } from '../memory/contextEngine.js';
+import { ContextEngine, isRecallQuery, RECALL_RE } from '../memory/contextEngine.js';
 import { ToolExecutor, ToolSelector, ToolResult } from '../tools/toolRuntime.js';
 import { AgentProfile, Workspace } from '../identity/identityTypes.js';
 import {
@@ -1584,11 +1584,6 @@ export class Agent {
     }
   }
 
-  const RECALL_RE = /\b(yesterday|yesterdays|previous session|last session|last time|the other day|what did we|do you remember|past (session|conversation|chat|turns)|earlier today|last night|across sessions|prior (session|day|days))\b/i;
-
-  function isRecallQuery(prompt: string): boolean {
-    return RECALL_RE.test(prompt);
-  }
 
   function excerptParts(parts: any[], maxLen: number = 280): string {
     const texts = (parts || [])

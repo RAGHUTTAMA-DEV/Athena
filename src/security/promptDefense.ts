@@ -20,7 +20,7 @@ export class PromptDefense {
   private injectionPatterns: Array<{ name: string; pattern: RegExp; severity: number }> = [
     {
       name: 'INSTRUCTION_OVERRIDE',
-      pattern: /(ignore|disregard|forget|override)\s+(all\s+)?(previous|prior|above|system)\s+(instructions|directives|prompts|rules)/i,
+      pattern: /(system\s+instruction\s+override|instruction\s+override|(?:ignore|disregard|forget|override|bypass)\s+(?:all\s+)?(?:previous|prior|above|system|core)?\s*(?:safety\s+)?(?:instructions|directives|prompts|rules|guidelines))/i,
       severity: 0.95
     },
     {
@@ -35,7 +35,7 @@ export class PromptDefense {
     },
     {
       name: 'PROMPT_LEAK_REQUEST',
-      pattern: /(repeat|output|show|print|reveal)\s+(your|the)?\s*(system\s+prompt|initial\s+instructions|secret\s+instructions)/i,
+      pattern: /(repeat|output|show|print|reveal|dump|leak|expose|extract)\s+(?:all\s+)?(?:your|the)?\s*(?:system\s+prompt|initial\s+instructions|secret\s+instructions|private\s+(?:api\s+)?keys|api\s+keys|credentials|secrets)/i,
       severity: 0.8
     },
     {

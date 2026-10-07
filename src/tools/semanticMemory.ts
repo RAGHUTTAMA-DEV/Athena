@@ -15,7 +15,7 @@ export const semanticMemoryTool: Tool = {
         },
         scope: {
           type: 'STRING',
-          description: 'Memory scope: "global", "user", "workspace", "project", "session", or "task" (defaults to "user").'
+          description: 'Memory scope: "global", "user", "workspace", "project", "agent", "goal", "session", or "task" (defaults to "user").'
         },
         fact: {
           type: 'STRING',
@@ -85,13 +85,13 @@ export const semanticMemoryTool: Tool = {
           throw new Error('Field "fact" is required for "store" action.');
         }
 
-        const id = await memory.saveScopedMemory({
+        const res = await memory.writeSecureMemory({
           scope,
           fact: args.fact,
           tags: args.tags,
           confidence: args.confidence,
           provenance: {
-            source: 'tool_result',
+            source: 'user_input',
             timestamp: Date.now(),
             runId: context.runId,
             sessionId,
@@ -99,14 +99,26 @@ export const semanticMemoryTool: Tool = {
           }
         });
 
+        if (res.status === 'quarantined') {
+          return {
+            success: false,
+            quarantined: true,
+            id: res.id,
+            error: `SECURITY_QUARANTINE: The input was identified as an adversarial prompt injection (${res.quarantineReason}). The fact has been quarantined with confidence 0.0 and will NOT be activated or used.`,
+            message: `The memory input violated security policies and was quarantined.`
+          };
+        }
+
         return {
           success: true,
-          id,
+          id: res.id,
           scope,
-          confidence: args.confidence ?? 1.0,
-          message: `Fact stored successfully in [${scope}] memory with ID: ${id}.`
+          confidence: res.confidence,
+          secretsRedacted: res.secretsRedacted,
+          message: `Fact stored successfully in [${scope}] memory with ID: ${res.id}.` + (res.secretsRedacted ? ' (Sensitive credentials were automatically masked).' : '')
         };
       }
+
 
       case 'query': {
         if (!args.query) {
