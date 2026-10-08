@@ -305,6 +305,27 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     permissions: ['browser'],
     tags: ['browser']
   },
+  browserTabManage: {
+    riskLevel: 'safe',
+    parallelSafe: false,
+    timeoutMs: 15000,
+    permissions: ['browser'],
+    tags: ['browser', 'tabs']
+  },
+  browserSessionManage: {
+    riskLevel: 'safe',
+    parallelSafe: false,
+    timeoutMs: 15000,
+    permissions: ['browser'],
+    tags: ['browser', 'session']
+  },
+  browserExtract: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 30000,
+    permissions: ['browser'],
+    tags: ['browser', 'extract']
+  },
   delegateTask: {
     riskLevel: 'confirm',
     parallelSafe: false,

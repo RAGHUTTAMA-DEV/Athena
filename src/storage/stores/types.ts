@@ -264,3 +264,26 @@ export interface ResearchDocumentStore {
   delete(id: string): Promise<boolean>;
 }
 
+/** A persistent browser profile tracked by the P4C browser subsystem. */
+export interface BrowserProfileRecord {
+  id: string;
+  agentId?: string | null;
+  taskId?: string | null;
+  name: string;
+  userDataDir: string;
+  cookiesCount?: number;
+  metadata?: Record<string, any>;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface BrowserProfileStore {
+  save(profile: BrowserProfileRecord): Promise<BrowserProfileRecord>;
+  get(id: string): Promise<BrowserProfileRecord | null>;
+  findByName(name: string): Promise<BrowserProfileRecord | null>;
+  findByAgent(agentId: string): Promise<BrowserProfileRecord[]>;
+  findByTask(taskId: string): Promise<BrowserProfileRecord[]>;
+  list(filter?: { agentId?: string; taskId?: string; limit?: number }): Promise<BrowserProfileRecord[]>;
+  delete(id: string): Promise<boolean>;
+}
+

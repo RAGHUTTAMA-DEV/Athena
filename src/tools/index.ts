@@ -13,7 +13,14 @@ import { semanticMemoryTool } from './semanticMemory.js';
 import { executePythonTool } from './executePython.js';
 import { delegateTaskTool } from './delegateTask.js';
 import { cronjobTool } from './cronjob.js';
-import { browserNavigateTool, browserActionTool, browserScreenshotTool } from './interactiveBrowser.js';
+import {
+  browserNavigateTool,
+  browserActionTool,
+  browserScreenshotTool,
+  browserTabManageTool,
+  browserSessionManageTool,
+  browserExtractTool
+} from './browserTools.js';
 import { delegateCodingTaskTool } from './delegateCodingTask.js';
 import { processManageTool } from './processManage.js';
 import { researchWebTool } from './researchWeb.js';
@@ -42,6 +49,9 @@ export const tools: Tool[] = [
   browserNavigateTool,
   browserActionTool,
   browserScreenshotTool,
+  browserTabManageTool,
+  browserSessionManageTool,
+  browserExtractTool,
   delegateCodingTaskTool,
   researchWebTool,
   ingestDocumentTool,
@@ -51,6 +61,7 @@ export const tools: Tool[] = [
 
 export * from './processManage.js';
 export * from './processManager.js';
+export * from './browserTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

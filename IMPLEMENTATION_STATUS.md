@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P4B: Web Research, RAG, and Document Intelligence — ✅ COMPLETE** |
-| **Next phase** | P4C: Browser as First-Class Environment — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P4C: Browser as First-Class Environment — ✅ COMPLETE** |
+| **Next phase** | P4D: Computer Use and Application Control — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, & V2 P4B test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, & V2 P4C test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -26,7 +26,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P1** | **Agent Foundation** — versioned migrations, AgentProfile + version history, User model, Workspace/Project entities, candidate memory lifecycle, permission model, store interfaces | ✅ **done** (`6846f5c`) | `npm run test:v2p1` — 9/9 |
 | **P2** | **Persistent Autonomy** — Goal/Task entities, extended run lifecycle (12 states), `run_waits`, crash-safe resume, per-goal budgets, Goal→Task→Run spans, background safe tool guard | ✅ **done** | `npm run test:v2p2` — 11/11 |
 | **P3** | **Memory and Context** — Memory model per spec (scopes `agent`, `goal`, types `fact`, `preference`, etc., lifecycle `quarantined`, `archived`), Section 65 Secure Memory Write Pipeline (sanitize, prompt injection quarantine, credential masking), Universal Session Search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors), Bounded Context References (`@file`, `@folder`, `@repo`, `@run`, `@goal`, `@task`, `@memory`, `@project`), Cache-Friendly Layered ContextEngine, Token & Cost Accounting | ✅ **done** | `npm run test:v2p3` — 9/9 |
-| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ (P4C: Browser, P4D: Advanced Actions pending) | 🔄 in progress (P4A + P4B done) | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 |
+| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ · P4C: Browser ✅ (P4D: Computer Use pending) | 🔄 in progress (P4A + P4B + P4C done) | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 · `npm run test:v2p4c` — 9/9 |
 | **P5** | Learning | ⛔ not started | — |
 | **P6** | Multi-Agent | ⛔ not started | — |
 | **P7** | Proactive Agent | ⛔ not started | — |
@@ -103,6 +103,16 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Store Facade Extension** — `EpisodicMemory.getVectorStore() / getResearchDocumentStore() / getRagEngine() / getResearchEngine()` follow the established ADR-0001 delegation pattern.
 - **ADR** — [`docs/decisions/0008-research-rag-documents-p4b.md`](docs/decisions/0008-research-rag-documents-p4b.md).
 
+### Added by V2 P4C
+- **Schema Migration 6** — `v2_p4c_browser_profiles`: `browser_profiles` table (id, agent_id, task_id, name, user_data_dir, cookies_count, metadata, timestamps) indexed by agent, task, and name.
+- **`BrowserProfileStore` interface & `SqliteBrowserProfileStore`** — persistent profile metadata CRUD and agent/task queries behind the SQLite implementation (ADR-0001 pattern; PostgreSQL adapter in P12). Exposed on `EpisodicMemory.getBrowserProfileStore()`.
+- **`BrowserProfileManager`** — manages persistent user data directories scoped per agent/task (`scratch/browser_profiles/<profileId>`); guarantees two agents never share cookies or local storage unless explicitly configured.
+- **`BrowserEngine`** — manages Playwright persistent contexts (`launchPersistentContext`) keyed by profile; supports multi-tab management (`newTab`, `switchTab`, `closeTab`, `listTabs`), interactive element tagging (`data-athena-id`), modern ARIA accessibility tree snapshots (`ariaSnapshot` / `accessibility.snapshot`), form actions (selectOption, check, uncheck, uploadFile), download interception and scoped storage, cookie inspection/clearing, and screenshots.
+- **PromptDefense Untrusted Boundary (Spec Section 19)** — all page content and extracted text passes through `PromptDefense.analyzeAndSanitize()`, actively neutralizing prompt injection attacks (`INSTRUCTION_OVERRIDE`, `PROMPT_LEAK_REQUEST`, etc.) and wrapping untrusted external web content in `<untrusted_content origin="...">` tags.
+- **Capability Registry (spec section 71)** — 6 browser capabilities seeded: `browser.playwright` (`real` if Chromium binary is detected, `unsupported` if missing), `browser.profiles` (`real`), `browser.tabs` (`real`), `browser.interactive` (`real`), `browser.accessibility` (`real`), `browser.downloads` (`real`).
+- **Tools Suite** — `browserNavigate`, `browserAction`, `browserTabManage`, `browserSessionManage`, `browserExtract`, `browserScreenshot` registered in `SearchableToolRegistry` with complete manifests (`permissions: ['browser', 'net:http']`, timeouts, risk levels). Backward-compatible re-exports in `interactiveBrowser.ts`.
+- **ADR** — [`docs/decisions/0009-browser-first-class-environment-p4c.md`](docs/decisions/0009-browser-first-class-environment-p4c.md).
+
 ---
 
 ## Test suite status
@@ -111,7 +121,8 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P4B (new, 9 tests)** | `npm run test:v2p4b` | ✅ 9/9 |
+| **V2 P4C (new, 9 tests)** | `npm run test:v2p4c` | ✅ 9/9 |
+| **V2 P4B (9 tests)** | `npm run test:v2p4b` | ✅ 9/9 |
 | **V2 P4A (6 tests)** | `npm run test:v2p4a` | ✅ 6/6 |
 | **V2 P3 (9 tests)** | `npm run test:v2p3` | ✅ 9/9 |
 | **V2 P2 (11 tests)** | `npm run test:v2p2` | ✅ 11/11 |
@@ -132,6 +143,11 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 | Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 10/12 on this run — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P4C exit criteria — all PASS
+1. E2E navigate $\rightarrow$ authenticate $\rightarrow$ perform action $\rightarrow$ verify — **PASS** (TEST 8: navigate to login form $\rightarrow$ fill credentials $\rightarrow$ authenticate $\rightarrow$ verify dashboard $\rightarrow$ perform authenticated action $\rightarrow$ verify updated dashboard state)
+2. Two agents never share cookies unless configured — **PASS** (TEST 2: Agent A logs in and receives session cookie; Agent B visits same origin in isolated profile and sees 0 cookies / unauthorized state)
+3. All page content passes through PromptDefense as untrusted — **PASS** (TEST 7: malicious prompt injection payload actively neutralized and enclosed in `<untrusted_content origin="...">` boundary)
 
 ### P4B exit criteria — all PASS
 1. Reranker eval shows measurable gain over retrieval-only on a fixed dataset — **PASS** (TEST 6: lexical TF baseline ranks the keyword-stuffed distractor 1st (p2=22 > p1=12); the local cross-encoder ranks the answering passage 1st (p1 0.456 > p2 0.130), gold rank 2 → 1; unsupported-model path verified in TEST 6b)

@@ -149,7 +149,7 @@ async function runTests() {
   console.log('--- TEST 1: Schema Migration 5 ---');
   const db = await openDatabase(DB_PATH);
   const versionRow: any = await db.get('PRAGMA user_version');
-  assert.strictEqual(versionRow['user_version'], 5, 'Migration 5 must set user_version to 5');
+  assert.ok(versionRow['user_version'] >= 5, 'Migration 5 must set user_version to at least 5');
   const migrationRow: any = await db.get(
     `SELECT name FROM schema_migrations WHERE version = 5`
   );
@@ -166,7 +166,7 @@ async function runTests() {
   await db.close();
   const db2 = await openDatabase(DB_PATH);
   const versionRow2: any = await db2.get('PRAGMA user_version');
-  assert.strictEqual(versionRow2['user_version'], 5, 'Re-open must keep user_version at 5');
+  assert.strictEqual(versionRow2['user_version'], versionRow['user_version'], 'Re-open must preserve user_version');
   console.log('✓ TEST 1 PASSED: Migration 5 applies cleanly and is idempotent.\n');
 
   const stores = createSqliteStores(db2);

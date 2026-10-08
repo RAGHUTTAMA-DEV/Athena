@@ -513,11 +513,35 @@ const migrationV2P4BResearchRagDocuments: Migration = {
   }
 };
 
+const migrationV2P4CBrowserProfiles: Migration = {
+  version: 6,
+  name: 'v2_p4c_browser_profiles',
+  up: async (db) => {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS browser_profiles (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT,
+        task_id TEXT,
+        name TEXT NOT NULL,
+        user_data_dir TEXT NOT NULL,
+        cookies_count INTEGER DEFAULT 0,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_browser_profiles_agent ON browser_profiles(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_browser_profiles_task ON browser_profiles(task_id);
+      CREATE INDEX IF NOT EXISTS idx_browser_profiles_name ON browser_profiles(name);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
   migrationV2P2PersistentAutonomy,
   migrationV2P3MemoryContext,
-  migrationV2P4BResearchRagDocuments
+  migrationV2P4BResearchRagDocuments,
+  migrationV2P4CBrowserProfiles
 ];
 

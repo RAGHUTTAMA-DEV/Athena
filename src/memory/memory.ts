@@ -9,12 +9,13 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
+import { BrowserEngine } from '../browser/browserEngine.js';
 
 export interface SemanticFact {
   id?: number;
@@ -80,8 +81,12 @@ export class EpisodicMemory {
     this.stores = createSqliteStores(this.db);
     this.pipeline = new MemoryWritePipeline(this.stores.memory);
     this.sessionSearchEngine = new SessionSearchEngine(this.stores.sessionSearch);
-    // P4B: seed the honest capability registry (real/experimental/unsupported).
+    // P4B & P4C: seed honest capability registry.
     seedP4BCapabilities(CapabilityRegistry.getInstance());
+    seedP4CCapabilities(CapabilityRegistry.getInstance());
+    if (this.stores.browserProfile) {
+      BrowserEngine.getInstance().getProfileManager().setStore(this.stores.browserProfile);
+    }
     this.embeddingProvider = new ConfiguredEmbeddingProvider(this.apiKey);
   }
 
@@ -184,6 +189,16 @@ export class EpisodicMemory {
       this.researchEngine = new ResearchEngine();
     }
     return this.researchEngine;
+  }
+
+  // --- P4C: Browser as First-Class Environment ---
+
+  getBrowserProfileStore(): BrowserProfileStore | null {
+    return this.stores ? this.stores.browserProfile : null;
+  }
+
+  getBrowserEngine(): BrowserEngine {
+    return BrowserEngine.getInstance();
   }
 
   private requireRunStore(): SqliteStores['run'] {

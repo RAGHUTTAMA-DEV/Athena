@@ -1,3 +1,5 @@
+import { chromium } from 'playwright';
+
 /**
  * P4B Capability Registry (spec section 71 — "no fake capabilities").
  *
@@ -137,5 +139,67 @@ export function seedP4BCapabilities(registry: CapabilityRegistry): void {
     status: 'unsupported',
     reason: 'Cross-encoder model not loaded yet.',
     phase: 'P4B'
+  });
+}
+
+/**
+ * Seed the P4C browser capability set (spec section 19 / 71).
+ */
+export function seedP4CCapabilities(registry: CapabilityRegistry): void {
+  let playwrightStatus: CapabilityStatus = 'real';
+  let playwrightReason: string | undefined;
+
+  try {
+    const execPath = chromium.executablePath();
+    if (!execPath) {
+      playwrightStatus = 'unsupported';
+      playwrightReason = 'Playwright browser executable not found. Run "npx playwright install" to install browsers.';
+    }
+  } catch (err: any) {
+    playwrightStatus = 'unsupported';
+    playwrightReason = `Playwright runtime error: ${err.message}`;
+  }
+
+  registry.register({
+    id: 'browser.playwright',
+    name: 'Playwright browser automation (Chromium)',
+    status: playwrightStatus,
+    reason: playwrightReason,
+    phase: 'P4C'
+  });
+
+  registry.register({
+    id: 'browser.profiles',
+    name: 'Persistent isolated browser profiles (per agent/task)',
+    status: 'real',
+    phase: 'P4C'
+  });
+
+  registry.register({
+    id: 'browser.tabs',
+    name: 'Multi-tab and window management',
+    status: 'real',
+    phase: 'P4C'
+  });
+
+  registry.register({
+    id: 'browser.interactive',
+    name: 'Interactive browser actions (click, type, forms, upload, hover, scroll)',
+    status: 'real',
+    phase: 'P4C'
+  });
+
+  registry.register({
+    id: 'browser.accessibility',
+    name: 'Accessibility tree snapshots & semantic element extraction',
+    status: 'real',
+    phase: 'P4C'
+  });
+
+  registry.register({
+    id: 'browser.downloads',
+    name: 'Managed downloads and scoped file persistence',
+    status: 'real',
+    phase: 'P4C'
   });
 }

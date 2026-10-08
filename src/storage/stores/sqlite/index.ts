@@ -10,6 +10,7 @@ import { SqliteMemoryStore } from './sqliteMemoryStore.js';
 import { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
 import { SqliteVectorStore } from './sqliteVectorStore.js';
 import { SqliteResearchDocumentStore } from './sqliteResearchDocumentStore.js';
+import { SqliteBrowserProfileStore } from './sqliteBrowserProfileStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -22,6 +23,7 @@ export { SqliteMemoryStore } from './sqliteMemoryStore.js';
 export { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
 export { SqliteVectorStore } from './sqliteVectorStore.js';
 export { SqliteResearchDocumentStore } from './sqliteResearchDocumentStore.js';
+export { SqliteBrowserProfileStore } from './sqliteBrowserProfileStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -37,6 +39,7 @@ export interface SqliteStores {
   sessionSearch: SqliteSessionSearchStore;
   vector: SqliteVectorStore;
   researchDocument: SqliteResearchDocumentStore;
+  browserProfile: SqliteBrowserProfileStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -53,7 +56,8 @@ export function createSqliteStores(db: Database): SqliteStores {
     memory: new SqliteMemoryStore(db),
     sessionSearch: new SqliteSessionSearchStore(db),
     vector: new SqliteVectorStore(db),
-    researchDocument: new SqliteResearchDocumentStore(db)
+    researchDocument: new SqliteResearchDocumentStore(db),
+    browserProfile: new SqliteBrowserProfileStore(db)
   };
 }
 
