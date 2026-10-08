@@ -559,4 +559,109 @@ export interface HeartbeatStore {
   listRecent(limit?: number): Promise<HeartbeatLog[]>;
 }
 
+// ---------------------------------------------------------------------------
+// P8 Communication Subsystem Interfaces (Spec Sections 26, 27, 28, 58)
+// ---------------------------------------------------------------------------
+
+export type ChannelType = 'cli' | 'telegram' | 'email' | 'discord' | 'slack' | 'whatsapp';
+export type ChannelStatus = 'active' | 'paused' | 'disabled';
+
+export interface Channel {
+  id: string;
+  type: ChannelType;
+  name: string;
+  status: ChannelStatus;
+  config?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Conversation {
+  id: string;
+  channelId: string;
+  externalThreadId: string;
+  title?: string;
+  activeSessionId?: string;
+  activeGoalId?: string;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type ParticipantRole = 'owner' | 'collaborator' | 'stranger';
+
+export interface Participant {
+  id: string;
+  conversationId: string;
+  externalUserId: string;
+  displayName?: string;
+  role: ParticipantRole;
+  permissions?: string[];
+  metadata?: Record<string, any>;
+  createdAt: number;
+}
+
+export type ChannelMessageDirection = 'inbound' | 'outbound';
+export type ChannelMessageStatus = 'received' | 'sent' | 'failed' | 'blocked_policy';
+
+export interface ChannelMessage {
+  id: string;
+  channelId: string;
+  conversationId: string;
+  direction: ChannelMessageDirection;
+  senderId?: string;
+  recipientId?: string;
+  content: string;
+  attachments?: any[];
+  status: ChannelMessageStatus;
+  replyToId?: string;
+  metadata?: Record<string, any>;
+  timestamp: number;
+}
+
+export interface CommunicationStore {
+  saveChannel(channel: Channel): Promise<Channel>;
+  getChannel(id: string): Promise<Channel | null>;
+  listChannels(): Promise<Channel[]>;
+  saveConversation(conversation: Conversation): Promise<Conversation>;
+  getConversation(id: string): Promise<Conversation | null>;
+  getConversationByThread(channelId: string, externalThreadId: string): Promise<Conversation | null>;
+  listConversations(channelId?: string): Promise<Conversation[]>;
+  saveParticipant(participant: Participant): Promise<Participant>;
+  getParticipant(id: string): Promise<Participant | null>;
+  getParticipantByExternal(conversationId: string, externalUserId: string): Promise<Participant | null>;
+  listParticipants(conversationId: string): Promise<Participant[]>;
+  saveMessage(msg: ChannelMessage): Promise<ChannelMessage>;
+  getMessage(id: string): Promise<ChannelMessage | null>;
+  listMessages(conversationId: string, limit?: number): Promise<ChannelMessage[]>;
+}
+
+export type CalendarEventStatus = 'confirmed' | 'tentative' | 'cancelled';
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description?: string;
+  startTime: number;
+  endTime: number;
+  location?: string;
+  attendees?: string[];
+  reminders?: number[]; // minutes before startTime
+  status: CalendarEventStatus;
+  goalId?: string;
+  taskId?: string;
+  scheduledJobId?: string;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CalendarStore {
+  saveEvent(event: CalendarEvent): Promise<CalendarEvent>;
+  getEvent(id: string): Promise<CalendarEvent | null>;
+  deleteEvent(id: string): Promise<boolean>;
+  listUpcoming(since: number, until?: number, limit?: number): Promise<CalendarEvent[]>;
+  listEventsForGoal(goalId: string): Promise<CalendarEvent[]>;
+}
+
 

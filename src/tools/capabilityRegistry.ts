@@ -370,3 +370,65 @@ export function seedP7Capabilities(registry: CapabilityRegistry): void {
   });
 }
 
+/**
+ * Seed the P8 Communication capability set (spec sections 26, 27, 28, 58, 71).
+ */
+export function seedP8Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'communication.gateway',
+    name: 'Unified Channel Gateway Routing All Inbound Channels into One Athena Core',
+    status: 'real',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.telegram',
+    name: 'Telegram Channel Adapter with Markdown Chunking and Interactive Approvals',
+    status: 'real',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.email',
+    name: 'Email Channel Adapter with RFC822 Threading and Recipient Parsing',
+    status: 'real',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.discord',
+    name: 'Discord Channel Adapter with Markdown and Embed Formatting',
+    status: 'real',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.slack',
+    name: 'Slack Channel Adapter with Blocks and Thread Routing',
+    status: 'real',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.whatsapp',
+    name: 'WhatsApp Business Platform Cloud API Adapter (Experimental)',
+    status: 'experimental',
+    reason: 'Requires official WhatsApp Business Account registration and Cloud API webhooks',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.policy_guard',
+    name: 'Sender Identity Authorization and Stranger Privilege Separation Guard',
+    status: 'real',
+    phase: 'P8'
+  });
+
+  registry.register({
+    id: 'communication.calendar',
+    name: 'Calendar Engine with Natural Language Deadlines and Proactive Reminders',
+    status: 'real',
+    phase: 'P8'
+  });
+}
+

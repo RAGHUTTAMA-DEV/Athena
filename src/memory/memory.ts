@@ -9,10 +9,10 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore, DurableAgentEventStore, WebhookStore, HeartbeatStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore, DurableAgentEventStore, WebhookStore, HeartbeatStore, CommunicationStore, CalendarStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities, seedP7Capabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities, seedP7Capabilities, seedP8Capabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
 import { BrowserEngine } from '../browser/browserEngine.js';
@@ -20,6 +20,8 @@ import { ComputerController } from '../computer/computerController.js';
 import { ProgressiveSkillManager, RoutineEngine, WorkflowLearner } from '../learning/index.js';
 import { AgentMailbox, HandoffEngine, TeamManager, DelegationContractEngine } from '../multiagent/index.js';
 import { EventPipeline, HeartbeatEngine, WebhookEngine, StalledGoalDetector } from '../proactive/index.js';
+import { CalendarEngine } from '../communication/calendarEngine.js';
+import { ChannelGatewayManager } from '../gateway/channelGatewayManager.js';
 
 export interface SemanticFact {
   id?: number;
@@ -385,6 +387,39 @@ export class EpisodicMemory {
       this.stalledGoalDetector = new StalledGoalDetector(gStore, this.getEventPipeline(), stallThresholdMs);
     }
     return this.stalledGoalDetector;
+  }
+
+  // --- P8: Communication Subsystem (Spec Sections 26, 27, 28, 58) ---
+
+  private calendarEngine?: CalendarEngine;
+  private channelGatewayManager?: ChannelGatewayManager;
+
+  getCommunicationStore(): CommunicationStore | null {
+    return this.stores ? this.stores.communication : null;
+  }
+
+  getCalendarStore(): CalendarStore | null {
+    return this.stores ? this.stores.calendar : null;
+  }
+
+  getCalendarEngine(): CalendarEngine {
+    if (!this.calendarEngine) {
+      const calStore = this.getCalendarStore();
+      if (!calStore) throw new Error('Database not initialized.');
+      this.calendarEngine = new CalendarEngine(calStore, (this as any).eventBus, this.getEventPipeline());
+    }
+    return this.calendarEngine;
+  }
+
+  getChannelGatewayManager(agent?: any): ChannelGatewayManager {
+    if (!this.channelGatewayManager) {
+      const commStore = this.getCommunicationStore();
+      if (!commStore) throw new Error('Database not initialized.');
+      this.channelGatewayManager = new ChannelGatewayManager(commStore, agent);
+    } else if (agent) {
+      this.channelGatewayManager.setAgent(agent);
+    }
+    return this.channelGatewayManager;
   }
 
   private requireRunStore(): SqliteStores['run'] {

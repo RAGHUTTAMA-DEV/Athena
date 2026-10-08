@@ -35,6 +35,7 @@
     "test:v2p5": "tsc && node dist/tests/test_v2_p5_learning.js",
     "test:v2p6": "tsc && node dist/tests/test_v2_p6_multi_agent.js",
     "test:v2p7": "tsc && node dist/tests/test_v2_p7_proactive.js",
+    "test:v2p8": "tsc && node dist/tests/test_v2_p8_communication.js",
     "test:anti_parroting": "tsc && node dist/tests/test_anti_parroting_and_recall.js",
     "demo:v2": "tsc && node dist/demo_live_v2.js",
     "test:context_memory": "tsc && node dist/tests/test_phase2_context_memory.js",

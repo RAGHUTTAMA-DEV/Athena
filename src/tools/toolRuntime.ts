@@ -395,6 +395,48 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     timeoutMs: 10000,
     permissions: ['system'],
     tags: ['multiagent', 'messaging', 'mailbox']
+  },
+  proactiveHeartbeatConfig: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 10000,
+    permissions: ['system'],
+    tags: ['proactive', 'heartbeat']
+  },
+  webhookManage: {
+    riskLevel: 'confirm',
+    parallelSafe: false,
+    timeoutMs: 15000,
+    permissions: ['net:http', 'system'],
+    tags: ['proactive', 'webhooks']
+  },
+  eventReplay: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 15000,
+    permissions: ['system'],
+    tags: ['proactive', 'events']
+  },
+  sendMessage: {
+    riskLevel: 'confirm',
+    parallelSafe: true,
+    timeoutMs: 15000,
+    permissions: ['net:http', 'channel:send'],
+    tags: ['communication', 'channels', 'outbound']
+  },
+  calendarManage: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 10000,
+    permissions: ['calendar:read', 'calendar:write'],
+    tags: ['calendar', 'events']
+  },
+  reminderSet: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 10000,
+    permissions: ['calendar:write'],
+    tags: ['calendar', 'reminders']
   }
 };
 

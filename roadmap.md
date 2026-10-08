@@ -26,8 +26,8 @@
 | **V2 P4D** | **Computer Use & Application Control (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p4d` | ✅ **Completed & Verified** |
 | **V2 P5** | **Learning: Skills, Routines, Workflows (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p5` | ✅ **Completed & Verified** |
 | **V2 P6** | **Multi-Agent: Profiles, Delegation, A2A (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p6` | ✅ **Completed & Verified** |
-| **V2 P7** | **Proactive Agent: Heartbeat, Event Pipeline, Webhooks (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p7` | ✅ **Completed & Verified** |
-| **V2 P8+** | **Communication, Multimodal, P8–P13 (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
+| **V2 P8** | **Communication: Channels, Gateway, Calendar (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p8` | ✅ **Completed & Verified** |
+| **V2 P9+** | **Multimodal, Intelligence, Reliability, P9–P13 (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
 
 ---
 

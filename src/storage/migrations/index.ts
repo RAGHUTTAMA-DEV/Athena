@@ -741,6 +741,106 @@ const migrationV2P7ProactiveAgent: Migration = {
   }
 };
 
+/**
+ * Migration 10: V2 P8 Communication (channels, conversations, participants, channel messages, calendar events).
+ */
+export const migrationV2P8Communication: Migration = {
+  version: 10,
+  name: 'v2_p8_communication',
+  up: async (db: Database) => {
+    // 1. Channels
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS channels (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        config TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_channels_type ON channels(type);
+    `);
+
+    // 2. Conversations
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        channel_id TEXT NOT NULL,
+        external_thread_id TEXT NOT NULL,
+        title TEXT,
+        active_session_id TEXT,
+        active_goal_id TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_conversations_channel ON conversations(channel_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_thread ON conversations(external_thread_id);
+    `);
+
+    // 3. Participants
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS participants (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        external_user_id TEXT NOT NULL,
+        display_name TEXT,
+        role TEXT NOT NULL DEFAULT 'stranger',
+        permissions TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_participants_conv ON participants(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(external_user_id);
+    `);
+
+    // 4. Channel Messages
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS channel_messages (
+        id TEXT PRIMARY KEY,
+        channel_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        direction TEXT NOT NULL,
+        sender_id TEXT,
+        recipient_id TEXT,
+        content TEXT NOT NULL,
+        attachments TEXT,
+        status TEXT NOT NULL,
+        reply_to_id TEXT,
+        metadata TEXT,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_channel_messages_conv ON channel_messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_channel_messages_timestamp ON channel_messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_channel_messages_status ON channel_messages(status);
+    `);
+
+    // 5. Calendar Events
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER NOT NULL,
+        location TEXT,
+        attendees TEXT,
+        reminders TEXT,
+        status TEXT NOT NULL DEFAULT 'confirmed',
+        goal_id TEXT,
+        task_id TEXT,
+        scheduled_job_id TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_time);
+      CREATE INDEX IF NOT EXISTS idx_calendar_goal ON calendar_events(goal_id);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
@@ -750,7 +850,8 @@ export const MIGRATIONS: Migration[] = [
   migrationV2P4CBrowserProfiles,
   migrationV2P5Learning,
   migrationV2P6MultiAgent,
-  migrationV2P7ProactiveAgent
+  migrationV2P7ProactiveAgent,
+  migrationV2P8Communication
 ];
 
 

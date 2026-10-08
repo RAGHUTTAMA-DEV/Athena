@@ -43,6 +43,11 @@ import {
   webhookManageTool,
   eventReplayTool
 } from './proactiveTools.js';
+import {
+  sendMessageTool,
+  calendarManageTool,
+  reminderSetTool
+} from './communicationTools.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -83,7 +88,10 @@ export const tools: Tool[] = [
   agentMailboxCheckTool,
   proactiveHeartbeatConfigTool,
   webhookManageTool,
-  eventReplayTool
+  eventReplayTool,
+  sendMessageTool,
+  calendarManageTool,
+  reminderSetTool
 ];
 
 export * from './processManage.js';
@@ -94,6 +102,7 @@ export * from './routineTools.js';
 export * from './agentDelegate.js';
 export * from './agentMessageTools.js';
 export * from './proactiveTools.js';
+export * from './communicationTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

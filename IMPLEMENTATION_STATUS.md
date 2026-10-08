@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P7: Proactive Agent — ✅ COMPLETE** |
-| **Next phase** | P8: Communication — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P8: Communication — ✅ COMPLETE** |
+| **Next phase** | P9: Multimodal and Voice — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, V2 P6, & V2 P7 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, V2 P6, V2 P7, & V2 P8 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -30,7 +30,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P5** | **Learning** — Progressive disclosure skills, review lifecycle, standing routines with EventBus/Scheduler triggers, distilled learned workflows from successful runs (not raw recordings) | ✅ **done** | `npm run test:v2p5` — 9/9 |
 | **P6** | **Multi-Agent** — Specialized profiles (Researcher, Coder, Reviewer, Planner, Browser, Data), formal DelegationContract (tool scoping guard, depth limit ≤3, concurrency cap ≤5), durable A2A mailbox (9 message types, SQLite persistence), crash-safe handoff pipeline (Researcher → Coder → Reviewer) surviving restarts, optional teams with justification rule | ✅ **done** | `npm run test:v2p6` — 10/10 |
 | **P7** | **Proactive Agent** — Schema Migration 9 (durable events, webhooks, heartbeats), 5-stage event pipeline (Filter → Relevance → Wake → Reason → Action) with rate limits and cost guards, event-aware cost-capped heartbeat engine ($0 quiet ticks, measured reasoning cost, hourly/daily spend caps), secure webhook ingestion (HMAC-SHA256, replay protection, dedup, PromptDefense, privilege separation guard), stalled-goal autonomous wake detection, event replay | ✅ **done** | `npm run test:v2p7` — 10/10 |
-| **P8** | Communication | ⛔ not started | — |
+| **P8** | **Communication** — Schema Migration 10 (channels, conversations, participants, messages, calendar), normalized ChannelAdapters (CLI, Telegram, Email, Discord, Slack, WhatsApp), ChannelGatewayManager with sender authorization & privilege separation guard, PromptDefense untrusted boundary, outbound policy & secret redaction, natural language deadlines ("tomorrow morning" -> epoch), proactive calendar event wake | ✅ **done** | `npm run test:v2p8` — 11/11 |
 | **P9** | Multimodal and Voice | ⛔ not started | — |
 | **P10** | Intelligence | ⛔ not started | — |
 | **P11** | Reliability | ⛔ not started | — |
@@ -154,15 +154,28 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Capability Registry (spec section 71)** — 5 P7 capabilities seeded as `real`: `proactive.event_pipeline`, `proactive.heartbeat`, `proactive.durable_events`, `proactive.webhooks`, `proactive.monitoring`.
 - **ADR** — [`docs/decisions/0013-proactive-agent-heartbeat-event-pipeline-webhooks-p7.md`](docs/decisions/0013-proactive-agent-heartbeat-event-pipeline-webhooks-p7.md).
 
+### Added by V2 P8
+- **Schema Migration 10** — `v2_p8_communication`: tables `channels`, `conversations`, `participants`, `channel_messages`, and `calendar_events` with complete indexes.
+- **`CommunicationStore` & `CalendarStore`** — SQLite implementations (`SqliteCommunicationStore`, `SqliteCalendarStore`) behind memory facade getters.
+- **Normalized Channel Adapters (Spec Section 26)** — Standardized `ChannelAdapter` interface implemented across CLI (`CliChannelAdapter`), Telegram (`TelegramChannelAdapter`), Email (`EmailChannelAdapter`), Discord (`DiscordChannelAdapter`), Slack (`SlackChannelAdapter`), and WhatsApp Business Platform (`WhatsAppChannelAdapter`, marked `experimental` per spec note).
+- **Unified Channel Gateway Routing & Core Invariance** — `ChannelGatewayManager`: routes all inbound channels into the single Athena Agent core; channels are never separate agents.
+- **Sender Identity & Privilege Separation Guard (Spec Section 26, 27, 58, 66)** — Identifies `owner` vs `stranger` based on configured whitelist. All inbound content passes through `PromptDefense.analyzeAndSanitize()`. Strangers attempting to trigger privileged actions (`cmd:exec`, `terminalExec`, `writeFile`, `deleteFile`, `computerAction`) are strictly blocked by policy with an explicit security warning.
+- **Outbound Policy & Secret Redaction (Spec Section 27)** — `sendMessage` tool enforces outbound recipient checks, masks credentials via `CredentialManager.redactString()`, and requires explicit human approval for external broadcasts.
+- **Calendar Engine & Natural Language Deadlines (Spec Section 28)** — `CalendarEngine` parses relative deadlines ("tomorrow morning" at 09:00, "in 30 minutes", "in 2 hours", "next Monday") into durable scheduled actions; `checkAndTriggerDueReminders()` fires `calendar:deadline_approaching` into the `EventPipeline` and `EventBus`.
+- **Tools Suite** — `sendMessage`, `calendarManage`, `reminderSet` registered with complete manifests in `SearchableToolRegistry`.
+- **Capability Registry (spec section 71)** — 8 P8 capabilities seeded: 7 `real`, 1 `experimental` (`communication.whatsapp`).
+- **ADR** — [`docs/decisions/0014-communication-channel-gateway-calendar-p8.md`](docs/decisions/0014-communication-channel-gateway-calendar-p8.md).
+
 ---
 
 ## Test suite status
 
-Run: 2026-10-08. `npx tsc --noEmit` clean.
+Run: 2026-10-09. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P7 (new, 10 tests)** | `npm run test:v2p7` | ✅ 10/10 |
+| **V2 P8 (new, 11 tests)** | `npm run test:v2p8` | ✅ 11/11 |
+| **V2 P7 (10 tests)** | `npm run test:v2p7` | ✅ 10/10 |
 | **V2 P6 (10 tests)** | `npm run test:v2p6` | ✅ 10/10 |
 | **V2 P5 (9 tests)** | `npm run test:v2p5` | ✅ 9/9 |
 | **V2 P4D (8 tests)** | `npm run test:v2p4d` | ✅ 8/8 |
@@ -188,6 +201,12 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 | Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 10/12 on this run — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P8 exit criteria — all PASS
+1. Same task works from CLI and two channels with identical core behavior — **PASS** (TEST 3: task dispatched across CLI, Telegram, and Discord adapters routes through ChannelGatewayManager into single Athena Agent with identical core results and memory context)
+2. A stranger's message cannot trigger privileged actions — **PASS** (TEST 4: unauthorized stranger attempting shell command execution or file modification is intercepted and denied with `blocked_policy` status and security warning)
+3. Outbound policy blocks unauthorized sends — **PASS** (TEST 6: unapproved external broadcast blocked with `policyBlocked: true` and `requiresApproval: true`; approved sends succeed; TEST 7: credentials automatically masked via CredentialManager before transmission)
+4. Calendar deadline becomes a durable scheduled action — **PASS** (TEST 8: "tomorrow morning" and relative deadlines parsed into epoch timestamps; TEST 9: approaching deadline fires `calendar:deadline_approaching` into EventBus and EventPipeline waking the agent)
 
 ### P7 exit criteria — all PASS
 1. Duplicate and replayed webhooks are rejected — **PASS** (TEST 5: idempotency key duplicate rejected with 409 Conflict; timestamp skew > 5m rejected with 400 Bad Request)

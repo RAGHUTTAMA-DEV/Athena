@@ -19,6 +19,8 @@ import { SqliteAgentTeamStore } from './sqliteAgentTeamStore.js';
 import { SqliteDurableAgentEventStore } from './sqliteDurableAgentEventStore.js';
 import { SqliteWebhookStore } from './sqliteWebhookStore.js';
 import { SqliteHeartbeatStore } from './sqliteHeartbeatStore.js';
+import { SqliteCommunicationStore } from './sqliteCommunicationStore.js';
+import { SqliteCalendarStore } from './sqliteCalendarStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -40,6 +42,8 @@ export { SqliteAgentTeamStore } from './sqliteAgentTeamStore.js';
 export { SqliteDurableAgentEventStore } from './sqliteDurableAgentEventStore.js';
 export { SqliteWebhookStore } from './sqliteWebhookStore.js';
 export { SqliteHeartbeatStore } from './sqliteHeartbeatStore.js';
+export { SqliteCommunicationStore } from './sqliteCommunicationStore.js';
+export { SqliteCalendarStore } from './sqliteCalendarStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -64,6 +68,8 @@ export interface SqliteStores {
   durableEvent: SqliteDurableAgentEventStore;
   webhook: SqliteWebhookStore;
   heartbeat: SqliteHeartbeatStore;
+  communication: SqliteCommunicationStore;
+  calendar: SqliteCalendarStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -89,7 +95,9 @@ export function createSqliteStores(db: Database): SqliteStores {
     agentTeam: new SqliteAgentTeamStore(db),
     durableEvent: new SqliteDurableAgentEventStore(db),
     webhook: new SqliteWebhookStore(db),
-    heartbeat: new SqliteHeartbeatStore(db)
+    heartbeat: new SqliteHeartbeatStore(db),
+    communication: new SqliteCommunicationStore(db),
+    calendar: new SqliteCalendarStore(db)
   };
 }
 

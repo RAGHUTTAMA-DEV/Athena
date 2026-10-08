@@ -22,7 +22,9 @@ export class ToolDiscoveryPipeline {
     'memory': ['remember', 'memory', 'recall', 'fact', 'preference', 'store'],
     'research': ['research', 'investigate', 'cite', 'sources', 'report', 'corroborate', 'evidence', 'documents', 'document', 'pdf', 'docx', 'xlsx', 'csv', 'ingest', 'rag', 'knowledge', 'read', 'summarize'],
     'computer': ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution'],
-    'proactive': ['webhook', 'webhooks', 'heartbeat', 'proactive', 'stall', 'stalled', 'replay', 'endpoint', 'receipts']
+    'proactive': ['webhook', 'webhooks', 'heartbeat', 'proactive', 'stall', 'stalled', 'replay', 'endpoint', 'receipts'],
+    'communication': ['message', 'channel', 'send', 'email', 'telegram', 'discord', 'slack', 'whatsapp', 'outbound', 'inbound', 'conversation', 'recipient'],
+    'calendar': ['calendar', 'event', 'deadline', 'reminder', 'schedule', 'meeting', 'appointment']
   };
 
   /**

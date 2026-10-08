@@ -105,7 +105,21 @@ const TOOL_ALIASES: Record<string, string> = {
   'proactive_heartbeat_config': 'proactiveHeartbeatConfig',
   'heartbeat_config': 'proactiveHeartbeatConfig',
   'event_replay': 'eventReplay',
-  'replay_event': 'eventReplay'
+  'replay_event': 'eventReplay',
+  'send_message': 'sendMessage',
+  'send_msg': 'sendMessage',
+  'sendMessage': 'sendMessage',
+  'calendar_manage': 'calendarManage',
+  'manage_calendar': 'calendarManage',
+  'calendarManage': 'calendarManage',
+  'create_calendar_event': 'calendarManage',
+  'calendar_event': 'calendarManage',
+  'list_calendar_events': 'calendarManage',
+  'calendar_list_events': 'calendarManage',
+  'reminder_set': 'reminderSet',
+  'set_reminder': 'reminderSet',
+  'reminderSet': 'reminderSet',
+  'create_reminder': 'reminderSet'
 };
 
 export class Agent {
