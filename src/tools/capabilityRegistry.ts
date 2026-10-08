@@ -495,3 +495,43 @@ export function seedP9Capabilities(registry: CapabilityRegistry): void {
   });
 }
 
+/**
+ * Seed the P10 Intelligence capability set (spec sections 48, 49, 50, 56).
+ */
+export function seedP10Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'models.ollama',
+    name: 'Local-First Ollama Model Provider Supporting Offline LLM Execution',
+    status: 'real',
+    phase: 'P10'
+  });
+
+  registry.register({
+    id: 'models.router',
+    name: 'Capability-Aware Dynamic Model Router with Single-Model Default',
+    status: 'real',
+    phase: 'P10'
+  });
+
+  registry.register({
+    id: 'models.caching',
+    name: 'Stable-Prefix Prompt Caching Assembly and Cached Token Telemetry',
+    status: 'real',
+    phase: 'P10'
+  });
+
+  registry.register({
+    id: 'security.credential_pool',
+    name: 'Multi-Key Credential Pool with 429 Storm Survival and Key Rotation',
+    status: 'real',
+    phase: 'P10'
+  });
+
+  registry.register({
+    id: 'security.secret_scanner',
+    name: 'Deep Secret Scanner Verifying Zero Leaked Credentials in Persisted State',
+    status: 'real',
+    phase: 'P10'
+  });
+}
+

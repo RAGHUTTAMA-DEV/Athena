@@ -6,6 +6,7 @@ import { LLMProvider, createLLMProvider, LLMResponse } from '../providers/llmPro
 import { toolsRegistry } from '../tools/index.js';
 import { EpisodicMemory } from '../memory/memory.js';
 import { MultiModalEngine } from '../multimodal/index.js';
+import { ModelRouter } from '../intelligence/modelRouter.js';
 import { ProceduralMemory } from '../memory/procedural.js';
 import { MemoryConsolidator } from '../memory/consolidation.js';
 import { cleanGeminiSchema } from '../mcp/mcpManager.js';
@@ -217,12 +218,30 @@ export class Agent {
     this.config = config;
     this.provider = createLLMProvider(config.provider, {
       apiKey: config.provider === 'nvidia' ? config.nvidiaApiKey : undefined,
-      baseUrl: config.provider === 'nvidia' ? config.nvidiaBaseUrl : undefined,
+      baseUrl: config.provider === 'nvidia' ? config.nvidiaBaseUrl : config.ollamaBaseUrl,
+      ollamaBaseUrl: config.ollamaBaseUrl,
       enableFallback: config.enableFallback,
       fallbackApiKey: config.fallbackApiKey || (config.provider === 'gemini' ? config.nvidiaApiKey : undefined)
     });
+
+    if (config.enableRouting) {
+      this.modelRouter = new ModelRouter({
+        enabled: true,
+        defaultProvider: config.provider,
+        defaultModel: config.modelName
+      });
+    }
   }
 
+  private modelRouter?: ModelRouter;
+
+  public getModelRouter(): ModelRouter | null {
+    return this.modelRouter || null;
+  }
+
+  public setModelRouter(router: ModelRouter): void {
+    this.modelRouter = router;
+  }
 
   private waitingEngine: WaitingEngine | null = null;
 

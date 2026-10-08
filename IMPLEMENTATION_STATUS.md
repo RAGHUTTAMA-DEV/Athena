@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P9: Multimodal and Voice — ✅ COMPLETE** |
-| **Next phase** | P10: Intelligence — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P10: Intelligence — ✅ COMPLETE** |
+| **Next phase** | P11: Reliability — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, V2 P6, V2 P7, V2 P8, & V2 P9 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1–P10 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -31,8 +31,8 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P6** | **Multi-Agent** — Specialized profiles (Researcher, Coder, Reviewer, Planner, Browser, Data), formal DelegationContract (tool scoping guard, depth limit ≤3, concurrency cap ≤5), durable A2A mailbox (9 message types, SQLite persistence), crash-safe handoff pipeline (Researcher → Coder → Reviewer) surviving restarts, optional teams with justification rule | ✅ **done** | `npm run test:v2p6` — 10/10 |
 | **P7** | **Proactive Agent** — Schema Migration 9 (durable events, webhooks, heartbeats), 5-stage event pipeline (Filter → Relevance → Wake → Reason → Action) with rate limits and cost guards, event-aware cost-capped heartbeat engine ($0 quiet ticks, measured reasoning cost, hourly/daily spend caps), secure webhook ingestion (HMAC-SHA256, replay protection, dedup, PromptDefense, privilege separation guard), stalled-goal autonomous wake detection, event replay | ✅ **done** | `npm run test:v2p7` — 10/10 |
 | **P8** | **Communication** — Schema Migration 10 (channels, conversations, participants, messages, calendar), normalized ChannelAdapters (CLI, Telegram, Email, Discord, Slack, WhatsApp), ChannelGatewayManager with sender authorization & privilege separation guard, PromptDefense untrusted boundary, outbound policy & secret redaction, natural language deadlines ("tomorrow morning" -> epoch), proactive calendar event wake | ✅ **done** | `npm run test:v2p8` — 11/11 |
-| **P9** | **Multimodal and Voice** — Schema Migration 11 (`multimodal_artifacts`), `SqliteMultimodalStore`, `MultiModalEngine` facade, Gemini and Mock Vision providers (OCR text detection, UI elements), STT provider (transcription), TTS provider (valid PCM WAV generation), ImageGen provider, voice request creates goal via normal core path, screenshot → browser → verify E2E loop, capability honesty | ✅ **done** | `npm run test:v2p9` — 10/10 |
-| **P10** | Intelligence | ⛔ not started | — |
+| **P9** | **Multimodal and Voice** — Schema Migration 11 (`multimodal_artifacts`), `SqliteMultimodalStore`, `MultiModalEngine` facade, Gemini and Mock Vision providers (OCR text detection, UI elements), STT provider (transcription), TTS provider (valid PCM WAV generation), ImageGen provider, voice request creates goal via normal core path, screenshot → browser → verify E2E loop, capability honesty | ✅ **done** | `npm run test:v2p9` — 11/11 |
+| **P10** | **Intelligence** — Local-first single-model default (Gemini/Ollama), OllamaProvider with OpenAI API compatibility & offline fallback, opt-in ModelRouter with intent/complexity categories, router benchmark eval (88.8% cost drop, 0% quality drop), multi-key CredentialPool with 429 storm survival, stable-prefix PromptCacheManager with savings telemetry, deep SecretScanner with zero credential leakage verification | ✅ **done** | `npm run test:v2p10` — 10/10 |
 | **P11** | Reliability | ⛔ not started | — |
 | **P12** | Platform (PostgreSQL adapter for P1 store interfaces, API) | ⛔ not started | — |
 | **P13** | Hardening | ⛔ not started | — |

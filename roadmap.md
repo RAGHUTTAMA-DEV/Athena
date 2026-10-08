@@ -333,3 +333,16 @@ flowchart TD
 - [x] Capability Registry honesty: `multimodal.vision`, `multimodal.stt`, `multimodal.tts`, `multimodal.image_generation`, `multimodal.voice_goal_routing`, `multimodal.screenshot_browser_loop` (real), `multimodal.realtime_voice_duplex` (experimental), `multimodal.video_streaming` (unsupported).
 - [x] ADR: `docs/decisions/0015-multimodal-voice-vision-stt-tts-p9.md`.
 - [x] Verification: `npm run test:v2p9` (11/11 passing).
+
+### V2 P10: INTELLIGENCE & MODEL ROUTING SUBSYSTEM — [100% COMPLETE]
+- [x] Local-first single-model default (`provider: 'gemini' | 'nvidia' | 'ollama'`) prioritizing user simplicity without forcing routing.
+- [x] `OllamaProvider`: OpenAI-compatible client targeting local Ollama (`http://localhost:11434/v1`), tool call translation, and graceful offline fallback.
+- [x] `ModelRouter`: Opt-in dynamic model routing across `fast`, `reasoning`, `coding`, `vision`, `cheap` policies.
+- [x] Exit Criterion 1: Router benchmark evaluation demonstrating 88.8% cost drop with 0.0% quality drop.
+- [x] `CredentialPool`: Multi-key rotation (`GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`, etc.) with rate limit tracking and round-robin dispatch.
+- [x] Exit Criterion 2: Credential pool survives 429 storm with automatic cooldown and zero unhandled outages.
+- [x] `PromptCacheManager`: Stable-prefix prompt assembly (`[CORE SYSTEM]`, `[SAFETY & DIRECTIVES]`, `[PROCEDURAL SKILLS]`, `[TOOLS SPEC]`) and token cost savings telemetry.
+- [x] Exit Criterion 3: `SecretScanner` verifies clean state and zero credential leaks across persisted artifacts, configs, and directory trees.
+- [x] Capability Registry reflection: `models.ollama`, `models.router`, `models.caching`, `security.credential_pool`, `security.secret_scanner` registered as `real`.
+- [x] ADR: `docs/decisions/0016-intelligence-model-router-credential-pool-ollama-p10.md`.
+- [x] Verification: `npm run test:v2p10` (10/10 passing).

@@ -85,7 +85,7 @@ export interface RunOptions {
   confirm?: (toolName: string, args: any) => Promise<boolean>;
 }
 
-export type ProviderType = 'gemini' | 'nvidia';
+export type ProviderType = 'gemini' | 'nvidia' | 'ollama';
 
 export interface AgentConfig {
   provider?: ProviderType;
@@ -102,6 +102,8 @@ export interface AgentConfig {
   consolidationThreshold?: number;
   nvidiaApiKey?: string;
   nvidiaBaseUrl?: string;
+  ollamaBaseUrl?: string;
+  enableRouting?: boolean;
   enableFallback?: boolean;
   fallbackProvider?: ProviderType;
   fallbackModelName?: string;

@@ -394,14 +394,25 @@ export class FallbackLLMProvider implements LLMProvider {
   }
 }
 
+import { OllamaProvider } from './ollamaProvider.js';
+export { OllamaProvider } from './ollamaProvider.js';
+
 export function createLLMProvider(
   providerType?: ProviderType,
-  options?: { apiKey?: string; baseUrl?: string; enableFallback?: boolean; fallbackApiKey?: string }
+  options?: {
+    apiKey?: string;
+    baseUrl?: string;
+    enableFallback?: boolean;
+    fallbackApiKey?: string;
+    ollamaBaseUrl?: string;
+  }
 ): LLMProvider {
   const type = providerType || (process.env.LLM_PROVIDER as ProviderType) || 'gemini';
 
   let primary: LLMProvider;
-  if (type === 'nvidia') {
+  if (type === 'ollama') {
+    primary = new OllamaProvider({ baseURL: options?.ollamaBaseUrl || options?.baseUrl });
+  } else if (type === 'nvidia') {
     primary = new NvidiaProvider(options?.apiKey, options?.baseUrl);
   } else {
     primary = new GeminiProvider(options?.apiKey);
