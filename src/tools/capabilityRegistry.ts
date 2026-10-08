@@ -203,3 +203,54 @@ export function seedP4CCapabilities(registry: CapabilityRegistry): void {
     phase: 'P4C'
   });
 }
+
+/**
+ * Seed the P4D Computer Use capability set (spec sections 18, 22, 71).
+ * Reflects true per-OS status: Windows is real on win32; macOS and Linux
+ * are unsupported on win32 with explicit reasons — never faked.
+ */
+export function seedP4DCapabilities(registry: CapabilityRegistry): void {
+  const isWindows = process.platform === 'win32';
+  const isDarwin = process.platform === 'darwin';
+  const isLinux = process.platform === 'linux';
+
+  registry.register({
+    id: 'computer.windows',
+    name: 'Windows Desktop Automation (Win32 / .NET UIAutomation)',
+    status: isWindows ? 'real' : 'unsupported',
+    reason: isWindows ? undefined : 'Windows automation backend requires Windows OS (win32).',
+    phase: 'P4D'
+  });
+
+  registry.register({
+    id: 'computer.macos',
+    name: 'macOS Desktop Automation (Accessibility API / Quartz)',
+    status: isDarwin ? 'real' : 'unsupported',
+    reason: isDarwin ? undefined : 'macOS Accessibility backend is only supported on macOS (Darwin).',
+    phase: 'P4D'
+  });
+
+  registry.register({
+    id: 'computer.linux',
+    name: 'Linux Desktop Automation (AT-SPI / X11 / Wayland)',
+    status: isLinux ? 'real' : 'unsupported',
+    reason: isLinux ? undefined : 'Linux AT-SPI backend is only supported on Linux OS.',
+    phase: 'P4D'
+  });
+
+  registry.register({
+    id: 'computer.accessibility',
+    name: 'OS Desktop Accessibility Tree Inspection (UI Automation / AT-SPI)',
+    status: isWindows ? 'real' : (isDarwin ? 'real' : 'unsupported'),
+    reason: (!isWindows && !isDarwin) ? 'Accessibility tree extraction unsupported on this platform.' : undefined,
+    phase: 'P4D'
+  });
+
+  registry.register({
+    id: 'computer.input',
+    name: 'Native Input Event Injection (Mouse / Keyboard)',
+    status: isWindows ? 'real' : 'unsupported',
+    reason: !isWindows ? 'Input injection backend unsupported on this platform.' : undefined,
+    phase: 'P4D'
+  });
+}

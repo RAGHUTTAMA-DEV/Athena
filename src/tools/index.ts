@@ -27,6 +27,11 @@ import { researchWebTool } from './researchWeb.js';
 import { ingestDocumentTool } from './ingestDocument.js';
 import { searchDocumentsTool } from './searchDocuments.js';
 import { readDocumentTool } from './readDocument.js';
+import {
+  computerInspectTool,
+  computerInteractTool,
+  computerManageWindowTool
+} from './computerTools.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -56,12 +61,16 @@ export const tools: Tool[] = [
   researchWebTool,
   ingestDocumentTool,
   searchDocumentsTool,
-  readDocumentTool
+  readDocumentTool,
+  computerInspectTool,
+  computerInteractTool,
+  computerManageWindowTool
 ];
 
 export * from './processManage.js';
 export * from './processManager.js';
 export * from './browserTools.js';
+export * from './computerTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

@@ -12,10 +12,11 @@ import { SessionSearchEngine } from './sessionSearch.js';
 import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
 import { BrowserEngine } from '../browser/browserEngine.js';
+import { ComputerController } from '../computer/computerController.js';
 
 export interface SemanticFact {
   id?: number;
@@ -81,9 +82,10 @@ export class EpisodicMemory {
     this.stores = createSqliteStores(this.db);
     this.pipeline = new MemoryWritePipeline(this.stores.memory);
     this.sessionSearchEngine = new SessionSearchEngine(this.stores.sessionSearch);
-    // P4B & P4C: seed honest capability registry.
+    // P4B, P4C & P4D: seed honest capability registry.
     seedP4BCapabilities(CapabilityRegistry.getInstance());
     seedP4CCapabilities(CapabilityRegistry.getInstance());
+    seedP4DCapabilities(CapabilityRegistry.getInstance());
     if (this.stores.browserProfile) {
       BrowserEngine.getInstance().getProfileManager().setStore(this.stores.browserProfile);
     }
@@ -199,6 +201,12 @@ export class EpisodicMemory {
 
   getBrowserEngine(): BrowserEngine {
     return BrowserEngine.getInstance();
+  }
+
+  // --- P4D: Computer Use and Application Control ---
+
+  getComputerController(): ComputerController {
+    return ComputerController.getInstance();
   }
 
   private requireRunStore(): SqliteStores['run'] {

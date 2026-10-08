@@ -62,7 +62,26 @@ const TOOL_ALIASES: Record<string, string> = {
   'execute_shell_command': 'executeCommand',
   'shell': 'executeCommand',
   'bash': 'executeCommand',
-  'terminal': 'executeCommand'
+  'terminal': 'executeCommand',
+  'system_get_accessibility_tree': 'computerInspect',
+  'get_accessibility_tree': 'computerInspect',
+  'accessibility_tree': 'computerInspect',
+  'accessibilityTree': 'computerInspect',
+  'capture_desktop_screenshot': 'computerInspect',
+  'system_capture_desktop_screenshot': 'computerInspect',
+  'get_display_resolution': 'computerInspect',
+  'system_get_display_resolution': 'computerInspect',
+  'list_open_windows': 'computerInspect',
+  'system_list_open_windows': 'computerInspect',
+  'find_window': 'computerInspect',
+  'find_windows': 'computerInspect',
+  'list_windows': 'computerInspect',
+  'get_windows': 'computerInspect',
+  'focus_window': 'computerManageWindow',
+  'manage_window': 'computerManageWindow',
+  'computer_inspect': 'computerInspect',
+  'computer_interact': 'computerInteract',
+  'computer_manage_window': 'computerManageWindow'
 };
 
 export class Agent {

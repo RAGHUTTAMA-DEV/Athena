@@ -339,6 +339,27 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     timeoutMs: 180000,
     permissions: ['system', 'cmd:exec'],
     tags: ['coding_harness', 'code']
+  },
+  computerInspect: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 30000,
+    permissions: ['computer'],
+    tags: ['computer', 'desktop', 'inspect']
+  },
+  computerInteract: {
+    riskLevel: 'confirm',
+    parallelSafe: false,
+    timeoutMs: 20000,
+    permissions: ['computer'],
+    tags: ['computer', 'input', 'interactive']
+  },
+  computerManageWindow: {
+    riskLevel: 'confirm',
+    parallelSafe: false,
+    timeoutMs: 15000,
+    permissions: ['computer'],
+    tags: ['computer', 'window']
   }
 };
 
@@ -732,7 +753,8 @@ export class ToolSelector {
     email: ['email', 'mail', 'gmail', 'inbox', 'message', 'draft', 'send email', 'read email'],
     calendar: ['calendar', 'meeting', 'events', 'appointment', 'schedule', 'rsvp'],
     notion: ['notion', 'page', 'database', 'notes', 'docs', 'workspace'],
-    diagram: ['excalidraw', 'draw', 'diagram', 'canvas', 'sketch', 'mermaid', 'shape']
+    diagram: ['excalidraw', 'draw', 'diagram', 'canvas', 'sketch', 'mermaid', 'shape'],
+    computer: ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution']
   };
 
   private static TOOL_GROUPS: Record<string, string[]> = {
@@ -741,7 +763,8 @@ export class ToolSelector {
     web: ['searchWeb', 'browser', 'browserNavigate', 'browserAction', 'browserScreenshot'],
     python: ['executePython', 'calculate'],
     agent: ['delegateTask', 'delegateCodingTask'],
-    cron: ['cronjob']
+    cron: ['cronjob'],
+    computer: ['computerInspect', 'computerInteract', 'computerManageWindow']
   };
 
   /**

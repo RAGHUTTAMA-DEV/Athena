@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P4C: Browser as First-Class Environment — ✅ COMPLETE** |
-| **Next phase** | P4D: Computer Use and Application Control — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P4D: Computer Use and Application Control — ✅ COMPLETE** |
+| **Next phase** | P5: Learning — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, & V2 P4C test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, & V2 P4D test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -26,7 +26,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P1** | **Agent Foundation** — versioned migrations, AgentProfile + version history, User model, Workspace/Project entities, candidate memory lifecycle, permission model, store interfaces | ✅ **done** (`6846f5c`) | `npm run test:v2p1` — 9/9 |
 | **P2** | **Persistent Autonomy** — Goal/Task entities, extended run lifecycle (12 states), `run_waits`, crash-safe resume, per-goal budgets, Goal→Task→Run spans, background safe tool guard | ✅ **done** | `npm run test:v2p2` — 11/11 |
 | **P3** | **Memory and Context** — Memory model per spec (scopes `agent`, `goal`, types `fact`, `preference`, etc., lifecycle `quarantined`, `archived`), Section 65 Secure Memory Write Pipeline (sanitize, prompt injection quarantine, credential masking), Universal Session Search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors), Bounded Context References (`@file`, `@folder`, `@repo`, `@run`, `@goal`, `@task`, `@memory`, `@project`), Cache-Friendly Layered ContextEngine, Token & Cost Accounting | ✅ **done** | `npm run test:v2p3` — 9/9 |
-| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ · P4C: Browser ✅ (P4D: Computer Use pending) | 🔄 in progress (P4A + P4B + P4C done) | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 · `npm run test:v2p4c` — 9/9 |
+| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ · P4C: Browser ✅ · P4D: Computer Use ✅ | ✅ **done** | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 · `npm run test:v2p4c` — 9/9 · `npm run test:v2p4d` — 8/8 |
 | **P5** | Learning | ⛔ not started | — |
 | **P6** | Multi-Agent | ⛔ not started | — |
 | **P7** | Proactive Agent | ⛔ not started | — |
