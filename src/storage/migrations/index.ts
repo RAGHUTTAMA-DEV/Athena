@@ -615,6 +615,51 @@ const migrationV2P5Learning: Migration = {
   }
 };
 
+const migrationV2P6MultiAgent: Migration = {
+  version: 8,
+  name: 'v2_p6_multi_agent',
+  up: async (db) => {
+    // 1. Agent messages table (Spec Section 34 - A2A Durable Mailbox)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_messages (
+        id TEXT PRIMARY KEY,
+        sender_id TEXT NOT NULL,
+        recipient_id TEXT NOT NULL,
+        message_type TEXT NOT NULL,
+        goal_id TEXT,
+        task_id TEXT,
+        run_id TEXT,
+        payload TEXT NOT NULL,
+        status TEXT NOT NULL,
+        reply_to_id TEXT,
+        created_at INTEGER NOT NULL,
+        processed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_messages_recipient ON agent_messages(recipient_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_messages_sender ON agent_messages(sender_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_messages_goal ON agent_messages(goal_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_messages_task ON agent_messages(task_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_messages_status ON agent_messages(status);
+      CREATE INDEX IF NOT EXISTS idx_agent_messages_reply ON agent_messages(reply_to_id);
+    `);
+
+    // 2. Agent teams table (Spec Section 32 - Optional teams with justification)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_teams (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        justification TEXT NOT NULL,
+        lead_agent_id TEXT NOT NULL,
+        member_agent_ids TEXT NOT NULL,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_teams_lead ON agent_teams(lead_agent_id);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
@@ -622,7 +667,8 @@ export const MIGRATIONS: Migration[] = [
   migrationV2P3MemoryContext,
   migrationV2P4BResearchRagDocuments,
   migrationV2P4CBrowserProfiles,
-  migrationV2P5Learning
+  migrationV2P5Learning,
+  migrationV2P6MultiAgent
 ];
 
 

@@ -374,6 +374,27 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     timeoutMs: 15000,
     permissions: ['system'],
     tags: ['learning', 'workflow']
+  },
+  agentDelegate: {
+    riskLevel: 'confirm',
+    parallelSafe: false,
+    timeoutMs: 180000,
+    permissions: ['system'],
+    tags: ['multiagent', 'delegation', 'specialist']
+  },
+  agentMessageSend: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 10000,
+    permissions: ['system'],
+    tags: ['multiagent', 'messaging', 'a2a']
+  },
+  agentMailboxCheck: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 10000,
+    permissions: ['system'],
+    tags: ['multiagent', 'messaging', 'mailbox']
   }
 };
 

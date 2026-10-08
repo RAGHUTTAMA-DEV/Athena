@@ -36,6 +36,8 @@ import {
   routineManageTool,
   workflowLearnTool
 } from './routineTools.js';
+import { agentDelegateTool } from './agentDelegate.js';
+import { agentMessageSendTool, agentMailboxCheckTool } from './agentMessageTools.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -70,7 +72,10 @@ export const tools: Tool[] = [
   computerInteractTool,
   computerManageWindowTool,
   routineManageTool,
-  workflowLearnTool
+  workflowLearnTool,
+  agentDelegateTool,
+  agentMessageSendTool,
+  agentMailboxCheckTool
 ];
 
 export * from './processManage.js';
@@ -78,6 +83,8 @@ export * from './processManager.js';
 export * from './browserTools.js';
 export * from './computerTools.js';
 export * from './routineTools.js';
+export * from './agentDelegate.js';
+export * from './agentMessageTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

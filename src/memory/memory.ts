@@ -9,15 +9,16 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
 import { BrowserEngine } from '../browser/browserEngine.js';
 import { ComputerController } from '../computer/computerController.js';
 import { ProgressiveSkillManager, RoutineEngine, WorkflowLearner } from '../learning/index.js';
+import { AgentMailbox, HandoffEngine, TeamManager, DelegationContractEngine } from '../multiagent/index.js';
 
 export interface SemanticFact {
   id?: number;
@@ -97,11 +98,12 @@ export class EpisodicMemory {
     this.stores = createSqliteStores(this.db);
     this.pipeline = new MemoryWritePipeline(this.stores.memory);
     this.sessionSearchEngine = new SessionSearchEngine(this.stores.sessionSearch);
-    // P4B, P4C, P4D & P5: seed honest capability registry.
+    // P4B, P4C, P4D, P5 & P6: seed honest capability registry.
     seedP4BCapabilities(CapabilityRegistry.getInstance());
     seedP4CCapabilities(CapabilityRegistry.getInstance());
     seedP4DCapabilities(CapabilityRegistry.getInstance());
     seedP5Capabilities(CapabilityRegistry.getInstance());
+    seedP6Capabilities(CapabilityRegistry.getInstance());
     if (this.stores.browserProfile) {
       BrowserEngine.getInstance().getProfileManager().setStore(this.stores.browserProfile);
     }
@@ -268,6 +270,55 @@ export class EpisodicMemory {
       this.workflowLearner = new WorkflowLearner(wfStore, skillMgr, routineEng);
     }
     return this.workflowLearner;
+  }
+
+  // --- P6: Multi-Agent Subsystem (Spec Sections 32, 33, 34) ---
+
+  private agentMailbox?: AgentMailbox;
+  private handoffEngine?: HandoffEngine;
+  private teamManager?: TeamManager;
+  private delegationEngine?: DelegationContractEngine;
+
+  getAgentMessageStore(): AgentMessageStore | null {
+    return this.stores ? this.stores.agentMessage : null;
+  }
+
+  getAgentTeamStore(): AgentTeamStore | null {
+    return this.stores ? this.stores.agentTeam : null;
+  }
+
+  getDelegationContractEngine(): DelegationContractEngine {
+    if (!this.delegationEngine) {
+      this.delegationEngine = new DelegationContractEngine();
+    }
+    return this.delegationEngine;
+  }
+
+  getAgentMailbox(): AgentMailbox {
+    if (!this.agentMailbox) {
+      const store = this.getAgentMessageStore();
+      if (!store) throw new Error('Database not initialized.');
+      this.agentMailbox = new AgentMailbox(store);
+    }
+    return this.agentMailbox;
+  }
+
+  getHandoffEngine(): HandoffEngine {
+    if (!this.handoffEngine) {
+      const mailbox = this.getAgentMailbox();
+      const delegationEngine = this.getDelegationContractEngine();
+      this.handoffEngine = new HandoffEngine(mailbox, delegationEngine, this.getTaskStore() || undefined);
+    }
+    return this.handoffEngine;
+  }
+
+  getTeamManager(): TeamManager {
+    if (!this.teamManager) {
+      const store = this.getAgentTeamStore();
+      if (!store) throw new Error('Database not initialized.');
+      this.teamManager = new TeamManager(store);
+    }
+    return this.teamManager;
   }
 
   private requireRunStore(): SqliteStores['run'] {

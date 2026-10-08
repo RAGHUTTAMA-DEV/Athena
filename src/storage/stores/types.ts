@@ -393,4 +393,64 @@ export interface SkillStore {
   delete(id: string): Promise<boolean>;
 }
 
+/** A2A Messaging (Spec Section 34). */
+export type AgentMessageType =
+  | 'request'
+  | 'response'
+  | 'handoff'
+  | 'question'
+  | 'blocked'
+  | 'status'
+  | 'artifact'
+  | 'approval'
+  | 'cancel';
+
+export type AgentMessageStatus = 'sent' | 'delivered' | 'read' | 'processed' | 'failed';
+
+export interface AgentMessage {
+  id: string;
+  senderId: string;
+  recipientId: string;
+  messageType: AgentMessageType;
+  goalId?: string;
+  taskId?: string;
+  runId?: string;
+  payload: Record<string, any> | string;
+  status: AgentMessageStatus;
+  replyToId?: string;
+  createdAt: number;
+  processedAt?: number;
+}
+
+export interface AgentMessageStore {
+  save(message: AgentMessage): Promise<AgentMessage>;
+  get(id: string): Promise<AgentMessage | null>;
+  listByRecipient(recipientId: string, filter?: { goalId?: string; taskId?: string; status?: AgentMessageStatus; limit?: number }): Promise<AgentMessage[]>;
+  listByThread(replyToId: string): Promise<AgentMessage[]>;
+  listByTask(taskId: string): Promise<AgentMessage[]>;
+  listByGoal(goalId: string): Promise<AgentMessage[]>;
+  updateStatus(id: string, status: AgentMessageStatus): Promise<void>;
+  delete(id: string): Promise<boolean>;
+}
+
+/** Multi-Agent Teams (Spec Section 32). */
+export interface AgentTeam {
+  id: string;
+  name: string;
+  /** Mandatory specialization justification per build plan rule. */
+  justification: string;
+  leadAgentId: string;
+  memberAgentIds: string[];
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AgentTeamStore {
+  save(team: AgentTeam): Promise<AgentTeam>;
+  get(id: string): Promise<AgentTeam | null>;
+  list(): Promise<AgentTeam[]>;
+  delete(id: string): Promise<boolean>;
+}
+
 

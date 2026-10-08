@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P5: Learning — ✅ COMPLETE** |
-| **Next phase** | P6: Multi-Agent — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P6: Multi-Agent — ✅ COMPLETE** |
+| **Next phase** | P7: Proactive Agent — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, & V2 P5 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, & V2 P6 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -28,7 +28,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P3** | **Memory and Context** — Memory model per spec (scopes `agent`, `goal`, types `fact`, `preference`, etc., lifecycle `quarantined`, `archived`), Section 65 Secure Memory Write Pipeline (sanitize, prompt injection quarantine, credential masking), Universal Session Search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors), Bounded Context References (`@file`, `@folder`, `@repo`, `@run`, `@goal`, `@task`, `@memory`, `@project`), Cache-Friendly Layered ContextEngine, Token & Cost Accounting | ✅ **done** | `npm run test:v2p3` — 9/9 |
 | **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ · P4C: Browser ✅ · P4D: Computer Use ✅ | ✅ **done** | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 · `npm run test:v2p4c` — 9/9 · `npm run test:v2p4d` — 8/8 |
 | **P5** | **Learning** — Progressive disclosure skills, review lifecycle, standing routines with EventBus/Scheduler triggers, distilled learned workflows from successful runs (not raw recordings) | ✅ **done** | `npm run test:v2p5` — 9/9 |
-| **P6** | Multi-Agent | ⛔ not started | — |
+| **P6** | **Multi-Agent** — Specialized profiles (Researcher, Coder, Reviewer, Planner, Browser, Data), formal DelegationContract (tool scoping guard, depth limit ≤3, concurrency cap ≤5), durable A2A mailbox (9 message types, SQLite persistence), crash-safe handoff pipeline (Researcher → Coder → Reviewer) surviving restarts, optional teams with justification rule | ✅ **done** | `npm run test:v2p6` — 10/10 |
 | **P7** | Proactive Agent | ⛔ not started | — |
 | **P8** | Communication | ⛔ not started | — |
 | **P9** | Multimodal and Voice | ⛔ not started | — |
@@ -113,6 +113,35 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Tools Suite** — `browserNavigate`, `browserAction`, `browserTabManage`, `browserSessionManage`, `browserExtract`, `browserScreenshot` registered in `SearchableToolRegistry` with complete manifests (`permissions: ['browser', 'net:http']`, timeouts, risk levels). Backward-compatible re-exports in `interactiveBrowser.ts`.
 - **ADR** — [`docs/decisions/0009-browser-first-class-environment-p4c.md`](docs/decisions/0009-browser-first-class-environment-p4c.md).
 
+### Added by V2 P4D
+- **Real OS Automation Backends** — Windows UI Automation / PowerShell bridge (`WindowsAutomationBackend`), macOS Accessibility API (`MacAutomationBackend`), Linux AT-SPI (`LinuxAutomationBackend`), and fallback desktop bridge.
+- **Screen Inspection & Accessibility Tree** — Screen resolution, bounded desktop captures, top-level application window enumeration, and modern accessibility tree inspection without hallucination.
+- **Input Action Execution & Audit Log** — Mouse move, click, drag, scroll, text typing, keyboard hotkeys, and window management with detailed JSON audit trails.
+- **Permission Scopes & Policy Guard** — Restricts window and application interactions to whitelisted application titles; blocks unauthorized apps.
+- **Capability Registry** — 5 computer use capabilities seeded: `computer.windows`, `computer.darwin`, `computer.linux`, `computer.accessibility`, `computer.input` with honest per-OS reporting.
+- **ADR** — [`docs/decisions/0010-computer-use-application-control-p4d.md`](docs/decisions/0010-computer-use-application-control-p4d.md).
+
+### Added by V2 P5
+- **Schema Migration 7** — `v2_p5_learning`: tables `routines`, `learned_workflows`, and `skill_records` with indexes.
+- **Progressive Disclosure Skills (Spec Section 29)** — `ProgressiveSkillManager`: lightweight in-memory metadata (<50 tokens) with on-demand instruction body retrieval, review lifecycle (`proposed` $\rightarrow$ `reviewed` $\rightarrow$ `active`), and rolling success rate telemetry.
+- **Autonomous Standing Routines (Spec Section 30)** — `RoutineEngine`: subscriptions to EventBus topics and schedules (cron), conditional payload evaluation, reactive dispatch, and execution audit history.
+- **Distilled Learned Workflows (Spec Section 31)** — `WorkflowLearner`: distills successful runs into abstract reusable workflows (intent, steps, dependencies, conditions, permissions, failure handling — strictly not raw action recordings or transcripts); review gate and promotion to Skills or Routines.
+- **Tools Suite** — `routineManage` and `workflowLearn` registered with complete manifests.
+- **ADR** — [`docs/decisions/0011-learning-progressive-skills-routines-workflows-p5.md`](docs/decisions/0011-learning-progressive-skills-routines-workflows-p5.md).
+
+### Added by V2 P6
+- **Schema Migration 8** — `v2_p6_multi_agent`: tables `agent_messages` (durable A2A mailbox) and `agent_teams` with indexed recipient, sender, goal, task, status, and reply threads.
+- **`AgentMessageStore` & `AgentTeamStore`** — SQLite implementations (`SqliteAgentMessageStore`, `SqliteAgentTeamStore`) behind memory facade getters.
+- **Specialized Agent Profiles (Spec Section 32)** — 6 versioned standard profiles: `Researcher`, `Coder`, `Reviewer`, `Planner`, `Browser Agent`, `Data Agent`. Reviewer profile enforces least-privilege read-only tool permissions with zero write or shell execution access.
+- **Formal Delegation Contract & Engine (Spec Section 33)** — `DelegationContractEngine`: validates scoped context, explicit `allowedTools`, bounded lifetime (max turns 1–30, timeouts), and output schemas. Strictly enforces depth limit ($\le 3$) and active subagent concurrency caps ($\le 5$).
+- **Tool Scoping Guard (Spec Section 33)** — Strict execution verification rejecting any subagent tool call not explicitly listed in its contract's `allowedTools`.
+- **Durable A2A Mailbox (Spec Section 34)** — `AgentMailbox`: inter-agent messaging supporting 9 canonical message types (`request`, `response`, `handoff`, `question`, `blocked`, `status`, `artifact`, `approval`, `cancel`), threading via `replyToId`, and SQLite persistence surviving process crashes.
+- **Crash-Safe Multi-Stage Handoff Engine** — `HandoffEngine`: multi-stage pipelines (Researcher $\rightarrow$ Coder $\rightarrow$ Reviewer); recovers pipeline state and unconsumed handoffs from SQLite upon process restart, continuing subsequent stages deterministically without duplicate execution.
+- **Optional Teams with Specialization Justification Rule (Spec Section 32)** — `TeamManager`: prevents gratuitous teams by enforcing mandatory substantive specialization rationale ($\ge 15$ characters) and minimum membership ($\ge 2$).
+- **Tools Suite** — `agentDelegate`, `agentMessageSend`, `agentMailboxCheck` registered in `SearchableToolRegistry`.
+- **Capability Registry (spec section 71)** — 5 P6 capabilities seeded as `real`: `multiagent.specialized_profiles`, `multiagent.delegation_contract`, `multiagent.a2a_mailbox`, `multiagent.handoff_engine`, `multiagent.teams`.
+- **ADR** — [`docs/decisions/0012-multi-agent-delegation-a2a-messaging-p6.md`](docs/decisions/0012-multi-agent-delegation-a2a-messaging-p6.md).
+
 ---
 
 ## Test suite status
@@ -121,7 +150,10 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P4C (new, 9 tests)** | `npm run test:v2p4c` | ✅ 9/9 |
+| **V2 P6 (new, 10 tests)** | `npm run test:v2p6` | ✅ 10/10 |
+| **V2 P5 (9 tests)** | `npm run test:v2p5` | ✅ 9/9 |
+| **V2 P4D (8 tests)** | `npm run test:v2p4d` | ✅ 8/8 |
+| **V2 P4C (9 tests)** | `npm run test:v2p4c` | ✅ 9/9 |
 | **V2 P4B (9 tests)** | `npm run test:v2p4b` | ✅ 9/9 |
 | **V2 P4A (6 tests)** | `npm run test:v2p4a` | ✅ 6/6 |
 | **V2 P3 (9 tests)** | `npm run test:v2p3` | ✅ 9/9 |
@@ -143,6 +175,15 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 | Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 10/12 on this run — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P6 exit criteria — all PASS
+1. Handoff Researcher $\rightarrow$ Coder $\rightarrow$ Reviewer survives a restart — **PASS** (TEST 7: step 0 Researcher completes $\rightarrow$ durable handoff written to mailbox $\rightarrow$ process kill simulated $\rightarrow$ DB and engine re-instantiated $\rightarrow$ Coder resumes with Researcher findings $\rightarrow$ Reviewer audits diff and approves)
+2. A subagent cannot use a tool outside its scope — **PASS** (TEST 4: attempt to invoke `deleteFile` on scoped subagent assigned `[readFile, inspectPath, searchFiles]` immediately blocked with `Tool scoping violation`)
+3. Agent count and depth are capped — **PASS** (TEST 5: delegation attempt at depth 3 blocked by depth limit; delegation attempt exceeding 5 active subagents blocked by concurrency cap)
+
+### P5 exit criteria — all PASS
+1. Repeated multi-step workflow becomes proposed skill, passes review, and executes with success tracking — **PASS** (TEST 5: distilled workflow promoted to skill, reviewed, executed with 100% success rate)
+2. Routine "when CI fails" fires from an event — **PASS** (TEST 6: event "ci:failed" automatically triggers and executes CI auto-repair routine)
 
 ### P4C exit criteria — all PASS
 1. E2E navigate $\rightarrow$ authenticate $\rightarrow$ perform action $\rightarrow$ verify — **PASS** (TEST 8: navigate to login form $\rightarrow$ fill credentials $\rightarrow$ authenticate $\rightarrow$ verify dashboard $\rightarrow$ perform authenticated action $\rightarrow$ verify updated dashboard state)

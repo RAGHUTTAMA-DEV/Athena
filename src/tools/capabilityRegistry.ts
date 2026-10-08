@@ -290,3 +290,43 @@ export function seedP5Capabilities(registry: CapabilityRegistry): void {
   });
 }
 
+/**
+ * Seed the P6 Multi-Agent capability set (spec sections 32, 33, 34, 71).
+ */
+export function seedP6Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'multiagent.specialized_profiles',
+    name: 'Specialized Agent Profiles (Researcher, Coder, Reviewer, Planner, Browser, Data)',
+    status: 'real',
+    phase: 'P6'
+  });
+
+  registry.register({
+    id: 'multiagent.delegation_contract',
+    name: 'Formal Delegation Contract with Tool Scoping Guard & Depth Limits',
+    status: 'real',
+    phase: 'P6'
+  });
+
+  registry.register({
+    id: 'multiagent.a2a_mailbox',
+    name: 'Durable A2A Mailbox Supporting 9 Message Types and SQLite Persistence',
+    status: 'real',
+    phase: 'P6'
+  });
+
+  registry.register({
+    id: 'multiagent.handoff_engine',
+    name: 'Crash-Safe Multi-Agent Handoff Pipeline Surviving Restarts',
+    status: 'real',
+    phase: 'P6'
+  });
+
+  registry.register({
+    id: 'multiagent.teams',
+    name: 'Multi-Agent Teams with Mandatory Specialization Justification Rule',
+    status: 'real',
+    phase: 'P6'
+  });
+}
+

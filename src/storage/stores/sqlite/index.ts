@@ -14,6 +14,8 @@ import { SqliteBrowserProfileStore } from './sqliteBrowserProfileStore.js';
 import { SqliteRoutineStore } from './sqliteRoutineStore.js';
 import { SqliteLearnedWorkflowStore } from './sqliteLearnedWorkflowStore.js';
 import { SqliteSkillStore } from './sqliteSkillStore.js';
+import { SqliteAgentMessageStore } from './sqliteAgentMessageStore.js';
+import { SqliteAgentTeamStore } from './sqliteAgentTeamStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -30,6 +32,8 @@ export { SqliteBrowserProfileStore } from './sqliteBrowserProfileStore.js';
 export { SqliteRoutineStore } from './sqliteRoutineStore.js';
 export { SqliteLearnedWorkflowStore } from './sqliteLearnedWorkflowStore.js';
 export { SqliteSkillStore } from './sqliteSkillStore.js';
+export { SqliteAgentMessageStore } from './sqliteAgentMessageStore.js';
+export { SqliteAgentTeamStore } from './sqliteAgentTeamStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -49,6 +53,8 @@ export interface SqliteStores {
   routine: SqliteRoutineStore;
   learnedWorkflow: SqliteLearnedWorkflowStore;
   skill: SqliteSkillStore;
+  agentMessage: SqliteAgentMessageStore;
+  agentTeam: SqliteAgentTeamStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -69,7 +75,9 @@ export function createSqliteStores(db: Database): SqliteStores {
     browserProfile: new SqliteBrowserProfileStore(db),
     routine: new SqliteRoutineStore(db),
     learnedWorkflow: new SqliteLearnedWorkflowStore(db),
-    skill: new SqliteSkillStore(db)
+    skill: new SqliteSkillStore(db),
+    agentMessage: new SqliteAgentMessageStore(db),
+    agentTeam: new SqliteAgentTeamStore(db)
   };
 }
 
