@@ -841,6 +841,32 @@ export const migrationV2P8Communication: Migration = {
   }
 };
 
+/**
+ * Migration 11: V2 P9 Multimodal and Voice (multimodal_artifacts for images, audio, PDF, and generated media).
+ */
+export const migrationV2P9MultimodalVoice: Migration = {
+  version: 11,
+  name: 'v2_p9_multimodal_voice',
+  up: async (db: Database) => {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS multimodal_artifacts (
+        id TEXT PRIMARY KEY,
+        media_type TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        source TEXT,
+        transcription TEXT,
+        caption TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_multimodal_type ON multimodal_artifacts(media_type);
+      CREATE INDEX IF NOT EXISTS idx_multimodal_source ON multimodal_artifacts(source);
+      CREATE INDEX IF NOT EXISTS idx_multimodal_created ON multimodal_artifacts(created_at);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
@@ -851,7 +877,8 @@ export const MIGRATIONS: Migration[] = [
   migrationV2P5Learning,
   migrationV2P6MultiAgent,
   migrationV2P7ProactiveAgent,
-  migrationV2P8Communication
+  migrationV2P8Communication,
+  migrationV2P9MultimodalVoice
 ];
 
 

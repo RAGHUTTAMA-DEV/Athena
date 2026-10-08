@@ -432,3 +432,66 @@ export function seedP8Capabilities(registry: CapabilityRegistry): void {
   });
 }
 
+/**
+ * Seed the P9 Multimodal & Voice capability set (spec sections 46, 47).
+ */
+export function seedP9Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'multimodal.vision',
+    name: 'Vision Analysis with UI Element Detection and OCR Text Extraction',
+    status: 'real',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.stt',
+    name: 'Speech-to-Text Audio Transcription with Language and Timestamp Support',
+    status: 'real',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.tts',
+    name: 'Text-to-Speech Audio Synthesis with PCM WAV Generation',
+    status: 'real',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.image_generation',
+    name: 'Image Generation and Multimodal Artifact Persistence',
+    status: 'real',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.voice_goal_routing',
+    name: 'Voice Request to Persistent Goal and Planned Task Routing via Core Agent',
+    status: 'real',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.screenshot_browser_loop',
+    name: 'Closed-Loop Screenshot Vision Analysis, Browser Action, and Verification',
+    status: 'real',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.realtime_voice_duplex',
+    name: 'Real-time Full Duplex Voice Conversational Stream (Experimental)',
+    status: 'experimental',
+    reason: 'Requires WebRTC or bidirectional low-latency audio stream server setup',
+    phase: 'P9'
+  });
+
+  registry.register({
+    id: 'multimodal.video_streaming',
+    name: 'Continuous Camera Video Stream Analysis (Unsupported)',
+    status: 'unsupported',
+    reason: 'Requires hardware camera capture and continuous video processing pipeline',
+    phase: 'P9'
+  });
+}
+

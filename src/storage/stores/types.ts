@@ -664,4 +664,29 @@ export interface CalendarStore {
   listEventsForGoal(goalId: string): Promise<CalendarEvent[]>;
 }
 
+// ---------------------------------------------------------------------------
+// P9 Multimodal & Voice Subsystem Interfaces (Spec Sections 46, 47)
+// ---------------------------------------------------------------------------
+
+export type MediaType = 'image' | 'audio' | 'pdf' | 'video';
+
+export interface MultimodalArtifact {
+  id: string;
+  mediaType: MediaType;
+  mimeType: string;
+  filePath: string;
+  source?: string;
+  transcription?: string;
+  caption?: string;
+  metadata?: Record<string, any>;
+  createdAt: number;
+}
+
+export interface MultimodalStore {
+  saveArtifact(artifact: MultimodalArtifact): Promise<MultimodalArtifact>;
+  getArtifact(id: string): Promise<MultimodalArtifact | null>;
+  deleteArtifact(id: string): Promise<boolean>;
+  listArtifacts(filter?: { mediaType?: MediaType; source?: string; limit?: number }): Promise<MultimodalArtifact[]>;
+}
+
 

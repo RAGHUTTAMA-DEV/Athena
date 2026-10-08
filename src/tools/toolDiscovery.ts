@@ -24,7 +24,10 @@ export class ToolDiscoveryPipeline {
     'computer': ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution'],
     'proactive': ['webhook', 'webhooks', 'heartbeat', 'proactive', 'stall', 'stalled', 'replay', 'endpoint', 'receipts'],
     'communication': ['message', 'channel', 'send', 'email', 'telegram', 'discord', 'slack', 'whatsapp', 'outbound', 'inbound', 'conversation', 'recipient'],
-    'calendar': ['calendar', 'event', 'deadline', 'reminder', 'schedule', 'meeting', 'appointment']
+    'calendar': ['calendar', 'event', 'deadline', 'reminder', 'schedule', 'meeting', 'appointment'],
+    'multimodal': ['multimodal', 'image', 'picture', 'photo', 'vision', 'ocr', 'inspect', 'generate', 'voice', 'audio', 'speech', 'transcribe', 'tts', 'stt', 'listen', 'speak', 'talk', 'wav', 'mp3'],
+    'vision': ['vision', 'image', 'inspect', 'see', 'look', 'screenshot', 'photo', 'picture', 'ocr'],
+    'voice': ['voice', 'audio', 'speech', 'transcribe', 'stt', 'tts', 'speak', 'talk', 'listen', 'sound', 'wav', 'mp3']
   };
 
   /**

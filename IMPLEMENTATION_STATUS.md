@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P8: Communication — ✅ COMPLETE** |
-| **Next phase** | P9: Multimodal and Voice — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P9: Multimodal and Voice — ✅ COMPLETE** |
+| **Next phase** | P10: Intelligence — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, V2 P6, V2 P7, & V2 P8 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, V2 P6, V2 P7, V2 P8, & V2 P9 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -31,7 +31,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P6** | **Multi-Agent** — Specialized profiles (Researcher, Coder, Reviewer, Planner, Browser, Data), formal DelegationContract (tool scoping guard, depth limit ≤3, concurrency cap ≤5), durable A2A mailbox (9 message types, SQLite persistence), crash-safe handoff pipeline (Researcher → Coder → Reviewer) surviving restarts, optional teams with justification rule | ✅ **done** | `npm run test:v2p6` — 10/10 |
 | **P7** | **Proactive Agent** — Schema Migration 9 (durable events, webhooks, heartbeats), 5-stage event pipeline (Filter → Relevance → Wake → Reason → Action) with rate limits and cost guards, event-aware cost-capped heartbeat engine ($0 quiet ticks, measured reasoning cost, hourly/daily spend caps), secure webhook ingestion (HMAC-SHA256, replay protection, dedup, PromptDefense, privilege separation guard), stalled-goal autonomous wake detection, event replay | ✅ **done** | `npm run test:v2p7` — 10/10 |
 | **P8** | **Communication** — Schema Migration 10 (channels, conversations, participants, messages, calendar), normalized ChannelAdapters (CLI, Telegram, Email, Discord, Slack, WhatsApp), ChannelGatewayManager with sender authorization & privilege separation guard, PromptDefense untrusted boundary, outbound policy & secret redaction, natural language deadlines ("tomorrow morning" -> epoch), proactive calendar event wake | ✅ **done** | `npm run test:v2p8` — 11/11 |
-| **P9** | Multimodal and Voice | ⛔ not started | — |
+| **P9** | **Multimodal and Voice** — Schema Migration 11 (`multimodal_artifacts`), `SqliteMultimodalStore`, `MultiModalEngine` facade, Gemini and Mock Vision providers (OCR text detection, UI elements), STT provider (transcription), TTS provider (valid PCM WAV generation), ImageGen provider, voice request creates goal via normal core path, screenshot → browser → verify E2E loop, capability honesty | ✅ **done** | `npm run test:v2p9` — 10/10 |
 | **P10** | Intelligence | ⛔ not started | — |
 | **P11** | Reliability | ⛔ not started | — |
 | **P12** | Platform (PostgreSQL adapter for P1 store interfaces, API) | ⛔ not started | — |
@@ -166,6 +166,18 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Capability Registry (spec section 71)** — 8 P8 capabilities seeded: 7 `real`, 1 `experimental` (`communication.whatsapp`).
 - **ADR** — [`docs/decisions/0014-communication-channel-gateway-calendar-p8.md`](docs/decisions/0014-communication-channel-gateway-calendar-p8.md).
 
+### Added by V2 P9
+- **Schema Migration 11** — `v2_p9_multimodal_voice`: table `multimodal_artifacts` storing image, audio, pdf, video media with transcription, caption, JSON metadata, and indexes.
+- **`MultimodalStore`** — SQLite implementation (`SqliteMultimodalStore`) wired into `SqliteStores` and `EpisodicMemory` facade getters (`getMultimodalStore()`, `getMultimodalEngine()`).
+- **Multimodal Providers** — Vision (`GeminiVisionProvider`, `MockVisionProvider`), STT (`GeminiSTTProvider`, `MockSTTProvider`), TTS (`SynthesizedTTSProvider`, `CloudTTSProvider`), Image Generation (`MockImageGenProvider`, `CloudImageGenProvider`).
+- **Valid PCM WAV Synthesis** — `SynthesizedTTSProvider` generates standard 16-bit 16kHz PCM WAV buffers with 44-byte RIFF header for playback compatibility.
+- **MultiModalEngine Facade** — High-level orchestrator handling image analysis, audio transcription, speech synthesis, image generation, and artifact persistence.
+- **Voice Request to Goal Path (Exit Criterion 1)** — Spoken audio transcribes via STT, routes through Athena core `agent.createGoal()` and `agent.planGoal()`, persisting goals and tasks in SQLite `goals` and `tasks` tables with synthesized voice confirmation.
+- **Screenshot → Browser → Verify E2E Loop (Exit Criterion 2)** — Analyzes initial screenshot, navigates/executes browser actions via `BrowserEngine`, captures verification screenshot, and confirms outcome with vision analysis, persisting all artifacts.
+- **Tools Suite** — `imageInspect`, `imageGenerate`, `voiceTranscribe`, `voiceSpeak`, `voiceGoalCreate` registered in `SearchableToolRegistry`.
+- **Capability Registry (spec section 71)** — 8 P9 capabilities seeded: 6 `real`, 1 `experimental` (`multimodal.realtime_voice_duplex`), 1 `unsupported` (`multimodal.video_streaming`).
+- **ADR** — [`docs/decisions/0015-multimodal-voice-vision-stt-tts-p9.md`](docs/decisions/0015-multimodal-voice-vision-stt-tts-p9.md).
+
 ---
 
 ## Test suite status
@@ -174,7 +186,8 @@ Run: 2026-10-09. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P8 (new, 11 tests)** | `npm run test:v2p8` | ✅ 11/11 |
+| **V2 P9 (new, 11 tests)** | `npm run test:v2p9` | ✅ 11/11 |
+| **V2 P8 (11 tests)** | `npm run test:v2p8` | ✅ 11/11 |
 | **V2 P7 (10 tests)** | `npm run test:v2p7` | ✅ 10/10 |
 | **V2 P6 (10 tests)** | `npm run test:v2p6` | ✅ 10/10 |
 | **V2 P5 (9 tests)** | `npm run test:v2p5` | ✅ 9/9 |

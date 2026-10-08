@@ -437,6 +437,41 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     timeoutMs: 10000,
     permissions: ['calendar:write'],
     tags: ['calendar', 'reminders']
+  },
+  imageInspect: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 30000,
+    permissions: ['fs:read'],
+    tags: ['multimodal', 'vision', 'image', 'ocr']
+  },
+  imageGenerate: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 30000,
+    permissions: ['fs:write'],
+    tags: ['multimodal', 'image', 'generation']
+  },
+  voiceTranscribe: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 30000,
+    permissions: ['fs:read'],
+    tags: ['multimodal', 'voice', 'stt', 'audio']
+  },
+  voiceSpeak: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 30000,
+    permissions: ['fs:write'],
+    tags: ['multimodal', 'voice', 'tts', 'speech']
+  },
+  voiceGoalCreate: {
+    riskLevel: 'confirm',
+    parallelSafe: false,
+    timeoutMs: 30000,
+    permissions: ['fs:read', 'goal:create'],
+    tags: ['multimodal', 'voice', 'autonomy', 'goal']
   }
 };
 

@@ -276,3 +276,60 @@ flowchart TD
 * Test file: [`src/tests/test_v2_p4b_research_rag_docs.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_v2_p4b_research_rag_docs.ts)
 * Command: `npm run test:v2p4b` (9/9 passing — all 3 exit criteria passed)
 * Full V2 + V1 suite re-run: no regressions (`test:evolution` still the pre-existing failure; adversarial eval 10/12, improved from the recorded 8/12)
+
+### V2 P4C: BROWSER AS FIRST-CLASS ENVIRONMENT — [100% COMPLETE]
+- [x] Schema Migration 6 (`v2_p4c_browser_profiles`): `browser_profiles`.
+- [x] `BrowserEngine` with Playwright persistent contexts, multi-tab management, `data-athena-id` tagging, ARIA snapshots, downloads, cookie management, and screenshots.
+- [x] PromptDefense Untrusted Boundary on all page content.
+- [x] Tools: `browserNavigate`, `browserAction`, `browserTabManage`, `browserSessionManage`, `browserExtract`, `browserScreenshot`. ADR-0009.
+- [x] Verification: `npm run test:v2p4c` (9/9 passing).
+
+### V2 P4D: COMPUTER USE AND APPLICATION CONTROL — [100% COMPLETE]
+- [x] Real OS automation backends (Windows UI Automation, macOS Accessibility, Linux AT-SPI).
+- [x] Screen inspection, desktop capture, application window enumeration, input action audit logging.
+- [x] Whitelisted application title policy guard.
+- [x] Tools: `computerInspect`, `computerInteract`, `computerManageWindow`. ADR-0010.
+- [x] Verification: `npm run test:v2p4d` (8/8 passing).
+
+### V2 P5: LEARNING (PROGRESSIVE DISCLOSURE, ROUTINES, WORKFLOWS) — [100% COMPLETE]
+- [x] Schema Migration 7 (`v2_p5_learning`): `routines`, `learned_workflows`, `skill_records`.
+- [x] `ProgressiveSkillManager`, `RoutineEngine`, `WorkflowLearner`.
+- [x] Tools: `routineManage`, `workflowLearn`. ADR-0011.
+- [x] Verification: `npm run test:v2p5` (9/9 passing).
+
+### V2 P6: MULTI-AGENT SUBSYSTEM — [100% COMPLETE]
+- [x] Schema Migration 8 (`v2_p6_multi_agent`): `agent_messages`, `agent_teams`.
+- [x] 6 specialized profiles (`Researcher`, `Coder`, `Reviewer`, `Planner`, `Browser`, `Data`).
+- [x] `DelegationContractEngine` with tool scoping guard, depth limit ≤3, concurrency cap ≤5.
+- [x] Durable A2A Mailbox (9 message types) & crash-safe handoff pipeline surviving restarts.
+- [x] Tools: `agentDelegate`, `agentMessageSend`, `agentMailboxCheck`. ADR-0012.
+- [x] Verification: `npm run test:v2p6` (10/10 passing).
+
+### V2 P7: PROACTIVE AGENT SUBSYSTEM — [100% COMPLETE]
+- [x] Schema Migration 9 (`v2_p7_proactive_agent`): `durable_agent_events`, `webhook_endpoints`, `webhook_receipts`, `heartbeat_logs`.
+- [x] Multi-stage event pipeline (Filter → Relevance → Wake → Reason → Action) with cost controls.
+- [x] Cost-capped proactive heartbeat engine ($0 quiet ticks, spend limits).
+- [x] Secure webhook ingestion (HMAC-SHA256, replay protection, privilege separation guard).
+- [x] Stalled goal autonomous wake detection and event replay.
+- [x] Tools: `proactiveHeartbeatConfig`, `webhookManage`, `eventReplay`. ADR-0013.
+- [x] Verification: `npm run test:v2p7` (10/10 passing).
+
+### V2 P8: COMMUNICATION SUBSYSTEM — [100% COMPLETE]
+- [x] Schema Migration 10 (`v2_p8_communication`): `channels`, `conversations`, `participants`, `channel_messages`, `calendar_events`.
+- [x] Normalized Channel Adapters (CLI, Telegram, Email, Discord, Slack, WhatsApp).
+- [x] `ChannelGatewayManager` routing all channels into single persistent core with stranger privilege separation guard.
+- [x] `CalendarEngine` with natural language deadlines ("tomorrow morning" -> epoch) and proactive reminder alerts.
+- [x] Tools: `sendMessage`, `calendarManage`, `reminderSet`. ADR-0014.
+- [x] Verification: `npm run test:v2p8` (11/11 passing).
+
+### V2 P9: MULTIMODAL AND VOICE SUBSYSTEM — [100% COMPLETE]
+- [x] Schema Migration 11 (`v2_p9_multimodal_voice`): `multimodal_artifacts` table storing image, audio, pdf, video metadata and transcripts.
+- [x] `MultimodalStore` interface & `SqliteMultimodalStore` implementation behind `EpisodicMemory`.
+- [x] Multimodal Providers: Gemini & Mock Vision (OCR, UI elements), Gemini & Mock STT, Synthesized & Cloud TTS (valid 16kHz PCM WAV with 44-byte RIFF header), Image Generation.
+- [x] `MultiModalEngine` orchestrating vision analysis, audio transcription, speech synthesis, image generation, and artifact persistence.
+- [x] Exit Criterion 1: Voice request creates goal through normal core path (`agent.createGoal()` and `agent.planGoal()`), persisting goals and planned tasks in SQLite with voice confirmation.
+- [x] Exit Criterion 2: Screenshot → browser → verify E2E loop with closed-loop visual validation.
+- [x] Tools: `imageInspect`, `imageGenerate`, `voiceTranscribe`, `voiceSpeak`, `voiceGoalCreate`.
+- [x] Capability Registry honesty: `multimodal.vision`, `multimodal.stt`, `multimodal.tts`, `multimodal.image_generation`, `multimodal.voice_goal_routing`, `multimodal.screenshot_browser_loop` (real), `multimodal.realtime_voice_duplex` (experimental), `multimodal.video_streaming` (unsupported).
+- [x] ADR: `docs/decisions/0015-multimodal-voice-vision-stt-tts-p9.md`.
+- [x] Verification: `npm run test:v2p9` (11/11 passing).

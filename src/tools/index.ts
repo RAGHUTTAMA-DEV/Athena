@@ -48,6 +48,13 @@ import {
   calendarManageTool,
   reminderSetTool
 } from './communicationTools.js';
+import {
+  imageInspectTool,
+  imageGenerateTool,
+  voiceTranscribeTool,
+  voiceSpeakTool,
+  voiceGoalCreateTool
+} from './multimodalTools.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -91,7 +98,12 @@ export const tools: Tool[] = [
   eventReplayTool,
   sendMessageTool,
   calendarManageTool,
-  reminderSetTool
+  reminderSetTool,
+  imageInspectTool,
+  imageGenerateTool,
+  voiceTranscribeTool,
+  voiceSpeakTool,
+  voiceGoalCreateTool
 ];
 
 export * from './processManage.js';
@@ -103,6 +115,7 @@ export * from './agentDelegate.js';
 export * from './agentMessageTools.js';
 export * from './proactiveTools.js';
 export * from './communicationTools.js';
+export * from './multimodalTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

@@ -5,6 +5,7 @@ import { AgentConfig, Message, Part, RunOptions } from './types.js';
 import { LLMProvider, createLLMProvider, LLMResponse } from '../providers/llmProvider.js';
 import { toolsRegistry } from '../tools/index.js';
 import { EpisodicMemory } from '../memory/memory.js';
+import { MultiModalEngine } from '../multimodal/index.js';
 import { ProceduralMemory } from '../memory/procedural.js';
 import { MemoryConsolidator } from '../memory/consolidation.js';
 import { cleanGeminiSchema } from '../mcp/mcpManager.js';
@@ -119,7 +120,21 @@ const TOOL_ALIASES: Record<string, string> = {
   'reminder_set': 'reminderSet',
   'set_reminder': 'reminderSet',
   'reminderSet': 'reminderSet',
-  'create_reminder': 'reminderSet'
+  'create_reminder': 'reminderSet',
+  'image_inspect': 'imageInspect',
+  'inspect_image': 'imageInspect',
+  'analyze_image': 'imageInspect',
+  'image_generate': 'imageGenerate',
+  'generate_image': 'imageGenerate',
+  'voice_transcribe': 'voiceTranscribe',
+  'transcribe_audio': 'voiceTranscribe',
+  'transcribe_voice': 'voiceTranscribe',
+  'voice_speak': 'voiceSpeak',
+  'speak_text': 'voiceSpeak',
+  'text_to_speech': 'voiceSpeak',
+  'voice_goal_create': 'voiceGoalCreate',
+  'create_voice_goal': 'voiceGoalCreate',
+  'voice_goal': 'voiceGoalCreate'
 };
 
 export class Agent {
@@ -1177,7 +1192,8 @@ export class Agent {
                   provider: this.config.provider,
                   modelName: this.config.modelName,
                   nvidiaApiKey: this.config.nvidiaApiKey,
-                  nvidiaBaseUrl: this.config.nvidiaBaseUrl
+                  nvidiaBaseUrl: this.config.nvidiaBaseUrl,
+                  agent: this
                 };
 
                 const toolStartTime = Date.now();
@@ -1614,6 +1630,20 @@ export class Agent {
 
     getMemory(): EpisodicMemory | null {
       return this.memory;
+    }
+
+    setMemory(memory: EpisodicMemory): void {
+      this.memory = memory;
+    }
+
+    getMultimodalEngine(): MultiModalEngine | null {
+      return this.memory ? this.memory.getMultimodalEngine() : null;
+    }
+
+    async processVoice(audioInput: string | Buffer): Promise<any> {
+      if (!this.memory) throw new Error('Database must be initialized.');
+      const engine = this.memory.getMultimodalEngine();
+      return engine.processVoiceRequest(audioInput, this);
     }
 
     async getRunState(runId: string): Promise<RunState | null> {

@@ -9,10 +9,10 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore, DurableAgentEventStore, WebhookStore, HeartbeatStore, CommunicationStore, CalendarStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore, DurableAgentEventStore, WebhookStore, HeartbeatStore, CommunicationStore, CalendarStore, MultimodalStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities, seedP7Capabilities, seedP8Capabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities, seedP7Capabilities, seedP8Capabilities, seedP9Capabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
 import { BrowserEngine } from '../browser/browserEngine.js';
@@ -22,6 +22,7 @@ import { AgentMailbox, HandoffEngine, TeamManager, DelegationContractEngine } fr
 import { EventPipeline, HeartbeatEngine, WebhookEngine, StalledGoalDetector } from '../proactive/index.js';
 import { CalendarEngine } from '../communication/calendarEngine.js';
 import { ChannelGatewayManager } from '../gateway/channelGatewayManager.js';
+import { MultiModalEngine } from '../multimodal/index.js';
 
 export interface SemanticFact {
   id?: number;
@@ -420,6 +421,22 @@ export class EpisodicMemory {
       this.channelGatewayManager.setAgent(agent);
     }
     return this.channelGatewayManager;
+  }
+
+  // --- P9: Multimodal Subsystem (Spec Sections 46, 47) ---
+
+  private multimodalEngine?: MultiModalEngine;
+
+  getMultimodalStore(): MultimodalStore | null {
+    return this.stores ? this.stores.multimodal : null;
+  }
+
+  getMultimodalEngine(): MultiModalEngine {
+    if (!this.multimodalEngine) {
+      const store = this.getMultimodalStore();
+      this.multimodalEngine = new MultiModalEngine({ store: store || undefined });
+    }
+    return this.multimodalEngine;
   }
 
   private requireRunStore(): SqliteStores['run'] {

@@ -67,6 +67,7 @@ export interface ToolContext {
   modelName?: string;
   nvidiaApiKey?: string;
   nvidiaBaseUrl?: string;
+  agent?: any;
 }
 
 export interface RunOptions {
