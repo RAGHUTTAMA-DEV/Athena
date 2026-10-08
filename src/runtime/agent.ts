@@ -84,6 +84,12 @@ const TOOL_ALIASES: Record<string, string> = {
   'computer_manage_window': 'computerManageWindow',
   'routine_manage': 'routineManage',
   'manage_routine': 'routineManage',
+  'create_routine': 'routineManage',
+  'list_routines': 'routineManage',
+  'schedule_routine': 'routineManage',
+  'routine': 'routineManage',
+  'routines': 'routineManage',
+  'routineManageTool': 'routineManage',
   'workflow_learn': 'workflowLearn',
   'learn_workflow': 'workflowLearn',
   'skillManage': 'skill_manage'

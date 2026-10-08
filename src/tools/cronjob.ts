@@ -1,6 +1,7 @@
 import { Tool } from '../runtime/types.js';
 import { Scheduler } from '../background/scheduler.js';
 import { JobPriority } from '../background/workerPool.js';
+import { EpisodicMemory } from '../memory/memory.js';
 
 function normalizeSchedule(schedule?: string, intervalSeconds?: number): string | undefined {
   if (intervalSeconds && intervalSeconds > 0) {
@@ -119,6 +120,34 @@ export const cronjobTool: Tool = {
         }
 
         const job = await scheduler.addJob(jobId, args.prompt, normalizedSchedule, sessionId, options);
+
+        try {
+          const memory = EpisodicMemory.getInstance();
+          const routineStore = memory.getRoutineStore();
+          if (routineStore) {
+            await routineStore.save({
+              id: `routine_${job.id}`,
+              name: job.prompt.length > 50 ? job.prompt.substring(0, 47) + '...' : job.prompt,
+              description: job.prompt,
+              triggerType: 'schedule',
+              triggerConfig: {
+                jobId: job.id,
+                schedule: job.schedule,
+                timezone: job.timezone,
+                priority: job.priority,
+                nextRun: new Date(job.nextRun).toISOString()
+              },
+              workflow: { type: 'prompt', prompt: job.prompt },
+              enabled: job.active === 1,
+              successRate: 1.0,
+              invocations: 0,
+              history: []
+            });
+          }
+        } catch {
+          // Ignore routine store synchronization errors if memory not armed
+        }
+
         return {
           success: true,
           message: `Scheduled recurring job "${job.id}" successfully with schedule: "${job.schedule}" [Timezone: ${job.timezone}, Priority: ${job.priority}]. Next execution time: ${new Date(job.nextRun).toISOString()}`,
@@ -168,6 +197,27 @@ export const cronjobTool: Tool = {
           priority: updatedPriority
         });
 
+        try {
+          const memory = EpisodicMemory.getInstance();
+          const routineStore = memory.getRoutineStore();
+          if (routineStore) {
+            const existingRoutine = await routineStore.get(`routine_${args.id}`) || await routineStore.get(args.id);
+            if (existingRoutine) {
+              existingRoutine.name = updatedJob.prompt.length > 50 ? updatedJob.prompt.substring(0, 47) + '...' : updatedJob.prompt;
+              existingRoutine.description = updatedJob.prompt;
+              existingRoutine.triggerConfig = {
+                jobId: updatedJob.id,
+                schedule: updatedJob.schedule,
+                timezone: updatedJob.timezone,
+                priority: updatedJob.priority,
+                nextRun: new Date(updatedJob.nextRun).toISOString()
+              };
+              existingRoutine.workflow = { type: 'prompt', prompt: updatedJob.prompt };
+              await routineStore.save(existingRoutine);
+            }
+          }
+        } catch {}
+
         return {
           success: true,
           message: `Updated scheduled job "${args.id}" to schedule: "${updatedJob.schedule}" [Timezone: ${updatedJob.timezone}, Priority: ${updatedJob.priority}]. Next run: ${new Date(updatedJob.nextRun).toISOString()}`,
@@ -188,6 +238,14 @@ export const cronjobTool: Tool = {
           throw new Error('Field "id" is required to delete a cronjob.');
         }
         await scheduler.cancelJob(args.id);
+        try {
+          const memory = EpisodicMemory.getInstance();
+          const routineStore = memory.getRoutineStore();
+          if (routineStore) {
+            await routineStore.delete(`routine_${args.id}`);
+            await routineStore.delete(args.id);
+          }
+        } catch {}
         return {
           success: true,
           message: `Canceled scheduled job "${args.id}" successfully.`

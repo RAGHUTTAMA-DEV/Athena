@@ -1,5 +1,6 @@
 import { RoutineRecord, RoutineStore, RoutineTriggerType } from '../storage/stores/types.js';
 import { EventBus, BusEvent } from '../background/eventBus.js';
+import { Scheduler } from '../background/scheduler.js';
 import { RoutineCondition, RoutineExecutionResult } from './learningTypes.js';
 
 export type RoutineExecutorCallback = (routine: RoutineRecord, eventPayload?: any) => Promise<{ success: boolean; runId?: string; error?: string }>;
@@ -177,12 +178,34 @@ export class RoutineEngine {
   }
 
   /**
+   * Binds a schedule-triggered routine to the background Scheduler.
+   */
+  public async bindScheduleRoutine(routine: RoutineRecord): Promise<void> {
+    try {
+      const scheduler = Scheduler.getInstance();
+      const jobId = routine.triggerConfig?.jobId || routine.id;
+      const schedule = routine.triggerConfig?.schedule || routine.triggerConfig?.cron || routine.triggerConfig?.interval || '0 9 * * *';
+      const prompt = routine.workflow?.prompt || routine.description || routine.name;
+      const timezone = routine.triggerConfig?.timezone;
+      const priority = routine.triggerConfig?.priority;
+
+      await scheduler.addJob(jobId, prompt, schedule, 'routine_engine', { timezone, priority });
+    } catch (e: any) {
+      console.warn(`[RoutineEngine] Failed to bind schedule routine "${routine.id}" to Scheduler:`, e.message);
+    }
+  }
+
+  /**
    * Register a new routine and bind it if enabled.
    */
   async registerRoutine(routine: RoutineRecord): Promise<RoutineRecord> {
     const saved = await this.routineStore.save(routine);
-    if (saved.triggerType === 'event' && saved.enabled) {
-      this.bindRoutine(saved);
+    if (saved.enabled) {
+      if (saved.triggerType === 'event') {
+        this.bindRoutine(saved);
+      } else if (saved.triggerType === 'schedule') {
+        await this.bindScheduleRoutine(saved);
+      }
     }
     return saved;
   }
@@ -195,9 +218,16 @@ export class RoutineEngine {
     if (routine) {
       routine.enabled = false;
       await this.routineStore.save(routine);
-      if (this.activeSubscriptions.has(id)) {
-        this.activeSubscriptions.get(id)!();
-        this.activeSubscriptions.delete(id);
+      if (routine.triggerType === 'event') {
+        if (this.activeSubscriptions.has(id)) {
+          this.activeSubscriptions.get(id)!();
+          this.activeSubscriptions.delete(id);
+        }
+      } else if (routine.triggerType === 'schedule') {
+        try {
+          const jobId = routine.triggerConfig?.jobId || routine.id;
+          await Scheduler.getInstance().cancelJob(jobId);
+        } catch {}
       }
     }
   }
@@ -212,6 +242,8 @@ export class RoutineEngine {
       await this.routineStore.save(routine);
       if (routine.triggerType === 'event') {
         this.bindRoutine(routine);
+      } else if (routine.triggerType === 'schedule') {
+        await this.bindScheduleRoutine(routine);
       }
     }
   }

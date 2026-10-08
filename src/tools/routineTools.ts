@@ -1,13 +1,14 @@
 import { Tool } from '../runtime/types.js';
 import { EpisodicMemory } from '../memory/memory.js';
-import { RoutineTriggerType } from '../storage/stores/types.js';
+import { RoutineRecord, RoutineTriggerType } from '../storage/stores/types.js';
+import { Scheduler } from '../background/scheduler.js';
 
 export const routineManageTool: Tool = {
   definition: {
     name: 'routineManage',
-    description: 'Manage automated Athena routines (triggers, schedules, event listeners, and standing behaviors).',
+    description: 'Manage automated Athena routines (triggers, schedules, recurring cron jobs, event listeners, and standing behaviors). Actions: "create", "list", "get", "trigger", "enable", "disable", "delete".',
     capabilities: ['system'],
-    tags: ['routine', 'system', 'learning', 'automation', 'event'],
+    tags: ['routine', 'system', 'learning', 'automation', 'event', 'cron', 'schedule'],
     parameters: {
       type: 'OBJECT',
       properties: {
@@ -35,7 +36,7 @@ export const routineManageTool: Tool = {
         },
         triggerConfig: {
           type: 'OBJECT',
-          description: 'Configuration for the trigger (e.g. { topic: "ci:failed" } or { cron: "0 9 * * 1-5" }).'
+          description: 'Configuration for the trigger (e.g. { topic: "ci:failed" } or { cron: "0 9 * * 1-5" } or { schedule: "0 17 * * *" }).'
         },
         workflow: {
           type: 'OBJECT',
@@ -59,12 +60,12 @@ export const routineManageTool: Tool = {
   manifest: {
     name: 'routineManage',
     version: '1.0.0',
-    description: 'Manage automated Athena routines and event-driven behaviors',
+    description: 'Manage automated Athena routines, cron jobs, and event-driven behaviors',
     riskLevel: 'safe',
     parallelSafe: true,
     timeoutMs: 15000,
     permissions: ['system'],
-    tags: ['routine', 'learning', 'automation']
+    tags: ['routine', 'learning', 'automation', 'schedule']
   },
   execute: async (args: {
     action: 'create' | 'list' | 'trigger' | 'enable' | 'disable' | 'delete' | 'get';
@@ -89,12 +90,16 @@ export const routineManageTool: Tool = {
             return { success: false, error: 'name and triggerType are required to create a routine.' };
           }
           const id = args.id || `routine_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+          const triggerConfig = { ...(args.triggerConfig || {}) };
+          if (args.triggerType === 'schedule') {
+            triggerConfig.schedule = triggerConfig.schedule || triggerConfig.cron || triggerConfig.interval || '0 9 * * *';
+          }
           const routine = await engine.registerRoutine({
             id,
             name: args.name,
             description: args.description,
             triggerType: args.triggerType,
-            triggerConfig: args.triggerConfig || {},
+            triggerConfig,
             workflow: args.workflow || { type: 'prompt', prompt: args.description || args.name },
             conditions: args.conditions,
             permissions: args.permissions,
@@ -107,6 +112,44 @@ export const routineManageTool: Tool = {
         }
         case 'list': {
           const list = await store.list();
+          try {
+            const scheduler = Scheduler.getInstance();
+            const scheduledJobs = await scheduler.listJobs();
+            const existingJobIds = new Set(
+              list
+                .filter(r => r.triggerType === 'schedule')
+                .map(r => r.triggerConfig?.jobId || r.id)
+            );
+
+            for (const job of scheduledJobs) {
+              const routineId = `routine_${job.id}`;
+              if (!existingJobIds.has(job.id) && !existingJobIds.has(routineId) && !list.some(r => r.id === routineId || r.id === job.id)) {
+                const syncedRoutine: RoutineRecord = {
+                  id: routineId,
+                  name: job.prompt.length > 50 ? job.prompt.substring(0, 47) + '...' : job.prompt,
+                  description: job.prompt,
+                  triggerType: 'schedule',
+                  triggerConfig: {
+                    jobId: job.id,
+                    schedule: job.schedule,
+                    timezone: job.timezone,
+                    priority: job.priority,
+                    nextRun: job.nextRun ? new Date(job.nextRun).toISOString() : undefined
+                  },
+                  workflow: { type: 'prompt', prompt: job.prompt },
+                  enabled: job.active === 1,
+                  successRate: 1.0,
+                  invocations: 0,
+                  history: []
+                };
+                await store.save(syncedRoutine).catch(() => {});
+                list.push(syncedRoutine);
+              }
+            }
+          } catch {
+            // Scheduler list may fail in tests where DB/memory not fully configured
+          }
+
           return { success: true, count: list.length, routines: list };
         }
         case 'get': {
@@ -133,6 +176,13 @@ export const routineManageTool: Tool = {
         }
         case 'delete': {
           if (!args.id) return { success: false, error: 'id required for delete.' };
+          const routine = await store.get(args.id);
+          if (routine && routine.triggerType === 'schedule') {
+            try {
+              const jobId = routine.triggerConfig?.jobId || routine.id.replace(/^routine_/, '');
+              await Scheduler.getInstance().cancelJob(jobId);
+            } catch {}
+          }
           await engine.disableRoutine(args.id);
           const ok = await store.delete(args.id);
           return { success: ok, message: ok ? `Routine ${args.id} deleted.` : `Failed to delete ${args.id}.` };

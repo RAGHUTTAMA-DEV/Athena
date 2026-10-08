@@ -302,6 +302,19 @@ export class Scheduler {
     }
   }
 
+  private ensureMemory(): EpisodicMemory {
+    if (!this.memory) {
+      try {
+        const mem = EpisodicMemory.getInstance();
+        if (mem) this.setMemory(mem);
+      } catch {}
+    }
+    if (!this.memory) {
+      throw new Error('Scheduler memory not set. Call setMemory() first.');
+    }
+    return this.memory;
+  }
+
   async addJob(
     id: string,
     prompt: string,
@@ -309,9 +322,7 @@ export class Scheduler {
     sessionId: string,
     options?: { timezone?: string; priority?: JobPriority }
   ): Promise<ScheduledJob> {
-    if (!this.memory) {
-      throw new Error('Scheduler memory not set. Call setMemory() first.');
-    }
+    const memory = this.ensureMemory();
 
     const timezone = options?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     const priority = options?.priority || 'normal';
@@ -348,7 +359,7 @@ export class Scheduler {
       priority
     };
 
-    await this.memory.saveScheduledJob(job);
+    await memory.saveScheduledJob(job);
     return job;
   }
 
@@ -375,17 +386,13 @@ export class Scheduler {
   }
 
   async listJobs(): Promise<ScheduledJob[]> {
-    if (!this.memory) {
-      throw new Error('Scheduler memory not set. Call setMemory() first.');
-    }
-    return this.memory.getScheduledJobs();
+    const memory = this.ensureMemory();
+    return memory.getScheduledJobs();
   }
 
   async cancelJob(id: string): Promise<void> {
-    if (!this.memory) {
-      throw new Error('Scheduler memory not set. Call setMemory() first.');
-    }
-    await this.memory.deleteScheduledJob(id);
+    const memory = this.ensureMemory();
+    await memory.deleteScheduledJob(id);
     await this.leaseManager.release(id);
   }
 
@@ -398,10 +405,8 @@ export class Scheduler {
       priority?: JobPriority;
     }
   ): Promise<ScheduledJob> {
-    if (!this.memory) {
-      throw new Error('Scheduler memory not set. Call setMemory() first.');
-    }
-    const jobs = await this.memory.getScheduledJobs();
+    const memory = this.ensureMemory();
+    const jobs = await memory.getScheduledJobs();
     const existing = jobs.find(j => j.id === id);
     if (!existing) {
       throw new Error(`Scheduled job "${id}" not found.`);

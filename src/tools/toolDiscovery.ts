@@ -18,7 +18,7 @@ export class ToolDiscoveryPipeline {
     'cmd:exec': ['run', 'exec', 'execute', 'terminal', 'shell', 'command', 'bash', 'powershell', 'npm', 'git', 'node', 'python'],
     'net:http': ['search', 'google', 'web', 'fetch', 'url', 'http', 'api', 'curl', 'query'],
     'browser': ['browser', 'navigate', 'click', 'page', 'screenshot', 'dom', 'form', 'webpage'],
-    'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate'],
+    'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate', 'routine', 'routines', 'automate', 'automated', 'workflow', 'standing'],
     'memory': ['remember', 'memory', 'recall', 'fact', 'preference', 'store'],
     'research': ['research', 'investigate', 'cite', 'sources', 'report', 'corroborate', 'evidence', 'documents', 'document', 'pdf', 'docx', 'xlsx', 'csv', 'ingest', 'rag', 'knowledge', 'read', 'summarize'],
     'computer': ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution']

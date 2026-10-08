@@ -753,7 +753,8 @@ export class ToolSelector {
     'systemTime',
     'readFile',
     'semantic_memory_manage',
-    'cronjob'
+    'cronjob',
+    'routineManage'
   ]);
 
   private static INTENT_KEYWORDS: Record<string, string[]> = {
@@ -762,7 +763,8 @@ export class ToolSelector {
     web: ['web', 'search', 'google', 'url', 'site', 'browser', 'scrape', 'news', 'find online', 'http', 'https'],
     python: ['python', 'script', 'data', 'plot', 'numpy', 'pandas', 'calculate'],
     agent: ['subagent', 'delegate', 'worker', 'hire', 'team', 'spawn', 'background'],
-    cron: ['cron', 'schedule', 'remind', 'reminder', 'timer', 'alarm', 'recurring', 'interval', 'every', 'secs', 'sec', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'daily', 'weekly', 'monthly', 'delay', 'job', 'jobs', 'cronjob'],
+    cron: ['cron', 'schedule', 'remind', 'reminder', 'timer', 'alarm', 'recurring', 'interval', 'every', 'secs', 'sec', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'daily', 'weekly', 'monthly', 'delay', 'job', 'jobs', 'cronjob', 'routine', 'routines', 'automate', 'automation', 'automated'],
+    routine: ['routine', 'routines', 'automate', 'automation', 'automated', 'standing', 'workflow', 'trigger', 'event', 'listener'],
     github: ['github', 'gh', 'repo', 'repos', 'repository', 'repositories', 'pull request', 'pr', 'commit', 'commits', 'issue', 'issues', 'branch', 'branches', 'git', 'project', 'projects', 'fork', 'clone', 'release', 'workflow', 'star', 'pat'],
     email: ['email', 'mail', 'gmail', 'inbox', 'message', 'draft', 'send email', 'read email'],
     calendar: ['calendar', 'meeting', 'events', 'appointment', 'schedule', 'rsvp'],
@@ -777,7 +779,8 @@ export class ToolSelector {
     web: ['searchWeb', 'browser', 'browserNavigate', 'browserAction', 'browserScreenshot'],
     python: ['executePython', 'calculate'],
     agent: ['delegateTask', 'delegateCodingTask'],
-    cron: ['cronjob'],
+    cron: ['cronjob', 'routineManage'],
+    routine: ['routineManage', 'workflowLearn'],
     computer: ['computerInspect', 'computerInteract', 'computerManageWindow']
   };
 
