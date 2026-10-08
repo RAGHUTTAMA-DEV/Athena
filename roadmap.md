@@ -22,7 +22,12 @@
 | **V2 P3** | **Memory and Context (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p3` | ✅ **Completed & Verified** |
 | **V2 P4A** | **Action System: Registry, Discovery, Sandbox, FS, Terminal** | Athena V2 | **100%** | `npm run test:v2p4a` | ✅ **Completed & Verified** |
 | **V2 P4B** | **Web Research, RAG, Documents (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p4b` | ✅ **Completed & Verified** |
-| **V2 P4C+** | **Browser, Computer Use, P5–P13 (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
+| **V2 P4C** | **Browser Environment (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p4c` | ✅ **Completed & Verified** |
+| **V2 P4D** | **Computer Use & Application Control (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p4d` | ✅ **Completed & Verified** |
+| **V2 P5** | **Learning: Skills, Routines, Workflows (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p5` | ✅ **Completed & Verified** |
+| **V2 P6** | **Multi-Agent: Profiles, Delegation, A2A (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p6` | ✅ **Completed & Verified** |
+| **V2 P7** | **Proactive Agent: Heartbeat, Event Pipeline, Webhooks (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p7` | ✅ **Completed & Verified** |
+| **V2 P8+** | **Communication, Multimodal, P8–P13 (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
 
 ---
 

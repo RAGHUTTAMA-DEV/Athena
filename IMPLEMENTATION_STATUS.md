@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P6: Multi-Agent — ✅ COMPLETE** |
-| **Next phase** | P7: Proactive Agent — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P7: Proactive Agent — ✅ COMPLETE** |
+| **Next phase** | P8: Communication — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, & V2 P6 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, V2 P4B, V2 P4C, V2 P4D, V2 P5, V2 P6, & V2 P7 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -29,7 +29,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ · P4C: Browser ✅ · P4D: Computer Use ✅ | ✅ **done** | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 · `npm run test:v2p4c` — 9/9 · `npm run test:v2p4d` — 8/8 |
 | **P5** | **Learning** — Progressive disclosure skills, review lifecycle, standing routines with EventBus/Scheduler triggers, distilled learned workflows from successful runs (not raw recordings) | ✅ **done** | `npm run test:v2p5` — 9/9 |
 | **P6** | **Multi-Agent** — Specialized profiles (Researcher, Coder, Reviewer, Planner, Browser, Data), formal DelegationContract (tool scoping guard, depth limit ≤3, concurrency cap ≤5), durable A2A mailbox (9 message types, SQLite persistence), crash-safe handoff pipeline (Researcher → Coder → Reviewer) surviving restarts, optional teams with justification rule | ✅ **done** | `npm run test:v2p6` — 10/10 |
-| **P7** | Proactive Agent | ⛔ not started | — |
+| **P7** | **Proactive Agent** — Schema Migration 9 (durable events, webhooks, heartbeats), 5-stage event pipeline (Filter → Relevance → Wake → Reason → Action) with rate limits and cost guards, event-aware cost-capped heartbeat engine ($0 quiet ticks, measured reasoning cost, hourly/daily spend caps), secure webhook ingestion (HMAC-SHA256, replay protection, dedup, PromptDefense, privilege separation guard), stalled-goal autonomous wake detection, event replay | ✅ **done** | `npm run test:v2p7` — 10/10 |
 | **P8** | Communication | ⛔ not started | — |
 | **P9** | Multimodal and Voice | ⛔ not started | — |
 | **P10** | Intelligence | ⛔ not started | — |
@@ -142,6 +142,18 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Capability Registry (spec section 71)** — 5 P6 capabilities seeded as `real`: `multiagent.specialized_profiles`, `multiagent.delegation_contract`, `multiagent.a2a_mailbox`, `multiagent.handoff_engine`, `multiagent.teams`.
 - **ADR** — [`docs/decisions/0012-multi-agent-delegation-a2a-messaging-p6.md`](docs/decisions/0012-multi-agent-delegation-a2a-messaging-p6.md).
 
+### Added by V2 P7
+- **Schema Migration 9** — `v2_p7_proactive_agent`: tables `durable_agent_events` (full schema with traceId, agentId, goalId, taskId, runId, idempotencyKey, retries), `webhook_endpoints`, `webhook_receipts`, and `heartbeat_logs` with indexes.
+- **`DurableAgentEventStore`, `WebhookStore`, `HeartbeatStore`** — SQLite implementations (`SqliteDurableAgentEventStore`, `SqliteWebhookStore`, `SqliteHeartbeatStore`) behind memory facade getters.
+- **Multi-Stage Event Wake Pipeline (Spec Section 35)** — `EventPipeline`: 5 stages (`Event` $\rightarrow$ `Filter` $\rightarrow$ `Relevance` $\rightarrow$ `Agent Wake` $\rightarrow$ `Reason` $\rightarrow$ `Action`). Evaluates cheap rules first (quiet hours, cooldowns, topic predicates), performs lightweight relevance scoring second ($[0.0, 1.0]$), and invokes the main LLM only when relevance threshold ($\ge 0.7$) is met. Enforces rate limits (max wakes per hour) to prevent continuous LLM waking.
+- **Event-Aware Cost-Capped Heartbeat Engine (Spec Section 36)** — `HeartbeatEngine`: proactive inspection routine evaluating active goals, run waits, and mailbox messages. Normal inspections produce quiet no-op ticks ($0 spend, 0 tokens). Tracks token and cost metrics; strictly caps hourly and daily spend, throttling agent wakes when budget caps are reached.
+- **Durable Event Audit, Retries, and Replay (Spec Section 37)** — Event persistence in SQLite surviving crashes; automatic retries with backoff; dead-letter queue (`status: dead_letter`); deterministic event replay from SQLite history.
+- **Secure Webhook Ingestion Engine (Spec Section 66)** — `WebhookEngine`: secret authentication, constant-time HMAC-SHA256 signature verification (`crypto.timingSafeEqual`), replay protection (timestamp skew $\le 5$ min), deduplication via idempotency keys, PromptDefense untrusted boundary sanitization, and strict **privilege separation guard** preventing direct execution of privileged tools (`cmd:exec`, `deleteFile`, `computerAction`).
+- **Autonomous Monitoring Triggers (Spec Section 38)** — `StalledGoalDetector`: monitors active goals lacking updates past threshold, emitting `goal:stalled` and waking the agent to unblock progress; `SiteStatusMonitor`: monitors endpoint availability and downtime recovery.
+- **Tools Suite** — `proactiveHeartbeatConfig`, `webhookManage`, `eventReplay` registered in `SearchableToolRegistry`.
+- **Capability Registry (spec section 71)** — 5 P7 capabilities seeded as `real`: `proactive.event_pipeline`, `proactive.heartbeat`, `proactive.durable_events`, `proactive.webhooks`, `proactive.monitoring`.
+- **ADR** — [`docs/decisions/0013-proactive-agent-heartbeat-event-pipeline-webhooks-p7.md`](docs/decisions/0013-proactive-agent-heartbeat-event-pipeline-webhooks-p7.md).
+
 ---
 
 ## Test suite status
@@ -150,7 +162,8 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P6 (new, 10 tests)** | `npm run test:v2p6` | ✅ 10/10 |
+| **V2 P7 (new, 10 tests)** | `npm run test:v2p7` | ✅ 10/10 |
+| **V2 P6 (10 tests)** | `npm run test:v2p6` | ✅ 10/10 |
 | **V2 P5 (9 tests)** | `npm run test:v2p5` | ✅ 9/9 |
 | **V2 P4D (8 tests)** | `npm run test:v2p4d` | ✅ 8/8 |
 | **V2 P4C (9 tests)** | `npm run test:v2p4c` | ✅ 9/9 |
@@ -175,6 +188,12 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 | Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 10/12 on this run — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P7 exit criteria — all PASS
+1. Duplicate and replayed webhooks are rejected — **PASS** (TEST 5: idempotency key duplicate rejected with 409 Conflict; timestamp skew > 5m rejected with 400 Bad Request)
+2. Forged signature rejected — **PASS** (TEST 6: forged HMAC-SHA256 signature rejected with 401 Unauthorized via constant-time comparison; missing signature rejected with 401)
+3. Heartbeat cost is capped and measured — **PASS** (TEST 8: nominal quiet tick incurs $0.0000; active wakes measure tokens & spend; hourly budget cap breaches throttle subsequent wakes)
+4. Stalled goal triggers a wake — **PASS** (TEST 9: StalledGoalDetector scans active goals, detects idle goal exceeding threshold, and dispatches `goal:stalled` waking the agent)
 
 ### P6 exit criteria — all PASS
 1. Handoff Researcher $\rightarrow$ Coder $\rightarrow$ Reviewer survives a restart — **PASS** (TEST 7: step 0 Researcher completes $\rightarrow$ durable handoff written to mailbox $\rightarrow$ process kill simulated $\rightarrow$ DB and engine re-instantiated $\rightarrow$ Coder resumes with Researcher findings $\rightarrow$ Reviewer audits diff and approves)

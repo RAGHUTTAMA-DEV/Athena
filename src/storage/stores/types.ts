@@ -453,4 +453,110 @@ export interface AgentTeamStore {
   delete(id: string): Promise<boolean>;
 }
 
+// --- P7: Proactive Agent Subsystem (Spec Sections 35, 36, 37, 66) ---
+
+export type EventPriority = 'low' | 'normal' | 'high' | 'critical';
+export type DurableEventStatus = 'pending' | 'processed' | 'filtered' | 'failed' | 'dead_letter';
+
+export interface DurableAgentEvent<T = any> {
+  id: string;
+  topic: string;
+  traceId?: string;
+  agentId?: string;
+  goalId?: string;
+  taskId?: string;
+  runId?: string;
+  idempotencyKey?: string;
+  payload: T;
+  priority: EventPriority;
+  source: string;
+  status: DurableEventStatus;
+  retryCount: number;
+  maxRetries: number;
+  errorMessage?: string;
+  timestamp: number;
+  processedAt?: number;
+}
+
+export interface DurableAgentEventFilter {
+  topic?: string;
+  topicPrefix?: string;
+  status?: DurableEventStatus;
+  goalId?: string;
+  agentId?: string;
+  priority?: EventPriority;
+  since?: number;
+  until?: number;
+  limit?: number;
+}
+
+export interface DurableAgentEventStore {
+  save(event: DurableAgentEvent): Promise<DurableAgentEvent>;
+  get(id: string): Promise<DurableAgentEvent | null>;
+  getByIdempotencyKey(key: string, windowMs?: number): Promise<DurableAgentEvent | null>;
+  updateStatus(id: string, status: DurableEventStatus, errorMessage?: string, processedAt?: number): Promise<void>;
+  incrementRetry(id: string, errorMessage: string): Promise<void>;
+  list(filter?: DurableAgentEventFilter): Promise<DurableAgentEvent[]>;
+  listPending(limit?: number): Promise<DurableAgentEvent[]>;
+  listDeadLetters(limit?: number): Promise<DurableAgentEvent[]>;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  name: string;
+  secret: string;
+  allowedTopics?: string[];
+  isActive: boolean;
+  requireSignature: boolean;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type WebhookReceiptStatus =
+  | 'accepted'
+  | 'rejected_duplicate'
+  | 'rejected_replay'
+  | 'rejected_signature'
+  | 'rejected_validation';
+
+export interface WebhookReceipt {
+  id: string;
+  endpointId: string;
+  idempotencyKey?: string;
+  signature?: string;
+  timestamp: number;
+  status: WebhookReceiptStatus;
+  sourceIp?: string;
+  payloadHash?: string;
+  createdAt: number;
+}
+
+export interface WebhookStore {
+  saveEndpoint(endpoint: WebhookEndpoint): Promise<WebhookEndpoint>;
+  getEndpoint(id: string): Promise<WebhookEndpoint | null>;
+  listEndpoints(): Promise<WebhookEndpoint[]>;
+  deleteEndpoint(id: string): Promise<boolean>;
+  recordReceipt(receipt: WebhookReceipt): Promise<void>;
+  getReceiptByIdempotencyKey(endpointId: string, key: string, windowMs?: number): Promise<WebhookReceipt | null>;
+  listReceipts(endpointId?: string, limit?: number): Promise<WebhookReceipt[]>;
+}
+
+export interface HeartbeatLog {
+  id: string;
+  agentId?: string;
+  wokeAgent: boolean;
+  reason?: string;
+  costUsd: number;
+  tokensUsed: number;
+  activeGoalsCount: number;
+  timestamp: number;
+}
+
+export interface HeartbeatStore {
+  record(log: HeartbeatLog): Promise<void>;
+  getCostSummary(since: number): Promise<{ totalCostUsd: number; totalTokens: number; totalWakes: number; totalTicks: number }>;
+  listRecent(limit?: number): Promise<HeartbeatLog[]>;
+}
+
 

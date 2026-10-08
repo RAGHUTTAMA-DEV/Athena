@@ -34,7 +34,7 @@ export class SqliteGoalStore implements GoalStore {
   async save(goal: Goal): Promise<Goal> {
     const now = Date.now();
     const createdAt = goal.createdAt || now;
-    const updatedAt = now;
+    const updatedAt = goal.updatedAt !== undefined ? goal.updatedAt : now;
     const savedGoal: Goal = {
       ...goal,
       createdAt,

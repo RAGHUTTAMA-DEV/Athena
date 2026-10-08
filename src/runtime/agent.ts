@@ -98,7 +98,14 @@ const TOOL_ALIASES: Record<string, string> = {
   'delegate_agent': 'agentDelegate',
   'delegateAgent': 'agentDelegate',
   'agent_message_send': 'agentMessageSend',
-  'agent_mailbox_check': 'agentMailboxCheck'
+  'agent_mailbox_check': 'agentMailboxCheck',
+  'webhook_manage': 'webhookManage',
+  'manage_webhook': 'webhookManage',
+  'register_webhook': 'webhookManage',
+  'proactive_heartbeat_config': 'proactiveHeartbeatConfig',
+  'heartbeat_config': 'proactiveHeartbeatConfig',
+  'event_replay': 'eventReplay',
+  'replay_event': 'eventReplay'
 };
 
 export class Agent {

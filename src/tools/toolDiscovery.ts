@@ -21,7 +21,8 @@ export class ToolDiscoveryPipeline {
     'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate', 'routine', 'routines', 'automate', 'automated', 'workflow', 'standing', 'multiagent', 'multi-agent', 'specialist', 'researcher', 'coder', 'reviewer', 'planner', 'agent', 'agents', 'pipeline', 'handoff', 'mailbox'],
     'memory': ['remember', 'memory', 'recall', 'fact', 'preference', 'store'],
     'research': ['research', 'investigate', 'cite', 'sources', 'report', 'corroborate', 'evidence', 'documents', 'document', 'pdf', 'docx', 'xlsx', 'csv', 'ingest', 'rag', 'knowledge', 'read', 'summarize'],
-    'computer': ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution']
+    'computer': ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution'],
+    'proactive': ['webhook', 'webhooks', 'heartbeat', 'proactive', 'stall', 'stalled', 'replay', 'endpoint', 'receipts']
   };
 
   /**

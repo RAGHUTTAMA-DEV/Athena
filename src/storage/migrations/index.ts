@@ -660,6 +660,87 @@ const migrationV2P6MultiAgent: Migration = {
   }
 };
 
+const migrationV2P7ProactiveAgent: Migration = {
+  version: 9,
+  name: 'v2_p7_proactive_agent',
+  up: async (db) => {
+    // 1. Durable agent events table (Spec Section 37)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS durable_agent_events (
+        id TEXT PRIMARY KEY,
+        topic TEXT NOT NULL,
+        trace_id TEXT,
+        agent_id TEXT,
+        goal_id TEXT,
+        task_id TEXT,
+        run_id TEXT,
+        idempotency_key TEXT,
+        payload TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        source TEXT NOT NULL,
+        status TEXT NOT NULL,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        max_retries INTEGER NOT NULL DEFAULT 3,
+        error_message TEXT,
+        timestamp INTEGER NOT NULL,
+        processed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_topic ON durable_agent_events(topic);
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_idemp ON durable_agent_events(idempotency_key);
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_status ON durable_agent_events(status);
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_goal ON durable_agent_events(goal_id);
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_agent ON durable_agent_events(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_priority ON durable_agent_events(priority);
+      CREATE INDEX IF NOT EXISTS idx_durable_agent_events_timestamp ON durable_agent_events(timestamp);
+    `);
+
+    // 2. Webhook endpoints & receipts (Spec Section 66)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS webhook_endpoints (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        secret TEXT NOT NULL,
+        allowed_topics TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        require_signature INTEGER NOT NULL DEFAULT 1,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS webhook_receipts (
+        id TEXT PRIMARY KEY,
+        endpoint_id TEXT NOT NULL,
+        idempotency_key TEXT,
+        signature TEXT,
+        timestamp INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        source_ip TEXT,
+        payload_hash TEXT,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_webhook_receipts_endpoint ON webhook_receipts(endpoint_id);
+      CREATE INDEX IF NOT EXISTS idx_webhook_receipts_idemp ON webhook_receipts(idempotency_key);
+      CREATE INDEX IF NOT EXISTS idx_webhook_receipts_created ON webhook_receipts(created_at);
+    `);
+
+    // 3. Heartbeat logs table (Spec Section 36)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS heartbeat_logs (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT,
+        woke_agent INTEGER NOT NULL DEFAULT 0,
+        reason TEXT,
+        cost_usd REAL NOT NULL DEFAULT 0.0,
+        tokens_used INTEGER NOT NULL DEFAULT 0,
+        active_goals_count INTEGER NOT NULL DEFAULT 0,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_heartbeat_logs_agent ON heartbeat_logs(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_heartbeat_logs_timestamp ON heartbeat_logs(timestamp);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
@@ -668,7 +749,8 @@ export const MIGRATIONS: Migration[] = [
   migrationV2P4BResearchRagDocuments,
   migrationV2P4CBrowserProfiles,
   migrationV2P5Learning,
-  migrationV2P6MultiAgent
+  migrationV2P6MultiAgent,
+  migrationV2P7ProactiveAgent
 ];
 
 

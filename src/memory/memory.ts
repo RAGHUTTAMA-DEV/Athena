@@ -9,16 +9,17 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore, AgentMessageStore, AgentTeamStore, DurableAgentEventStore, WebhookStore, HeartbeatStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities, seedP6Capabilities, seedP7Capabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
 import { BrowserEngine } from '../browser/browserEngine.js';
 import { ComputerController } from '../computer/computerController.js';
 import { ProgressiveSkillManager, RoutineEngine, WorkflowLearner } from '../learning/index.js';
 import { AgentMailbox, HandoffEngine, TeamManager, DelegationContractEngine } from '../multiagent/index.js';
+import { EventPipeline, HeartbeatEngine, WebhookEngine, StalledGoalDetector } from '../proactive/index.js';
 
 export interface SemanticFact {
   id?: number;
@@ -319,6 +320,71 @@ export class EpisodicMemory {
       this.teamManager = new TeamManager(store);
     }
     return this.teamManager;
+  }
+
+  // --- P7: Proactive Agent Subsystem (Spec Sections 35, 36, 37, 38, 66) ---
+
+  private eventPipeline?: EventPipeline;
+  private heartbeatEngine?: HeartbeatEngine;
+  private webhookEngine?: WebhookEngine;
+  private stalledGoalDetector?: StalledGoalDetector;
+
+  getDurableAgentEventStore(): DurableAgentEventStore | null {
+    return this.stores ? this.stores.durableEvent : null;
+  }
+
+  getWebhookStore(): WebhookStore | null {
+    return this.stores ? this.stores.webhook : null;
+  }
+
+  getHeartbeatStore(): HeartbeatStore | null {
+    return this.stores ? this.stores.heartbeat : null;
+  }
+
+  getEventPipeline(): EventPipeline {
+    if (!this.eventPipeline) {
+      const store = this.getDurableAgentEventStore();
+      if (!store) throw new Error('Database not initialized.');
+      this.eventPipeline = new EventPipeline(store);
+    }
+    return this.eventPipeline;
+  }
+
+  getHeartbeatEngine(): HeartbeatEngine {
+    if (!this.heartbeatEngine) {
+      const hbStore = this.getHeartbeatStore();
+      if (!hbStore) throw new Error('Database not initialized.');
+      this.heartbeatEngine = new HeartbeatEngine(
+        {
+          goal: this.getGoalStore() || undefined,
+          runWait: this.getRunWaitStore() || undefined,
+          agentMessage: this.getAgentMessageStore() || undefined,
+          heartbeat: hbStore
+        },
+        undefined,
+        this.getEventPipeline()
+      );
+    }
+    return this.heartbeatEngine;
+  }
+
+  getWebhookEngine(): WebhookEngine {
+    if (!this.webhookEngine) {
+      const whStore = this.getWebhookStore();
+      const evStore = this.getDurableAgentEventStore();
+      if (!whStore || !evStore) throw new Error('Database not initialized.');
+      this.webhookEngine = new WebhookEngine(whStore, evStore, this.getEventPipeline());
+    }
+    return this.webhookEngine;
+  }
+
+  getStalledGoalDetector(stallThresholdMs?: number): StalledGoalDetector {
+    if (!this.stalledGoalDetector) {
+      const gStore = this.getGoalStore();
+      if (!gStore) throw new Error('Database not initialized.');
+      this.stalledGoalDetector = new StalledGoalDetector(gStore, this.getEventPipeline(), stallThresholdMs);
+    }
+    return this.stalledGoalDetector;
   }
 
   private requireRunStore(): SqliteStores['run'] {

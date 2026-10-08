@@ -792,7 +792,8 @@ export class ToolSelector {
     calendar: ['calendar', 'meeting', 'events', 'appointment', 'schedule', 'rsvp'],
     notion: ['notion', 'page', 'database', 'notes', 'docs', 'workspace'],
     diagram: ['excalidraw', 'draw', 'diagram', 'canvas', 'sketch', 'mermaid', 'shape'],
-    computer: ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution']
+    computer: ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution'],
+    proactive: ['proactive', 'webhook', 'webhooks', 'heartbeat', 'stalled', 'stall', 'replay', 'endpoint', 'receipts']
   };
 
   private static TOOL_GROUPS: Record<string, string[]> = {
@@ -803,7 +804,8 @@ export class ToolSelector {
     agent: ['agentDelegate', 'delegateTask', 'delegateCodingTask', 'agentMessageSend', 'agentMailboxCheck'],
     cron: ['cronjob', 'routineManage'],
     routine: ['routineManage', 'workflowLearn'],
-    computer: ['computerInspect', 'computerInteract', 'computerManageWindow']
+    computer: ['computerInspect', 'computerInteract', 'computerManageWindow'],
+    proactive: ['proactiveHeartbeatConfig', 'webhookManage', 'eventReplay']
   };
 
   /**

@@ -330,3 +330,43 @@ export function seedP6Capabilities(registry: CapabilityRegistry): void {
   });
 }
 
+/**
+ * Seed the P7 Proactive Agent capability set (spec sections 35, 36, 37, 38, 66, 71).
+ */
+export function seedP7Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'proactive.event_pipeline',
+    name: 'Multi-Stage Event Pipeline (Filter -> Relevance -> Wake -> Reason -> Action) with Cost Controls',
+    status: 'real',
+    phase: 'P7'
+  });
+
+  registry.register({
+    id: 'proactive.heartbeat',
+    name: 'Event-Aware, Throttled, Budget-Capped Proactive Heartbeat Engine',
+    status: 'real',
+    phase: 'P7'
+  });
+
+  registry.register({
+    id: 'proactive.durable_events',
+    name: 'Durable AgentEvent Persistence, Deduplication, Retries, and Replay',
+    status: 'real',
+    phase: 'P7'
+  });
+
+  registry.register({
+    id: 'proactive.webhooks',
+    name: 'Secure Webhook Ingestion with HMAC-SHA256, Replay Protection, and Privilege Separation Guard',
+    status: 'real',
+    phase: 'P7'
+  });
+
+  registry.register({
+    id: 'proactive.monitoring',
+    name: 'Autonomous Monitoring Triggers and Stalled-Goal Wake Detection',
+    status: 'real',
+    phase: 'P7'
+  });
+}
+
