@@ -65,6 +65,7 @@ Crucial Sub-Agent Rules:
       : (process.env.GEMINI_MODEL || 'gemini-2.5-flash');
     const childModelName = context?.modelName || defaultModel;
 
+    const parentMemory = context?.memory;
     const childAgent = new Agent({
       provider: childProvider,
       modelName: childModelName,
@@ -73,6 +74,8 @@ Crucial Sub-Agent Rules:
       allowedTools,
       depth: childDepth,
       taskId,
+      memory: parentMemory,
+      dbPath: !parentMemory ? (process.env.DATABASE_PATH || './state.db') : undefined,
       nvidiaApiKey: context?.nvidiaApiKey,
       nvidiaBaseUrl: context?.nvidiaBaseUrl
     });
@@ -132,10 +135,11 @@ Crucial Sub-Agent Rules:
         });
       }
 
-      // Explicitly close database handle of sub-agent if initialized
-      const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
-      if (childMemory) {
-        await childMemory.close();
+      if (!parentMemory) {
+        const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
+        if (childMemory) {
+          await childMemory.close();
+        }
       }
 
       return {

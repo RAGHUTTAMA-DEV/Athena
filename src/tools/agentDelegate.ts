@@ -110,6 +110,7 @@ Crucial Rules:
     const childModelName = context?.modelName || defaultModel;
 
     const { Agent } = await import('../runtime/agent.js');
+    const parentMemory = context?.memory;
     const childAgent = new Agent({
       provider: childProvider,
       modelName: childModelName,
@@ -118,6 +119,8 @@ Crucial Rules:
       allowedTools: contract.allowedTools,
       depth: childDepth,
       taskId: subagentTaskId,
+      memory: parentMemory,
+      dbPath: !parentMemory ? (process.env.DATABASE_PATH || './state.db') : undefined,
       nvidiaApiKey: context?.nvidiaApiKey,
       nvidiaBaseUrl: context?.nvidiaBaseUrl
     });
@@ -137,9 +140,11 @@ Crucial Rules:
         }
       );
 
-      const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
-      if (childMemory) {
-        await childMemory.close();
+      if (!parentMemory) {
+        const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
+        if (childMemory) {
+          await childMemory.close();
+        }
       }
 
       delegationEngine.unregisterActiveSubagent(goalId);
@@ -153,9 +158,11 @@ Crucial Rules:
       };
     } catch (err: any) {
       delegationEngine.unregisterActiveSubagent(goalId);
-      const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
-      if (childMemory) {
-        try { await childMemory.close(); } catch {}
+      if (!parentMemory) {
+        const childMemory = (childAgent as any).getMemory ? childAgent.getMemory() : (childAgent as any).memory;
+        if (childMemory) {
+          try { await childMemory.close(); } catch {}
+        }
       }
       return {
         success: false,

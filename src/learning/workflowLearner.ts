@@ -49,41 +49,61 @@ export class WorkflowLearner {
     const id = `lw_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     // Sanitize and parameterize steps (stripping ephemeral IDs, timestamps, session keys)
-    const generalizedSteps: WorkflowStep[] = input.steps.map((raw, idx) => {
+    const generalizedSteps: WorkflowStep[] = (input.steps || []).map((raw: any, idx) => {
       const stepId = `step_${idx + 1}`;
-      const action = raw.toolName;
-      const description = raw.description || `Execute ${action} operation`;
+      const action = typeof raw === 'string'
+        ? raw
+        : (raw?.toolName || raw?.action || raw?.tool || raw?.name || raw?.step || 'unknownAction');
+      const description = (typeof raw === 'object' && raw?.description)
+        ? raw.description
+        : `Execute ${action} operation`;
 
       // Abstract parameters by removing transient runtime metadata
       const template: Record<string, any> = {};
-      if (raw.parameters) {
-        for (const [k, v] of Object.entries(raw.parameters)) {
+      let params: Record<string, any> | undefined = undefined;
+      if (typeof raw === 'object' && raw) {
+        if (raw.parameters && typeof raw.parameters === 'object') params = raw.parameters;
+        else if (raw.args && typeof raw.args === 'object') params = raw.args;
+        else if (raw.inputTemplate && typeof raw.inputTemplate === 'object') params = raw.inputTemplate;
+        else if (raw.stepInput) {
+          if (typeof raw.stepInput === 'string' && (raw.stepInput.trim().startsWith('{') || raw.stepInput.trim().startsWith('['))) {
+            try { params = JSON.parse(raw.stepInput); } catch (e) { params = { input: raw.stepInput }; }
+          } else {
+            params = { input: raw.stepInput };
+          }
+        }
+      }
+      if (params && typeof params === 'object') {
+        for (const [k, v] of Object.entries(params)) {
           if (['timestamp', 'runId', 'sessionId', 'idempotencyKey'].includes(k)) continue;
           template[k] = v;
         }
       }
 
+      const expectedOutcome = (typeof raw === 'object' && (raw?.resultSummary || raw?.expectedOutcome)) || undefined;
+
       return {
         stepId,
-        action,
-        description,
+        action: String(action),
+        description: String(description),
         inputTemplate: Object.keys(template).length > 0 ? template : undefined,
-        expectedOutcome: raw.resultSummary || undefined
+        expectedOutcome
       };
     });
 
     const inferredPermissions = new Set<string>(input.requiredPermissions || []);
     for (const s of generalizedSteps) {
-      if (s.action.startsWith('fs:') || ['readFile', 'writeFile', 'deleteFile', 'replaceFileContent'].includes(s.action)) {
+      const act = s.action || '';
+      if (act.startsWith('fs:') || ['readFile', 'writeFile', 'deleteFile', 'replaceFileContent'].includes(act)) {
         inferredPermissions.add('fs');
       }
-      if (s.action.startsWith('cmd:') || ['executeCommand', 'processManage'].includes(s.action)) {
+      if (act.startsWith('cmd:') || ['executeCommand', 'processManage'].includes(act)) {
         inferredPermissions.add('cmd:exec');
       }
-      if (s.action.startsWith('browser') || s.action.includes('Browser')) {
+      if (act.startsWith('browser') || act.includes('Browser')) {
         inferredPermissions.add('browser');
       }
-      if (s.action.startsWith('computer') || s.action.includes('Computer')) {
+      if (act.startsWith('computer') || act.includes('Computer')) {
         inferredPermissions.add('computer');
       }
     }

@@ -775,7 +775,8 @@ export class ToolSelector {
     'readFile',
     'semantic_memory_manage',
     'cronjob',
-    'routineManage'
+    'routineManage',
+    'agentDelegate'
   ]);
 
   private static INTENT_KEYWORDS: Record<string, string[]> = {
@@ -783,7 +784,7 @@ export class ToolSelector {
     terminal: ['terminal', 'command', 'bash', 'cmd', 'shell', 'exec', 'run command', 'npm', 'install', 'dir', 'explorer'],
     web: ['web', 'search', 'google', 'url', 'site', 'browser', 'scrape', 'news', 'find online', 'http', 'https'],
     python: ['python', 'script', 'data', 'plot', 'numpy', 'pandas', 'calculate'],
-    agent: ['subagent', 'delegate', 'worker', 'hire', 'team', 'spawn', 'background'],
+    agent: ['subagent', 'delegate', 'worker', 'hire', 'team', 'spawn', 'background', 'multiagent', 'multi-agent', 'pipeline', 'specialist', 'researcher', 'coder', 'reviewer', 'planner', 'analyzer', 'agent', 'agents', 'handoff', 'mailbox'],
     cron: ['cron', 'schedule', 'remind', 'reminder', 'timer', 'alarm', 'recurring', 'interval', 'every', 'secs', 'sec', 'second', 'seconds', 'min', 'mins', 'minute', 'minutes', 'hour', 'hours', 'daily', 'weekly', 'monthly', 'delay', 'job', 'jobs', 'cronjob', 'routine', 'routines', 'automate', 'automation', 'automated'],
     routine: ['routine', 'routines', 'automate', 'automation', 'automated', 'standing', 'workflow', 'trigger', 'event', 'listener'],
     github: ['github', 'gh', 'repo', 'repos', 'repository', 'repositories', 'pull request', 'pr', 'commit', 'commits', 'issue', 'issues', 'branch', 'branches', 'git', 'project', 'projects', 'fork', 'clone', 'release', 'workflow', 'star', 'pat'],
@@ -799,7 +800,7 @@ export class ToolSelector {
     terminal: ['executeCommand', 'processManage'],
     web: ['searchWeb', 'browser', 'browserNavigate', 'browserAction', 'browserScreenshot'],
     python: ['executePython', 'calculate'],
-    agent: ['delegateTask', 'delegateCodingTask'],
+    agent: ['agentDelegate', 'delegateTask', 'delegateCodingTask', 'agentMessageSend', 'agentMailboxCheck'],
     cron: ['cronjob', 'routineManage'],
     routine: ['routineManage', 'workflowLearn'],
     computer: ['computerInspect', 'computerInteract', 'computerManageWindow']

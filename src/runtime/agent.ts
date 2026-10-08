@@ -92,7 +92,13 @@ const TOOL_ALIASES: Record<string, string> = {
   'routineManageTool': 'routineManage',
   'workflow_learn': 'workflowLearn',
   'learn_workflow': 'workflowLearn',
-  'skillManage': 'skill_manage'
+  'skillManage': 'skill_manage',
+  'agent_delegate': 'agentDelegate',
+  'agentDelegateTool': 'agentDelegate',
+  'delegate_agent': 'agentDelegate',
+  'delegateAgent': 'agentDelegate',
+  'agent_message_send': 'agentMessageSend',
+  'agent_mailbox_check': 'agentMailboxCheck'
 };
 
 export class Agent {
@@ -384,7 +390,10 @@ export class Agent {
           console.warn(`[Agent Warning] Failed to load SOUL.md from ${this.config.soulPath}: ${err.message}`);
         }
       }
-      if (this.config.dbPath) {
+      if (this.config.memory) {
+        this.memory = this.config.memory;
+        await this.initIdentity();
+      } else if (this.config.dbPath) {
         try {
           const resolvedPath = path.resolve(this.config.dbPath);
           this.memory = new EpisodicMemory(resolvedPath);

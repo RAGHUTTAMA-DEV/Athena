@@ -220,7 +220,16 @@ export const workflowLearnTool: Tool = {
         },
         steps: {
           type: 'ARRAY',
-          items: { type: 'OBJECT' },
+          items: {
+            type: 'OBJECT',
+            properties: {
+              toolName: { type: 'STRING', description: 'Name of the tool to invoke (e.g. executeCommand, readFile, agentDelegate, replaceFileContent)' },
+              action: { type: 'STRING', description: 'Alias for toolName' },
+              description: { type: 'STRING', description: 'Summary of what this step achieves' },
+              stepInput: { type: 'STRING', description: 'Template parameters, arguments, or command string for this step' },
+              resultSummary: { type: 'STRING', description: 'Expected outcome or output summary' }
+            }
+          },
           description: 'The sequence of abstract steps.'
         },
         status: {
@@ -242,8 +251,8 @@ export const workflowLearnTool: Tool = {
           description: 'Trigger type when promoting to a Routine.'
         },
         routineTriggerConfig: {
-          type: 'OBJECT',
-          description: 'Trigger configuration when promoting to a Routine.'
+          type: 'STRING',
+          description: 'Trigger configuration when promoting to a Routine (e.g. cron string or event topic).'
         }
       },
       required: ['action']
@@ -279,12 +288,16 @@ export const workflowLearnTool: Tool = {
 
       switch (args.action) {
         case 'distill': {
-          if (!args.intent || !args.steps) {
-            return { success: false, error: 'intent and steps are required for distill.' };
+          let steps = args.steps;
+          if (typeof steps === 'string') {
+            try { steps = JSON.parse(steps); } catch (e) {}
+          }
+          if (!args.intent || !steps || !Array.isArray(steps)) {
+            return { success: false, error: 'intent and a valid steps array are required for distill.' };
           }
           const wf = await learner.distillWorkflow({
             intent: args.intent,
-            steps: args.steps
+            steps: steps
           });
           return { success: true, message: `Workflow distilled with ID: ${wf.id} in state "${wf.status}"`, workflow: wf };
         }

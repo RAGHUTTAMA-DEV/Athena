@@ -119,8 +119,16 @@ export function cleanGeminiSchema(schema: any, isRoot: boolean = true): any {
   if (cleaned.type === 'ARRAY' && !cleaned.items) {
     cleaned.items = { type: 'STRING' };
   }
-  if (cleaned.type === 'OBJECT' && !cleaned.properties) {
-    cleaned.properties = {};
+  if (cleaned.type === 'OBJECT') {
+    if (!cleaned.properties || Object.keys(cleaned.properties).length === 0) {
+      if (isRoot) {
+        cleaned.properties = {};
+      } else {
+        // Gemini API rejects nested open-ended objects with empty properties ({}) as MALFORMED_FUNCTION_CALL
+        cleaned.type = 'STRING';
+        delete cleaned.properties;
+      }
+    }
   }
 
   return cleaned;

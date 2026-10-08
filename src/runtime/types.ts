@@ -93,6 +93,7 @@ export interface AgentConfig {
   systemPrompt: string;
   soulPath?: string;
   dbPath?: string;
+  memory?: any;
   skillsPath?: string;
   allowedTools?: string[];
   depth?: number;
