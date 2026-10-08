@@ -231,6 +231,38 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     maxOutputBytes: 16384,
     tags: ['web', 'search']
   },
+  researchWeb: {
+    riskLevel: 'safe',
+    parallelSafe: false,
+    timeoutMs: 90000,
+    permissions: ['net:http'],
+    maxOutputBytes: 20480,
+    tags: ['web', 'research', 'search', 'rag']
+  },
+  ingestDocument: {
+    riskLevel: 'safe',
+    parallelSafe: false,
+    timeoutMs: 120000,
+    permissions: ['fs:read', 'net:http', 'memory'],
+    maxOutputBytes: 16384,
+    tags: ['rag', 'documents', 'ingest']
+  },
+  searchDocuments: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 60000,
+    permissions: ['memory'],
+    maxOutputBytes: 20480,
+    tags: ['rag', 'documents', 'search']
+  },
+  readDocument: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 60000,
+    permissions: ['fs:read', 'memory'],
+    maxOutputBytes: 20480,
+    tags: ['documents', 'pdf', 'read']
+  },
   semantic_memory_manage: {
     riskLevel: 'safe',
     parallelSafe: false,

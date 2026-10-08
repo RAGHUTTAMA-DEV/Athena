@@ -1,6 +1,6 @@
 # Athena V2 — Implementation Status
 
-> **Snapshot:** 2026-10-07 · **Branch:** `athena-v2` · **Plan (source of truth):** [`docs/architecture/athena_v2_build_plan.md`](docs/architecture/athena_v2_build_plan.md)
+> **Snapshot:** 2026-10-08 · **Branch:** `athena-v2` · **Plan (source of truth):** [`docs/architecture/athena_v2_build_plan.md`](docs/architecture/athena_v2_build_plan.md)
 > Full historical tracker: [`roadmap.md`](roadmap.md) · Local scratch: `.todo.md` (not committed)
 
 ---
@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P4A: Action System (Registry, Discovery, Sandbox, FS, Terminal) — ✅ COMPLETE** |
-| **Next phase** | P4B: Web Research, RAG, and Document Intelligence — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P4B: Web Research, RAG, and Document Intelligence — ✅ COMPLETE** |
+| **Next phase** | P4C: Browser as First-Class Environment — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, & V2 P4A test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1, V2 P2, V2 P3, V2 P4A, & V2 P4B test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -26,7 +26,7 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P1** | **Agent Foundation** — versioned migrations, AgentProfile + version history, User model, Workspace/Project entities, candidate memory lifecycle, permission model, store interfaces | ✅ **done** (`6846f5c`) | `npm run test:v2p1` — 9/9 |
 | **P2** | **Persistent Autonomy** — Goal/Task entities, extended run lifecycle (12 states), `run_waits`, crash-safe resume, per-goal budgets, Goal→Task→Run spans, background safe tool guard | ✅ **done** | `npm run test:v2p2` — 11/11 |
 | **P3** | **Memory and Context** — Memory model per spec (scopes `agent`, `goal`, types `fact`, `preference`, etc., lifecycle `quarantined`, `archived`), Section 65 Secure Memory Write Pipeline (sanitize, prompt injection quarantine, credential masking), Universal Session Search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors), Bounded Context References (`@file`, `@folder`, `@repo`, `@run`, `@goal`, `@task`, `@memory`, `@project`), Cache-Friendly Layered ContextEngine, Token & Cost Accounting | ✅ **done** | `npm run test:v2p3` — 9/9 |
-| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ (P4B: Research/RAG, P4C: Git/Worktrees, P4D: Advanced Actions pending) | 🔄 in progress (P4A done) | `npm run test:v2p4a` — 6/6 |
+| **P4** | **Action System** — P4A: Registry, Discovery, ExecutionBackend, FS, Terminal ✅ · P4B: Research/RAG/Documents ✅ (P4C: Browser, P4D: Advanced Actions pending) | 🔄 in progress (P4A + P4B done) | `npm run test:v2p4a` — 6/6 · `npm run test:v2p4b` — 9/9 |
 | **P5** | Learning | ⛔ not started | — |
 | **P6** | Multi-Agent | ⛔ not started | — |
 | **P7** | Proactive Agent | ⛔ not started | — |
@@ -89,6 +89,20 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Searchable Tool Registry & 5-Stage Discovery** — `ToolRegistry` and `ToolDiscoveryPipeline`: registers 100+ tools, filters via capabilities and permissions, scores by semantic relevance, and bounds prompt schema output strictly within token budgets ($\le 2000$ tokens).
 - **ADR** — [`docs/decisions/0007-action-system-p4a-registry-discovery-sandbox.md`](docs/decisions/0007-action-system-p4a-registry-discovery-sandbox.md).
 
+### Added by V2 P4B
+- **Schema Migration 5** — `v2_p4b_research_rag_documents`: `vector_embeddings` (namespace, ref binding, JSON embedding, dims, model) and `research_documents` (source type/URI, content hash for dedupe, chunk/char counts, workspace binding).
+- **`VectorStore` interface + `SqliteVectorStore`** — upsert/get/delete/deleteByRef/deleteByNamespace, cosine search with namespace/ref/dims/threshold filters; pgvector adapter deferred to P12 (ADR-0001 pattern). Companion `ResearchDocumentStore` tracks ingested sources.
+- **`EmbeddingProvider`** — the V1 Gemini → OpenAI/NVIDIA embedding fallback chain extracted verbatim from `EpisodicMemory.generateEmbedding` into a replaceable provider; RAG reuses the same backend with zero behavior change.
+- **Real Local Cross-Encoder Reranker** — `LocalCrossEncoderReranker` (`@huggingface/transformers`, `Xenova/ms-marco-MiniLM-L-6-v2`, in-process ONNX, `RERANKER_MODEL` env) scoring `(query, passage)` pairs. Eval proves measurable gain over a lexical TF baseline (keyword-stuffed distractor ranked 1st by TF → cross-encoder ranks the answering passage 1st, gold rank 2 → 1). When the model cannot load, the capability is marked `unsupported` with a reason and `rerank()` returns `null` — the pipeline skips the stage and reports `reranked: false` + skip reason (never a lexical fake).
+- **Capability Registry (spec section 71)** — first formal registry in the codebase: `real | experimental | unsupported` + reason, seeded at boot with 11 P4B capabilities; `documents.ocr` is `experimental`, `rag.rerank` reflects true backend state.
+- **Document Intelligence** — `DocumentParser` with real extractors: PDF (pdf-parse v2 / pdf.js), DOCX (mammoth), XLSX (sheetjs, per-sheet CSV), CSV (papaparse), HTML (script/style excluded), Markdown/text; images/scanned docs via tesseract.js OCR (`experimental`). Unparseable input throws — never fabricated text.
+- **Structure-Aware Chunker** — heading → paragraph → sentence boundaries with overlap and coverage guarantees; large documents are always reduced to chunks and go through retrieval, never wholesale into context.
+- **RAG Pipeline** — `RagEngine`: ingest (parse → chunk → embed → vector store, SHA-256 dedupe, changed-source replacement), retrieve (top-K×4 candidates), rerank (capability-gated cross-encoder), cited results with `retrievalScore`/`rerankScore`. Missing embedding provider ⇒ capability `unsupported` + typed error.
+- **Research Pipeline** — `ResearchEngine`: search → retrieve → extract → reason → cross-check → synthesize → cite. Every finding labeled `source` / `inference` / `uncertainty` with 1-based citations and confidence; conflict detection surfaces differing values as `uncertainty`. All retrieved content passes PromptDefense (`analyzeAndSanitize`) before extraction — neutralized injections are noted and can never surface as finding content. Search/fetch functions are injectable (fixtures in tests, production defaults = V1 `searchWeb` + bounded fetch).
+- **Tools** — `researchWeb`, `ingestDocument`, `searchDocuments`, `readDocument` registered through the P4A registry with manifests (`net:http`/`fs:read`/`memory`, risk `safe`); discovery capability keywords extended with `research`. `readDocument` enforces the context budget (bounded excerpt + retrieval chunks for focus queries; full text only for small docs).
+- **Store Facade Extension** — `EpisodicMemory.getVectorStore() / getResearchDocumentStore() / getRagEngine() / getResearchEngine()` follow the established ADR-0001 delegation pattern.
+- **ADR** — [`docs/decisions/0008-research-rag-documents-p4b.md`](docs/decisions/0008-research-rag-documents-p4b.md).
+
 ---
 
 ## Test suite status
@@ -97,7 +111,8 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P4A (new, 6 tests)** | `npm run test:v2p4a` | ✅ 6/6 |
+| **V2 P4B (new, 9 tests)** | `npm run test:v2p4b` | ✅ 9/9 |
+| **V2 P4A (6 tests)** | `npm run test:v2p4a` | ✅ 6/6 |
 | **V2 P3 (9 tests)** | `npm run test:v2p3` | ✅ 9/9 |
 | **V2 P2 (11 tests)** | `npm run test:v2p2` | ✅ 11/11 |
 | **V2 P1 (9 tests)** | `npm run test:v2p1` | ✅ 9/9 |
@@ -114,9 +129,14 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 | Observability + evals (V1) | `npm run test:phase8` | ✅ |
 | Observability (V1) | `npm run test:observability` | ✅ |
 | Eval (V1) | `npm run test:eval` | ✅ |
-| Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 8/12 — see debt) |
+| Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 10/12 on this run — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P4B exit criteria — all PASS
+1. Reranker eval shows measurable gain over retrieval-only on a fixed dataset — **PASS** (TEST 6: lexical TF baseline ranks the keyword-stuffed distractor 1st (p2=22 > p1=12); the local cross-encoder ranks the answering passage 1st (p1 0.456 > p2 0.130), gold rank 2 → 1; unsupported-model path verified in TEST 6b)
+2. Research report cites sources and labels claims vs inferences (eval) — **PASS** (TEST 7: 4 cited sources; findings labeled `source`/`inference`/`uncertainty` with in-range citations; cross-source corroboration + conflict detection; injection neutralized and never surfaced)
+3. 200-page PDF Q&A stays within context budget — **PASS** (TEST 8: 450,914-char document → 7,305 chars returned via bounded excerpt + retrieval chunks (budget 8,000), top chunk on-topic; full text never returned)
 
 ### P4A exit criteria — all PASS
 1. 100+ tools registered $\rightarrow$ discovery ranks top tools $\rightarrow$ bounded prompt schema $\le 2000$ tokens — **PASS** (TEST 1)
@@ -148,7 +168,7 @@ Run: 2026-10-08. `npx tsc --noEmit` clean.
 | # | Item | Impact | Plan |
 |---|:---|:---|:---|
 | 1 | `test:evolution` race: `Scheduler.tick()` doesn't await the worker pool, so the test asserts `triggeredPrompt` before the runner fires | Test fails deterministically (**0/3 on `main` baseline** — not a V2 regression) | Fix as a small separate hygiene commit if approved |
-| 2 | Committed adversarial report (`src/tests/evals/results/adversarial_report.*`) is **stale**: shows 100% from a 3-scenario mock suite; current 12-scenario suite scores **67% (8/12) on both `main` and `athena-v2`** (identical → no regression) | Report misleading; scores vary slightly run-to-run (LLM-dependent checks) | Regenerate + commit separately when the eval suite is next touched |
+| 2 | Committed adversarial report (`src/tests/evals/results/adversarial_report.*`) was stale (100% from a 3-scenario mock suite) | Scores are LLM-dependent run-to-run | **Regenerated 2026-10-08 during P4B regression run — now reflects the current 12-scenario suite at 10/12 (83%), improved from the previously recorded 8/12.** Keep regenerating whenever the suite is next touched |
 | 3 | `.todo.md` is **tracked in git** despite being treated as local scratch | Updated locally but excluded from phase commits per working rule | User decision: commit it, or `git update-index --skip-worktree .todo.md` |
 | 4 | Untracked root duplicates `athena_v2_build_plan.md` / `athena_v2_theory.md` (committed copies live in `docs/architecture/`) | Clutter only | Delete on request |
 | 5 | Editing `SOUL.md` after first seed doesn't change an existing profile (rendering is profile-driven by design) | Live identity can drift from the file | Possible import/CLI path in a later phase |

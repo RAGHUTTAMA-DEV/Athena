@@ -18,7 +18,11 @@
 | **Phase 8** | **Observability + Evaluation** | Athena Core | **100%** | `npm run test:observability` | ✅ **Completed & Verified** |
 | **Phase 9** | **Platform / Production** | Athena Core | **0%** | `npm run test:production` | ⏳ Queued (superseded by V2 plan) |
 | **V2 P1** | **Agent Foundation (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p1` | ✅ **Completed & Verified** |
-| **V2 P2+** | **Persistent Autonomy onward (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
+| **V2 P2** | **Persistent Autonomy (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p2` | ✅ **Completed & Verified** |
+| **V2 P3** | **Memory and Context (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p3` | ✅ **Completed & Verified** |
+| **V2 P4A** | **Action System: Registry, Discovery, Sandbox, FS, Terminal** | Athena V2 | **100%** | `npm run test:v2p4a` | ✅ **Completed & Verified** |
+| **V2 P4B** | **Web Research, RAG, Documents (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p4b` | ✅ **Completed & Verified** |
+| **V2 P4C+** | **Browser, Computer Use, P5–P13 (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
 
 ---
 
@@ -221,3 +225,49 @@ flowchart TD
 * Test file: [`src/tests/test_v2_p1_agent_foundation.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_v2_p1_agent_foundation.ts)
 * Command: `npm run test:v2p1` (9/9 passing)
 * Full V1 suite re-run: no regressions (all suites pass; `test:evolution` fails identically on the `main` baseline — pre-existing, 0/3 there)
+
+### V2 P2: PERSISTENT AUTONOMY — [100% COMPLETE]
+
+- [x] `Goal` / `Task` entities with lifecycle, dependencies, attempts, structured planner output into SQLite.
+- [x] 12-state run lifecycle; durable waiting (`run_waits` + matcher on EventBus, no `setTimeout`).
+- [x] Crash-safe resume (`CrashResumeSweeper`), lease takeover, idempotency (10/10 chaos trials, zero duplicate side effects).
+- [x] Goal budgets enforced strictly above run budgets; background runs restricted to safe tools until P4A.
+- [x] Hierarchical telemetry: Goal span → Task span → Run span. ADR-0005.
+
+**Verification**: `npm run test:v2p2` (11/11 passing, all 4 exit criteria passed)
+
+### V2 P3: MEMORY AND CONTEXT — [100% COMPLETE]
+
+- [x] Memory model per spec (`agent`/`goal` scopes, types, `archived`/`quarantined` lifecycles); Section 65 secure write pipeline (injection quarantine, credential masking).
+- [x] Universal session search (FTS5 over messages, tool calls/outputs, plans, thoughts, errors, runs) with filters.
+- [x] Bounded context references (`@file`, `@folder`, `@repo`, `@url`, `@run`, `@goal`, `@task`, `@memory`, `@artifact`, `@project`).
+- [x] Cache-friendly layered ContextEngine (stable prefix); `TokenAccountant` (input/output/cached tokens, latency, cost).
+- [x] Store interfaces `MemoryStore` + `SessionSearchStore` (SQLite impls). ADR-0006.
+
+**Verification**: `npm run test:v2p3` (9/9 passing, all 3 exit criteria passed)
+
+### V2 P4A: ACTION SYSTEM (REGISTRY, DISCOVERY, SANDBOX, FS, TERMINAL) — [100% COMPLETE]
+
+- [x] Full `ToolDefinition` + `SearchableToolRegistry` + 5-stage discovery (100+ tools, prompt bounded ≤ 2000 tokens).
+- [x] `ExecutionBackend` (`LocalExecutionBackend`, `SandboxedExecutionBackend`), scoped `FilesystemEngine`, `ProcessManager`.
+- [x] `ObfuscationDetector` + PolicyEngine modernization (canonical realpath, obfuscation deny, background sandbox guard).
+- [x] ADR-0007.
+
+**Verification**: `npm run test:v2p4a` (6/6 passing, all 3 exit criteria passed)
+
+### V2 P4B: WEB RESEARCH, RAG, DOCUMENT INTELLIGENCE — [100% COMPLETE]
+
+- [x] **Migration 5** (`v2_p4b_research_rag_documents`): `vector_embeddings`, `research_documents`.
+- [x] **`VectorStore` interface + SQLite impl** (pgvector adapter deferred to P12 per ADR-0001); `ResearchDocumentStore`; `EmbeddingProvider` extracted from `EpisodicMemory` (behavior identical).
+- [x] **Real local cross-encoder reranker** (`@huggingface/transformers`, `Xenova/ms-marco-MiniLM-L-6-v2`, in-process): measured gain over lexical TF baseline on a fixed dataset (gold passage rank 2 → 1); when the model can't load the capability is `unsupported` and the rerank stage is skipped with a reason — never faked.
+- [x] **Capability registry (first in codebase)**: `real | experimental | unsupported` + reasons; OCR `experimental`, `rag.rerank` tracks true backend state.
+- [x] **Document intelligence**: PDF (pdf-parse v2), DOCX (mammoth), XLSX (sheetjs), CSV (papaparse), HTML (script/style stripped), Markdown/text; images via tesseract.js OCR (experimental).
+- [x] **Structure-aware chunker** (heading → paragraph → sentence + overlap + coverage); large documents always go through retrieval, never wholesale into context.
+- [x] **RAG pipeline**: ingest (SHA-256 dedupe, changed-source replacement) → embed → vector retrieve → cross-encoder rerank → cited chunks.
+- [x] **Research pipeline**: search → retrieve → extract → reason → cross-check → synthesize → cite; findings labeled `source` / `inference` / `uncertainty` with 1-based citations; all retrieved content sanitized via PromptDefense (injection neutralized + reported).
+- [x] **Tools**: `researchWeb`, `ingestDocument`, `searchDocuments`, `readDocument` (budget-enforcing), registered through the P4A registry. ADR-0008.
+
+**Verification**:
+* Test file: [`src/tests/test_v2_p4b_research_rag_docs.ts`](file:///c:/Users/raghu/Documents/Athena/src/tests/test_v2_p4b_research_rag_docs.ts)
+* Command: `npm run test:v2p4b` (9/9 passing — all 3 exit criteria passed)
+* Full V2 + V1 suite re-run: no regressions (`test:evolution` still the pre-existing failure; adversarial eval 10/12, improved from the recorded 8/12)

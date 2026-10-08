@@ -461,10 +461,63 @@ const migrationV2P3MemoryContext: Migration = {
   }
 };
 
+const migrationV2P4BResearchRagDocuments: Migration = {
+  version: 5,
+  name: 'v2_p4b_research_rag_documents',
+  up: async (db) => {
+    // 1. Vector store backing table.
+    //
+    // Embeddings are stored as JSON arrays locally (same representation the V1
+    // semantic_memory/scoped_memory tables already use, so the in-process
+    // cosine search stays consistent). P12 swaps this store for pgvector
+    // behind the same VectorStore interface.
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS vector_embeddings (
+        id TEXT PRIMARY KEY,
+        namespace TEXT NOT NULL,
+        ref_id TEXT,
+        text TEXT NOT NULL,
+        embedding TEXT NOT NULL,
+        dims INTEGER NOT NULL,
+        model TEXT NOT NULL,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_vector_namespace ON vector_embeddings(namespace);
+      CREATE INDEX IF NOT EXISTS idx_vector_ref ON vector_embeddings(ref_id);
+      CREATE INDEX IF NOT EXISTS idx_vector_model ON vector_embeddings(model);
+      CREATE INDEX IF NOT EXISTS idx_vector_dims ON vector_embeddings(dims);
+    `);
+
+    // 2. Ingested research documents (RAG sources).
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS research_documents (
+        id TEXT PRIMARY KEY,
+        source_type TEXT NOT NULL,
+        source_uri TEXT NOT NULL,
+        title TEXT,
+        format TEXT,
+        content_hash TEXT NOT NULL,
+        chunk_count INTEGER DEFAULT 0,
+        char_count INTEGER DEFAULT 0,
+        workspace_id INTEGER REFERENCES workspaces(id),
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_research_docs_uri ON research_documents(source_uri);
+      CREATE INDEX IF NOT EXISTS idx_research_docs_hash ON research_documents(content_hash);
+      CREATE INDEX IF NOT EXISTS idx_research_docs_workspace ON research_documents(workspace_id);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
   migrationV2P2PersistentAutonomy,
-  migrationV2P3MemoryContext
+  migrationV2P3MemoryContext,
+  migrationV2P4BResearchRagDocuments
 ];
 

@@ -8,6 +8,8 @@ import { SqliteTaskStore } from './sqliteTaskStore.js';
 import { SqliteRunWaitStore } from './sqliteRunWaitStore.js';
 import { SqliteMemoryStore } from './sqliteMemoryStore.js';
 import { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
+import { SqliteVectorStore } from './sqliteVectorStore.js';
+import { SqliteResearchDocumentStore } from './sqliteResearchDocumentStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -18,6 +20,8 @@ export { SqliteTaskStore } from './sqliteTaskStore.js';
 export { SqliteRunWaitStore } from './sqliteRunWaitStore.js';
 export { SqliteMemoryStore } from './sqliteMemoryStore.js';
 export { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
+export { SqliteVectorStore } from './sqliteVectorStore.js';
+export { SqliteResearchDocumentStore } from './sqliteResearchDocumentStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -31,6 +35,8 @@ export interface SqliteStores {
   runWait: SqliteRunWaitStore;
   memory: SqliteMemoryStore;
   sessionSearch: SqliteSessionSearchStore;
+  vector: SqliteVectorStore;
+  researchDocument: SqliteResearchDocumentStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -45,7 +51,9 @@ export function createSqliteStores(db: Database): SqliteStores {
     task: new SqliteTaskStore(db),
     runWait: new SqliteRunWaitStore(db),
     memory: new SqliteMemoryStore(db),
-    sessionSearch: new SqliteSessionSearchStore(db)
+    sessionSearch: new SqliteSessionSearchStore(db),
+    vector: new SqliteVectorStore(db),
+    researchDocument: new SqliteResearchDocumentStore(db)
   };
 }
 

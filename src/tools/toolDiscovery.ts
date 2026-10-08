@@ -19,7 +19,8 @@ export class ToolDiscoveryPipeline {
     'net:http': ['search', 'google', 'web', 'fetch', 'url', 'http', 'api', 'curl', 'query'],
     'browser': ['browser', 'navigate', 'click', 'page', 'screenshot', 'dom', 'form', 'webpage'],
     'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate'],
-    'memory': ['remember', 'memory', 'recall', 'fact', 'preference', 'store']
+    'memory': ['remember', 'memory', 'recall', 'fact', 'preference', 'store'],
+    'research': ['research', 'investigate', 'cite', 'sources', 'report', 'corroborate', 'evidence', 'documents', 'document', 'pdf', 'docx', 'xlsx', 'csv', 'ingest', 'rag', 'knowledge', 'read', 'summarize']
   };
 
   /**

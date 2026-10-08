@@ -186,3 +186,81 @@ export interface RunWaitStore {
   delete(id: string): Promise<boolean>;
 }
 
+// --- P4B: Web Research, RAG, and Document Intelligence ---
+
+/** A persisted embedding vector bound to a text chunk (RAG ingest output). */
+export interface VectorEmbeddingRecord {
+  id: string;
+  /** Logical collection, e.g. "documents", "web_research", or a project id. */
+  namespace: string;
+  /** Owning entity, e.g. the ingested research document id. */
+  refId?: string;
+  text: string;
+  embedding: number[];
+  dims: number;
+  /** Embedding model that produced the vector. */
+  model: string;
+  metadata?: Record<string, any>;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface VectorSearchResult {
+  id: string;
+  namespace: string;
+  refId?: string;
+  text: string;
+  /** Cosine similarity in [0, 1] (or [-1, 1] for raw cosine). */
+  score: number;
+  metadata?: Record<string, any>;
+}
+
+export interface VectorSearchOptions {
+  namespace?: string;
+  refId?: string;
+  dims?: number;
+  limit?: number;
+  threshold?: number;
+}
+
+/**
+ * Vector store behind an interface. SQLite implementation stores embeddings
+ * as JSON with in-process cosine search (V1 representation). P12 adds a
+ * PostgreSQL/pgvector adapter; callers do not change.
+ */
+export interface VectorStore {
+  upsert(record: VectorEmbeddingRecord): Promise<void>;
+  get(id: string): Promise<VectorEmbeddingRecord | null>;
+  delete(id: string): Promise<void>;
+  deleteByRef(refId: string): Promise<void>;
+  deleteByNamespace(namespace: string): Promise<void>;
+  search(embedding: number[], options?: VectorSearchOptions): Promise<VectorSearchResult[]>;
+  count(namespace?: string): Promise<number>;
+}
+
+/** An ingested source document tracked by the RAG pipeline. */
+export interface ResearchDocument {
+  id: string;
+  /** "file" | "url" | "text" */
+  sourceType: string;
+  sourceUri: string;
+  title?: string;
+  format?: string;
+  contentHash: string;
+  chunkCount: number;
+  charCount: number;
+  workspaceId?: number | null;
+  metadata?: Record<string, any>;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface ResearchDocumentStore {
+  save(doc: ResearchDocument): Promise<ResearchDocument>;
+  get(id: string): Promise<ResearchDocument | null>;
+  findBySourceUri(sourceUri: string): Promise<ResearchDocument | null>;
+  findByHash(contentHash: string): Promise<ResearchDocument | null>;
+  list(filter?: { workspaceId?: number; sourceType?: string; limit?: number }): Promise<ResearchDocument[]>;
+  delete(id: string): Promise<boolean>;
+}
+

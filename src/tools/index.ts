@@ -16,6 +16,10 @@ import { cronjobTool } from './cronjob.js';
 import { browserNavigateTool, browserActionTool, browserScreenshotTool } from './interactiveBrowser.js';
 import { delegateCodingTaskTool } from './delegateCodingTask.js';
 import { processManageTool } from './processManage.js';
+import { researchWebTool } from './researchWeb.js';
+import { ingestDocumentTool } from './ingestDocument.js';
+import { searchDocumentsTool } from './searchDocuments.js';
+import { readDocumentTool } from './readDocument.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -38,7 +42,11 @@ export const tools: Tool[] = [
   browserNavigateTool,
   browserActionTool,
   browserScreenshotTool,
-  delegateCodingTaskTool
+  delegateCodingTaskTool,
+  researchWebTool,
+  ingestDocumentTool,
+  searchDocumentsTool,
+  readDocumentTool
 ];
 
 export * from './processManage.js';

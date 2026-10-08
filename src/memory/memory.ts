@@ -9,7 +9,12 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore } from '../storage/stores/types.js';
+import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
+import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
+import { CapabilityRegistry, seedP4BCapabilities } from '../tools/capabilityRegistry.js';
+import { RagEngine } from '../research/ragPipeline.js';
+import { ResearchEngine } from '../research/researchPipeline.js';
 
 export interface SemanticFact {
   id?: number;
@@ -29,6 +34,10 @@ export class EpisodicMemory {
   private openAIClient: OpenAI | null = null;
   private apiKey?: string;
   private hasWarnedNoEmbeddingKey: boolean = false;
+  /** P4B: shared embedding provider (Gemini → OpenAI/NVIDIA fallback chain). */
+  private embeddingProvider: ConfiguredEmbeddingProvider | null = null;
+  private ragEngines: Map<string, RagEngine> = new Map();
+  private researchEngine: ResearchEngine | null = null;
 
   constructor(dbPath: string, apiKey?: string) {
     this.dbPath = dbPath;
@@ -51,37 +60,13 @@ export class EpisodicMemory {
   }
 
   public async generateEmbedding(text: string): Promise<number[] | null> {
-    const geminiKey = this.apiKey || process.env.GEMINI_API_KEY;
-    if (geminiKey) {
-      const ai = this.getAI();
-      const response = await ai.models.embedContent({
-        model: process.env.GEMINI_EMBEDDING_MODEL || 'text-embedding-004',
-        contents: text
-      });
-      if (response.embeddings && response.embeddings[0]?.values) {
-        return response.embeddings[0].values;
-      }
-      throw new Error('Gemini embedding values missing from response');
+    // P4B: delegates to the shared ConfiguredEmbeddingProvider. The fallback
+    // chain (Gemini embedContent → OpenAI-compatible endpoint, optionally
+    // NVIDIA) is identical to the previous inline implementation.
+    if (!this.embeddingProvider) {
+      this.embeddingProvider = new ConfiguredEmbeddingProvider(this.apiKey);
     }
-
-    const openaiKey = process.env.OPENAI_API_KEY || process.env.NVIDIA_API_KEY;
-    if (openaiKey) {
-      if (!this.openAIClient) {
-        const baseURL = process.env.OPENAI_BASE_URL || (process.env.NVIDIA_API_KEY && !process.env.OPENAI_API_KEY ? (process.env.NVIDIA_BASE_URL || 'https://integrate.api.nvidia.com/v1') : undefined);
-        this.openAIClient = new OpenAI({ apiKey: openaiKey, baseURL });
-      }
-      const model = process.env.EMBEDDING_MODEL || (process.env.OPENAI_API_KEY ? 'text-embedding-3-small' : 'nvidia/nv-embedqa-e5-v5');
-      const response = await this.openAIClient.embeddings.create({
-        model,
-        input: text
-      });
-      if (response.data && response.data[0]?.embedding) {
-        return response.data[0].embedding;
-      }
-      throw new Error('OpenAI embedding values missing from response');
-    }
-
-    return null;
+    return this.embeddingProvider.embed(text);
   }
 
   async init(): Promise<void> {
@@ -95,6 +80,9 @@ export class EpisodicMemory {
     this.stores = createSqliteStores(this.db);
     this.pipeline = new MemoryWritePipeline(this.stores.memory);
     this.sessionSearchEngine = new SessionSearchEngine(this.stores.sessionSearch);
+    // P4B: seed the honest capability registry (real/experimental/unsupported).
+    seedP4BCapabilities(CapabilityRegistry.getInstance());
+    this.embeddingProvider = new ConfiguredEmbeddingProvider(this.apiKey);
   }
 
   getAgentStore(): SqliteStores['agent'] | null {
@@ -147,6 +135,55 @@ export class EpisodicMemory {
 
   getSessionSearchEngine(): SessionSearchEngine | null {
     return this.sessionSearchEngine;
+  }
+
+  // --- P4B: Web Research, RAG, and Document Intelligence ---
+
+  getVectorStore(): VectorStore | null {
+    return this.stores ? this.stores.vector : null;
+  }
+
+  getResearchDocumentStore(): ResearchDocumentStore | null {
+    return this.stores ? this.stores.researchDocument : null;
+  }
+
+  getEmbeddingProvider(): ConfiguredEmbeddingProvider | null {
+    return this.embeddingProvider;
+  }
+
+  /**
+   * RAG engine for a namespace (default "documents"). Lazily constructed
+   * with the SQLite vector/document stores, the shared embedding provider,
+   * and the local cross-encoder reranker (capability-honest: reports
+   * unsupported when the model cannot load).
+   */
+  getRagEngine(namespace?: string): RagEngine {
+    if (!this.stores || !this.embeddingProvider) {
+      throw new Error('Database not initialized. Call init() first.');
+    }
+    const ns = namespace || 'documents';
+    let engine = this.ragEngines.get(ns);
+    if (!engine) {
+      engine = new RagEngine(
+        {
+          vectorStore: this.stores.vector,
+          documentStore: this.stores.researchDocument,
+          embedder: this.embeddingProvider,
+          reranker: new LocalCrossEncoderReranker()
+        },
+        { namespace: ns }
+      );
+      this.ragEngines.set(ns, engine);
+    }
+    return engine;
+  }
+
+  /** Research pipeline (search → retrieve → extract → cross-check → synthesize → cite). */
+  getResearchEngine(): ResearchEngine {
+    if (!this.researchEngine) {
+      this.researchEngine = new ResearchEngine();
+    }
+    return this.researchEngine;
   }
 
   private requireRunStore(): SqliteStores['run'] {
