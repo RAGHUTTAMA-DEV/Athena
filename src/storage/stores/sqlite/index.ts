@@ -11,6 +11,9 @@ import { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
 import { SqliteVectorStore } from './sqliteVectorStore.js';
 import { SqliteResearchDocumentStore } from './sqliteResearchDocumentStore.js';
 import { SqliteBrowserProfileStore } from './sqliteBrowserProfileStore.js';
+import { SqliteRoutineStore } from './sqliteRoutineStore.js';
+import { SqliteLearnedWorkflowStore } from './sqliteLearnedWorkflowStore.js';
+import { SqliteSkillStore } from './sqliteSkillStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -24,6 +27,9 @@ export { SqliteSessionSearchStore } from './sqliteSessionSearchStore.js';
 export { SqliteVectorStore } from './sqliteVectorStore.js';
 export { SqliteResearchDocumentStore } from './sqliteResearchDocumentStore.js';
 export { SqliteBrowserProfileStore } from './sqliteBrowserProfileStore.js';
+export { SqliteRoutineStore } from './sqliteRoutineStore.js';
+export { SqliteLearnedWorkflowStore } from './sqliteLearnedWorkflowStore.js';
+export { SqliteSkillStore } from './sqliteSkillStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -40,6 +46,9 @@ export interface SqliteStores {
   vector: SqliteVectorStore;
   researchDocument: SqliteResearchDocumentStore;
   browserProfile: SqliteBrowserProfileStore;
+  routine: SqliteRoutineStore;
+  learnedWorkflow: SqliteLearnedWorkflowStore;
+  skill: SqliteSkillStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -57,7 +66,10 @@ export function createSqliteStores(db: Database): SqliteStores {
     sessionSearch: new SqliteSessionSearchStore(db),
     vector: new SqliteVectorStore(db),
     researchDocument: new SqliteResearchDocumentStore(db),
-    browserProfile: new SqliteBrowserProfileStore(db)
+    browserProfile: new SqliteBrowserProfileStore(db),
+    routine: new SqliteRoutineStore(db),
+    learnedWorkflow: new SqliteLearnedWorkflowStore(db),
+    skill: new SqliteSkillStore(db)
   };
 }
 

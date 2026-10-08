@@ -360,6 +360,20 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     timeoutMs: 15000,
     permissions: ['computer'],
     tags: ['computer', 'window']
+  },
+  routineManage: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 15000,
+    permissions: ['system'],
+    tags: ['routine', 'learning', 'automation']
+  },
+  workflowLearn: {
+    riskLevel: 'safe',
+    parallelSafe: true,
+    timeoutMs: 15000,
+    permissions: ['system'],
+    tags: ['learning', 'workflow']
   }
 };
 

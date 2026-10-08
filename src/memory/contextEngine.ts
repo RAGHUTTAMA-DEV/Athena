@@ -116,9 +116,16 @@ export class ContextEngine {
     let layer3Skills = '';
     let skillsTokens = 0;
 
-    if (opts.procedural) {
+    if (opts.memory || opts.procedural) {
       try {
-        const candidateSkills = await opts.procedural.searchSkills(opts.userPrompt, 4);
+        let candidateSkills: any[] = [];
+        if (opts.memory && typeof opts.memory.getProgressiveSkillManager === 'function') {
+          const psm = opts.memory.getProgressiveSkillManager();
+          candidateSkills = await psm.searchSkills(opts.userPrompt, 4, false);
+        }
+        if (candidateSkills.length === 0 && opts.procedural) {
+          candidateSkills = await opts.procedural.searchSkills(opts.userPrompt, 4);
+        }
         const skillEntries: string[] = [];
 
         for (const skill of candidateSkills) {

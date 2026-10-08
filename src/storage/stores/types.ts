@@ -287,3 +287,110 @@ export interface BrowserProfileStore {
   delete(id: string): Promise<boolean>;
 }
 
+/** A routine record (Spec Section 30). */
+export type RoutineTriggerType = 'event' | 'schedule' | 'condition';
+
+export interface RoutineRecord {
+  id: string;
+  name: string;
+  description?: string;
+  triggerType: RoutineTriggerType;
+  triggerConfig: Record<string, any>;
+  workflow: Record<string, any>;
+  conditions?: Record<string, any>[];
+  permissions?: string[];
+  enabled: boolean;
+  successRate: number;
+  invocations: number;
+  lastRunAt?: number | null;
+  history?: any[];
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface RoutineStore {
+  save(routine: RoutineRecord): Promise<RoutineRecord>;
+  get(id: string): Promise<RoutineRecord | null>;
+  findByName(name: string): Promise<RoutineRecord | null>;
+  findByTriggerType(triggerType: RoutineTriggerType): Promise<RoutineRecord[]>;
+  list(filter?: { enabled?: boolean; triggerType?: RoutineTriggerType; limit?: number }): Promise<RoutineRecord[]>;
+  recordRun(id: string, outcome: { success: boolean; durationMs?: number; runId?: string; error?: string }): Promise<void>;
+  delete(id: string): Promise<boolean>;
+}
+
+/** A distilled learned workflow (Spec Section 31). */
+export type LearnedWorkflowStatus = 'proposed' | 'approved' | 'active' | 'rejected' | 'archived';
+
+export interface WorkflowStep {
+  stepId: string;
+  action: string;
+  description: string;
+  inputTemplate?: Record<string, any>;
+  dependencies?: string[];
+  expectedOutcome?: string;
+}
+
+export interface LearnedWorkflowRecord {
+  id: string;
+  intent: string;
+  steps: WorkflowStep[];
+  dependencies?: string[];
+  conditions?: Record<string, any>[];
+  requiredPermissions?: string[];
+  expectedOutcome?: string;
+  failureHandling?: Record<string, any>;
+  sourceRunId?: string;
+  status: LearnedWorkflowStatus;
+  reviewNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: number;
+  successRate: number;
+  invocations: number;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface LearnedWorkflowStore {
+  save(workflow: LearnedWorkflowRecord): Promise<LearnedWorkflowRecord>;
+  get(id: string): Promise<LearnedWorkflowRecord | null>;
+  findByStatus(status: LearnedWorkflowStatus): Promise<LearnedWorkflowRecord[]>;
+  list(filter?: { status?: LearnedWorkflowStatus; limit?: number }): Promise<LearnedWorkflowRecord[]>;
+  updateStatus(id: string, status: LearnedWorkflowStatus, review?: { notes?: string; reviewedBy?: string }): Promise<void>;
+  recordOutcome(id: string, success: boolean): Promise<void>;
+  delete(id: string): Promise<boolean>;
+}
+
+/** A registered skill record with progressive disclosure and telemetry (Spec Section 29). */
+export type SkillLifecycleStatus = 'proposed' | 'reviewed' | 'active' | 'deprecated' | 'archived';
+
+export interface SkillRecord {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  tags?: string[];
+  dependencies?: string[];
+  permissions?: string[];
+  triggers?: string[];
+  contentPath?: string;
+  status: SkillLifecycleStatus;
+  invocations: number;
+  successCount: number;
+  failureCount: number;
+  successRate: number;
+  lastUsedAt?: number | null;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+export interface SkillStore {
+  save(skill: SkillRecord): Promise<SkillRecord>;
+  get(id: string): Promise<SkillRecord | null>;
+  findByName(name: string): Promise<SkillRecord | null>;
+  list(filter?: { status?: SkillLifecycleStatus; limit?: number }): Promise<SkillRecord[]>;
+  updateStatus(id: string, status: SkillLifecycleStatus): Promise<void>;
+  recordOutcome(nameOrId: string, success: boolean): Promise<void>;
+  delete(id: string): Promise<boolean>;
+}
+
+

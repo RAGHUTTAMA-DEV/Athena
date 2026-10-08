@@ -32,6 +32,10 @@ import {
   computerInteractTool,
   computerManageWindowTool
 } from './computerTools.js';
+import {
+  routineManageTool,
+  workflowLearnTool
+} from './routineTools.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -64,13 +68,16 @@ export const tools: Tool[] = [
   readDocumentTool,
   computerInspectTool,
   computerInteractTool,
-  computerManageWindowTool
+  computerManageWindowTool,
+  routineManageTool,
+  workflowLearnTool
 ];
 
 export * from './processManage.js';
 export * from './processManager.js';
 export * from './browserTools.js';
 export * from './computerTools.js';
+export * from './routineTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

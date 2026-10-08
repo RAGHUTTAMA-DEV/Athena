@@ -9,14 +9,15 @@ import { AgentEvent } from '../runtime/events.js';
 import { MemoryScope, MemoryLifecycle, MemoryProvenance, ScopedMemoryItem, SkillRegistryEntry, MemoryType } from './memoryTypes.js';
 import { MemoryWritePipeline, MemoryWriteRequest, MemoryWriteResult } from './memoryPipeline.js';
 import { SessionSearchEngine } from './sessionSearch.js';
-import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore } from '../storage/stores/types.js';
+import { MemoryStore, SessionSearchStore, ResearchDocumentStore, VectorStore, BrowserProfileStore, RoutineStore, LearnedWorkflowStore, SkillStore } from '../storage/stores/types.js';
 import { ConfiguredEmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker } from '../providers/localReranker.js';
-import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities } from '../tools/capabilityRegistry.js';
+import { CapabilityRegistry, seedP4BCapabilities, seedP4CCapabilities, seedP4DCapabilities, seedP5Capabilities } from '../tools/capabilityRegistry.js';
 import { RagEngine } from '../research/ragPipeline.js';
 import { ResearchEngine } from '../research/researchPipeline.js';
 import { BrowserEngine } from '../browser/browserEngine.js';
 import { ComputerController } from '../computer/computerController.js';
+import { ProgressiveSkillManager, RoutineEngine, WorkflowLearner } from '../learning/index.js';
 
 export interface SemanticFact {
   id?: number;
@@ -41,9 +42,23 @@ export class EpisodicMemory {
   private ragEngines: Map<string, RagEngine> = new Map();
   private researchEngine: ResearchEngine | null = null;
 
+  private static instance: EpisodicMemory | null = null;
+
   constructor(dbPath: string, apiKey?: string) {
     this.dbPath = dbPath;
     this.apiKey = apiKey || process.env.GEMINI_API_KEY;
+    EpisodicMemory.instance = this;
+  }
+
+  static getInstance(dbPath: string = process.env.DATABASE_PATH || './state.db'): EpisodicMemory {
+    if (!EpisodicMemory.instance) {
+      EpisodicMemory.instance = new EpisodicMemory(dbPath);
+    }
+    return EpisodicMemory.instance;
+  }
+
+  static setInstance(instance: EpisodicMemory | null): void {
+    EpisodicMemory.instance = instance;
   }
 
   getDb(): Database | null {
@@ -82,10 +97,11 @@ export class EpisodicMemory {
     this.stores = createSqliteStores(this.db);
     this.pipeline = new MemoryWritePipeline(this.stores.memory);
     this.sessionSearchEngine = new SessionSearchEngine(this.stores.sessionSearch);
-    // P4B, P4C & P4D: seed honest capability registry.
+    // P4B, P4C, P4D & P5: seed honest capability registry.
     seedP4BCapabilities(CapabilityRegistry.getInstance());
     seedP4CCapabilities(CapabilityRegistry.getInstance());
     seedP4DCapabilities(CapabilityRegistry.getInstance());
+    seedP5Capabilities(CapabilityRegistry.getInstance());
     if (this.stores.browserProfile) {
       BrowserEngine.getInstance().getProfileManager().setStore(this.stores.browserProfile);
     }
@@ -207,6 +223,51 @@ export class EpisodicMemory {
 
   getComputerController(): ComputerController {
     return ComputerController.getInstance();
+  }
+
+  // --- P5: Learning (Skills, Progressive Disclosure, Routines, Workflows) ---
+
+  private skillManager?: ProgressiveSkillManager;
+  private routineEngine?: RoutineEngine;
+  private workflowLearner?: WorkflowLearner;
+
+  getRoutineStore(): RoutineStore | null {
+    return this.stores ? this.stores.routine : null;
+  }
+
+  getLearnedWorkflowStore(): LearnedWorkflowStore | null {
+    return this.stores ? this.stores.learnedWorkflow : null;
+  }
+
+  getSkillStore(): SkillStore | null {
+    return this.stores ? this.stores.skill : null;
+  }
+
+  getProgressiveSkillManager(skillsDir = './skills'): ProgressiveSkillManager {
+    if (!this.skillManager) {
+      this.skillManager = new ProgressiveSkillManager(skillsDir, this.getSkillStore() || undefined);
+    }
+    return this.skillManager;
+  }
+
+  getRoutineEngine(): RoutineEngine {
+    if (!this.routineEngine) {
+      const routineStore = this.getRoutineStore();
+      if (!routineStore) throw new Error('Database not initialized.');
+      this.routineEngine = new RoutineEngine(routineStore);
+    }
+    return this.routineEngine;
+  }
+
+  getWorkflowLearner(skillsDir = './skills'): WorkflowLearner {
+    if (!this.workflowLearner) {
+      const wfStore = this.getLearnedWorkflowStore();
+      if (!wfStore) throw new Error('Database not initialized.');
+      const skillMgr = this.getProgressiveSkillManager(skillsDir);
+      const routineEng = this.getRoutineEngine();
+      this.workflowLearner = new WorkflowLearner(wfStore, skillMgr, routineEng);
+    }
+    return this.workflowLearner;
   }
 
   private requireRunStore(): SqliteStores['run'] {

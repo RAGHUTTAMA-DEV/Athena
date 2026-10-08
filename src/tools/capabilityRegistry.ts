@@ -58,8 +58,10 @@ export class CapabilityRegistry {
     return this.capabilities.get(id) || null;
   }
 
-  list(): CapabilityEntry[] {
-    return Array.from(this.capabilities.values()).sort((a, b) => a.id.localeCompare(b.id));
+  list(phase?: string): CapabilityEntry[] {
+    const all = Array.from(this.capabilities.values());
+    const filtered = phase ? all.filter(c => c.phase === phase) : all;
+    return filtered.sort((a, b) => a.id.localeCompare(b.id));
   }
 
   reset(): void {
@@ -254,3 +256,37 @@ export function seedP4DCapabilities(registry: CapabilityRegistry): void {
     phase: 'P4D'
   });
 }
+
+/**
+ * Seed the P5 Learning capability set (spec sections 29, 30, 31, 71).
+ */
+export function seedP5Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'learning.progressive_skills',
+    name: 'Progressive Disclosure Skills (Lightweight Metadata & On-Demand Body)',
+    status: 'real',
+    phase: 'P5'
+  });
+
+  registry.register({
+    id: 'learning.skill_lifecycle',
+    name: 'Skill Review Lifecycle (Proposed -> Reviewed -> Active with Telemetry)',
+    status: 'real',
+    phase: 'P5'
+  });
+
+  registry.register({
+    id: 'learning.routines',
+    name: 'Autonomous Standing Routines (EventBus & Schedule Triggers)',
+    status: 'real',
+    phase: 'P5'
+  });
+
+  registry.register({
+    id: 'learning.learned_workflows',
+    name: 'Distilled Learned Workflows from Successful Runs',
+    status: 'real',
+    phase: 'P5'
+  });
+}
+

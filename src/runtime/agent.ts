@@ -81,7 +81,12 @@ const TOOL_ALIASES: Record<string, string> = {
   'manage_window': 'computerManageWindow',
   'computer_inspect': 'computerInspect',
   'computer_interact': 'computerInteract',
-  'computer_manage_window': 'computerManageWindow'
+  'computer_manage_window': 'computerManageWindow',
+  'routine_manage': 'routineManage',
+  'manage_routine': 'routineManage',
+  'workflow_learn': 'workflowLearn',
+  'learn_workflow': 'workflowLearn',
+  'skillManage': 'skill_manage'
 };
 
 export class Agent {
@@ -380,6 +385,11 @@ export class Agent {
           await this.memory.init();
           await this.initIdentity();
           await this.initPersistentAutonomy();
+          // Initialize P5 Learning: Progressive Skills & Routine Engine
+          const psm = this.memory.getProgressiveSkillManager(path.resolve(skillsPath));
+          await psm.init();
+          const routineEngine = this.memory.getRoutineEngine();
+          await routineEngine.start();
         } catch (err: any) {
           console.warn(`[Agent Warning] Failed to initialize SQLite database at ${this.config.dbPath}: ${err.message}`);
         }

@@ -536,12 +536,93 @@ const migrationV2P4CBrowserProfiles: Migration = {
   }
 };
 
+const migrationV2P5Learning: Migration = {
+  version: 7,
+  name: 'v2_p5_learning',
+  up: async (db) => {
+    // 1. Routines table (Spec Section 30)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS routines (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        trigger_type TEXT NOT NULL,
+        trigger_config TEXT NOT NULL,
+        workflow TEXT NOT NULL,
+        conditions TEXT,
+        permissions TEXT,
+        enabled INTEGER DEFAULT 1,
+        success_rate REAL DEFAULT 1.0,
+        invocations INTEGER DEFAULT 0,
+        last_run_at INTEGER,
+        history TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_routines_trigger_type ON routines(trigger_type);
+      CREATE INDEX IF NOT EXISTS idx_routines_enabled ON routines(enabled);
+    `);
+
+    // 2. Learned workflows table (Spec Section 31)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS learned_workflows (
+        id TEXT PRIMARY KEY,
+        intent TEXT NOT NULL,
+        steps TEXT NOT NULL,
+        dependencies TEXT,
+        conditions TEXT,
+        required_permissions TEXT,
+        expected_outcome TEXT,
+        failure_handling TEXT,
+        source_run_id TEXT REFERENCES runs(run_id),
+        status TEXT NOT NULL,
+        review_notes TEXT,
+        reviewed_by TEXT,
+        reviewed_at INTEGER,
+        success_rate REAL DEFAULT 1.0,
+        invocations INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_learned_workflows_status ON learned_workflows(status);
+      CREATE INDEX IF NOT EXISTS idx_learned_workflows_run ON learned_workflows(source_run_id);
+    `);
+
+    // 3. Skill records table with progressive disclosure & telemetry (Spec Section 29)
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS skill_records (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        version TEXT NOT NULL DEFAULT '1.0.0',
+        description TEXT,
+        tags TEXT,
+        dependencies TEXT,
+        permissions TEXT,
+        triggers TEXT,
+        content_path TEXT,
+        status TEXT NOT NULL DEFAULT 'active',
+        invocations INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0,
+        failure_count INTEGER DEFAULT 0,
+        success_rate REAL DEFAULT 1.0,
+        last_used_at INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_skill_records_name ON skill_records(name);
+      CREATE INDEX IF NOT EXISTS idx_skill_records_status ON skill_records(status);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
   migrationV2P2PersistentAutonomy,
   migrationV2P3MemoryContext,
   migrationV2P4BResearchRagDocuments,
-  migrationV2P4CBrowserProfiles
+  migrationV2P4CBrowserProfiles,
+  migrationV2P5Learning
 ];
+
 
