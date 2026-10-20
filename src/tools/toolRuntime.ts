@@ -850,6 +850,8 @@ export class ToolSelector {
     'calculate',
     'systemTime',
     'readFile',
+    'writeFile',
+    'executeCommand',
     'semantic_memory_manage',
     'cronjob',
     'routineManage',

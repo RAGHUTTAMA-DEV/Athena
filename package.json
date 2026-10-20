@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:backend": "node dist/api/startServer.js",
     "dev": "tsc && node dist/index.js",
+    "dev:backend": "tsc && node dist/api/startServer.js",
     "dev:allowAll": "tsc && node dist/index.js --allow-all",
     "start:allowAll": "node dist/index.js --allow-all",
     "verify": "tsc && node dist/tests/verify.js",
@@ -38,6 +40,8 @@
     "test:v2p8": "tsc && node dist/tests/test_v2_p8_communication.js",
     "test:v2p9": "tsc && node dist/tests/test_v2_p9_multimodal.js",
     "test:v2p10": "tsc && node dist/tests/test_v2_p10_intelligence.js",
+    "test:v2p11": "tsc && node dist/tests/test_v2_p11_reliability.js",
+    "test:v2p12": "tsc && node dist/tests/test_v2_p12_platform.js",
     "test:anti_parroting": "tsc && node dist/tests/test_anti_parroting_and_recall.js",
     "demo:v2": "tsc && node dist/demo_live_v2.js",
     "test:context_memory": "tsc && node dist/tests/test_phase2_context_memory.js",
@@ -47,11 +51,14 @@
   "devDependencies": {
     "@types/node": "^26.1.2",
     "@types/papaparse": "^5.5.2",
+    "@types/pg": "^8.23.1",
     "@types/sqlite3": "^3.1.11",
     "ts-node": "^10.9.2",
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
     "@gongrzhe/server-gmail-autoauth-mcp": "^1.1.11",
     "@google/genai": "^2.15.0",
     "@huggingface/transformers": "^4.3.1",
@@ -66,6 +73,7 @@
     "openai": "^7.5.0",
     "papaparse": "^5.7.0",
     "pdf-parse": "^2.4.5",
+    "pg": "^8.23.1",
     "playwright": "^1.62.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1",

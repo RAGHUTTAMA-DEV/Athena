@@ -689,4 +689,95 @@ export interface MultimodalStore {
   listArtifacts(filter?: { mediaType?: MediaType; source?: string; limit?: number }): Promise<MultimodalArtifact[]>;
 }
 
+// ---------------------------------------------------------------------------
+// P11 Reliability Subsystem Interfaces (Spec Sections 39-45, 62)
+// ---------------------------------------------------------------------------
+
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+export type ApprovalRiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export interface ApprovalRequest {
+  id: string;
+  action: string;
+  riskLevel: ApprovalRiskLevel;
+  explanation: string;
+  proposedAction: Record<string, any> | string;
+  status: ApprovalStatus;
+  channelId?: string;
+  runId?: string;
+  goalId?: string;
+  taskId?: string;
+  expiresAt?: number;
+  createdAt: number;
+  resolvedAt?: number;
+  resolutionReason?: string;
+}
+
+export interface ApprovalStore {
+  createRequest(req: ApprovalRequest): Promise<ApprovalRequest>;
+  getRequest(id: string): Promise<ApprovalRequest | null>;
+  resolveRequest(id: string, status: 'approved' | 'rejected', reason?: string): Promise<ApprovalRequest | null>;
+  listPending(filter?: { runId?: string; goalId?: string; limit?: number }): Promise<ApprovalRequest[]>;
+  listAll(filter?: { status?: ApprovalStatus; runId?: string; limit?: number }): Promise<ApprovalRequest[]>;
+}
+
+export type ArtifactType = 'code' | 'document' | 'diff' | 'report' | 'dataset' | 'config' | 'other';
+
+export interface ArtifactVersion {
+  id: string;
+  artifactId: string;
+  version: number;
+  contentHash: string;
+  filePath?: string;
+  contentText?: string;
+  metadata?: Record<string, any>;
+  createdAt: number;
+}
+
+export interface Artifact {
+  id: string;
+  name: string;
+  type: ArtifactType;
+  mimeType: string;
+  currentVersion: number;
+  contentHash: string;
+  filePath?: string;
+  contentText?: string;
+  agentId?: string;
+  runId?: string;
+  goalId?: string;
+  taskId?: string;
+  metadata?: Record<string, any>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ArtifactStore {
+  saveArtifact(artifact: Omit<Artifact, 'currentVersion' | 'updatedAt' | 'createdAt'> & { currentVersion?: number; createdAt?: number; updatedAt?: number }): Promise<Artifact>;
+  getArtifact(id: string): Promise<Artifact | null>;
+  getArtifactByName(name: string): Promise<Artifact | null>;
+  saveVersion(version: ArtifactVersion): Promise<ArtifactVersion>;
+  listVersions(artifactId: string): Promise<ArtifactVersion[]>;
+  listArtifacts(filter?: { type?: ArtifactType; runId?: string; goalId?: string; limit?: number }): Promise<Artifact[]>;
+  deleteArtifact(id: string): Promise<boolean>;
+}
+
+export interface ReplayLogEntry {
+  id: string;
+  runId: string;
+  stepIndex: number;
+  modelInput?: any;
+  modelOutput?: any;
+  toolCalls?: any;
+  toolOutputs?: any;
+  stateDiff?: any;
+  timestamp: number;
+}
+
+export interface ReplayStore {
+  recordStep(entry: ReplayLogEntry): Promise<ReplayLogEntry>;
+  getSteps(runId: string): Promise<ReplayLogEntry[]>;
+  clear(runId: string): Promise<boolean>;
+}
+
 

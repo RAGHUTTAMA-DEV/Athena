@@ -867,6 +867,88 @@ export const migrationV2P9MultimodalVoice: Migration = {
   }
 };
 
+/**
+ * Migration 12: V2 P11 Reliability (approvals, versioned artifacts, replay_logs).
+ */
+export const migrationV2P11Reliability: Migration = {
+  version: 12,
+  name: 'v2_p11_reliability',
+  up: async (db: Database) => {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS approvals (
+        id TEXT PRIMARY KEY,
+        action TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        explanation TEXT NOT NULL,
+        proposed_action TEXT NOT NULL,
+        status TEXT NOT NULL,
+        channel_id TEXT,
+        run_id TEXT,
+        goal_id TEXT,
+        task_id TEXT,
+        expires_at INTEGER,
+        created_at INTEGER NOT NULL,
+        resolved_at INTEGER,
+        resolution_reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status);
+      CREATE INDEX IF NOT EXISTS idx_approvals_run ON approvals(run_id);
+      CREATE INDEX IF NOT EXISTS idx_approvals_goal ON approvals(goal_id);
+      CREATE INDEX IF NOT EXISTS idx_approvals_created ON approvals(created_at);
+
+      CREATE TABLE IF NOT EXISTS artifacts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        current_version INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        file_path TEXT,
+        content_text TEXT,
+        agent_id TEXT,
+        run_id TEXT,
+        goal_id TEXT,
+        task_id TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_artifacts_type ON artifacts(type);
+      CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id);
+      CREATE INDEX IF NOT EXISTS idx_artifacts_goal ON artifacts(goal_id);
+      CREATE INDEX IF NOT EXISTS idx_artifacts_name ON artifacts(name);
+
+      CREATE TABLE IF NOT EXISTS artifact_versions (
+        id TEXT PRIMARY KEY,
+        artifact_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        file_path TEXT,
+        content_text TEXT,
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY(artifact_id) REFERENCES artifacts(id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_art_vers_art ON artifact_versions(artifact_id);
+      CREATE INDEX IF NOT EXISTS idx_art_vers_created ON artifact_versions(created_at);
+
+      CREATE TABLE IF NOT EXISTS replay_logs (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL,
+        step_index INTEGER NOT NULL,
+        model_input TEXT,
+        model_output TEXT,
+        tool_calls TEXT,
+        tool_outputs TEXT,
+        state_diff TEXT,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_replay_run ON replay_logs(run_id);
+      CREATE INDEX IF NOT EXISTS idx_replay_time ON replay_logs(timestamp);
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
@@ -878,7 +960,8 @@ export const MIGRATIONS: Migration[] = [
   migrationV2P6MultiAgent,
   migrationV2P7ProactiveAgent,
   migrationV2P8Communication,
-  migrationV2P9MultimodalVoice
+  migrationV2P9MultimodalVoice,
+  migrationV2P11Reliability
 ];
 
 

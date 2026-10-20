@@ -14,8 +14,8 @@ export interface ToolDiscoveryOptions {
 export class ToolDiscoveryPipeline {
   private static capabilityKeywords: Record<string, string[]> = {
     'fs:read': ['read', 'view', 'cat', 'open', 'inspect', 'file', 'content', 'grep', 'search', 'find'],
-    'fs:write': ['write', 'edit', 'replace', 'modify', 'save', 'update', 'delete', 'remove', 'move', 'copy'],
-    'cmd:exec': ['run', 'exec', 'execute', 'terminal', 'shell', 'command', 'bash', 'powershell', 'npm', 'git', 'node', 'python'],
+    'fs:write': ['write', 'edit', 'replace', 'modify', 'save', 'update', 'delete', 'remove', 'move', 'copy', 'create'],
+    'cmd:exec': ['run', 'exec', 'execute', 'terminal', 'shell', 'command', 'bash', 'powershell', 'npm', 'git', 'node', 'python', 'script', 'compile', 'build', 'convert', 'generate'],
     'net:http': ['search', 'google', 'web', 'fetch', 'url', 'http', 'api', 'curl', 'query'],
     'browser': ['browser', 'navigate', 'click', 'page', 'screenshot', 'dom', 'form', 'webpage'],
     'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate', 'routine', 'routines', 'automate', 'automated', 'workflow', 'standing', 'multiagent', 'multi-agent', 'specialist', 'researcher', 'coder', 'reviewer', 'planner', 'agent', 'agents', 'pipeline', 'handoff', 'mailbox'],

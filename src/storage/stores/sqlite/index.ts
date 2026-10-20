@@ -22,6 +22,9 @@ import { SqliteHeartbeatStore } from './sqliteHeartbeatStore.js';
 import { SqliteCommunicationStore } from './sqliteCommunicationStore.js';
 import { SqliteCalendarStore } from './sqliteCalendarStore.js';
 import { SqliteMultimodalStore } from './sqliteMultimodalStore.js';
+import { SqliteApprovalStore } from './sqliteApprovalStore.js';
+import { SqliteArtifactStore } from './sqliteArtifactStore.js';
+import { SqliteReplayStore } from './sqliteReplayStore.js';
 
 export { SqliteAgentStore } from './sqliteAgentStore.js';
 export { SqliteUserStore } from './sqliteUserStore.js';
@@ -46,6 +49,9 @@ export { SqliteHeartbeatStore } from './sqliteHeartbeatStore.js';
 export { SqliteCommunicationStore } from './sqliteCommunicationStore.js';
 export { SqliteCalendarStore } from './sqliteCalendarStore.js';
 export { SqliteMultimodalStore } from './sqliteMultimodalStore.js';
+export { SqliteApprovalStore } from './sqliteApprovalStore.js';
+export { SqliteArtifactStore } from './sqliteArtifactStore.js';
+export { SqliteReplayStore } from './sqliteReplayStore.js';
 
 export interface SqliteStores {
   agent: SqliteAgentStore;
@@ -73,6 +79,9 @@ export interface SqliteStores {
   communication: SqliteCommunicationStore;
   calendar: SqliteCalendarStore;
   multimodal: SqliteMultimodalStore;
+  approval: SqliteApprovalStore;
+  artifact: SqliteArtifactStore;
+  replay: SqliteReplayStore;
 }
 
 export function createSqliteStores(db: Database): SqliteStores {
@@ -101,7 +110,10 @@ export function createSqliteStores(db: Database): SqliteStores {
     heartbeat: new SqliteHeartbeatStore(db),
     communication: new SqliteCommunicationStore(db),
     calendar: new SqliteCalendarStore(db),
-    multimodal: new SqliteMultimodalStore(db)
+    multimodal: new SqliteMultimodalStore(db),
+    approval: new SqliteApprovalStore(db),
+    artifact: new SqliteArtifactStore(db),
+    replay: new SqliteReplayStore(db)
   };
 }
 

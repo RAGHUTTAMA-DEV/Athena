@@ -535,3 +535,50 @@ export function seedP10Capabilities(registry: CapabilityRegistry): void {
   });
 }
 
+/**
+ * Seed the P11 Reliability capability set (spec sections 39-45, 62).
+ */
+export function seedP11Capabilities(registry: CapabilityRegistry): void {
+  registry.register({
+    id: 'reliability.task_verification',
+    name: 'Task-Type Specific Verification Engine Across Six Verification Categories',
+    status: 'real',
+    phase: 'P11'
+  });
+
+  registry.register({
+    id: 'reliability.independent_reviewer',
+    name: 'Isolated Independent Reviewer with Strict Rubrics and Seeded Defect Detection',
+    status: 'real',
+    phase: 'P11'
+  });
+
+  registry.register({
+    id: 'reliability.self_repair',
+    name: 'Bounded Five-Stage Self-Repair Loop (Classify, Diagnose, Replan, Repair, Verify)',
+    status: 'real',
+    phase: 'P11'
+  });
+
+  registry.register({
+    id: 'reliability.approvals_gateway',
+    name: 'Gateway-Native Persistent Approval Engine Surviving Process Restarts',
+    status: 'real',
+    phase: 'P11'
+  });
+
+  registry.register({
+    id: 'reliability.versioned_artifacts',
+    name: 'Versioned Deliverables and Artifact Store with Content Hash Tracking',
+    status: 'real',
+    phase: 'P11'
+  });
+
+  registry.register({
+    id: 'reliability.deterministic_replay',
+    name: 'Deterministic Log-Based Step Replayer Reproducing State Traces Offline',
+    status: 'real',
+    phase: 'P11'
+  });
+}
+

@@ -55,6 +55,11 @@ import {
   voiceSpeakTool,
   voiceGoalCreateTool
 } from './multimodalTools.js';
+import {
+  approvalRequestTool,
+  artifactManageTool,
+  verificationInspectTool
+} from './reliabilityTools.js';
 
 export const tools: Tool[] = [
   calculateTool,
@@ -103,7 +108,10 @@ export const tools: Tool[] = [
   imageGenerateTool,
   voiceTranscribeTool,
   voiceSpeakTool,
-  voiceGoalCreateTool
+  voiceGoalCreateTool,
+  approvalRequestTool,
+  artifactManageTool,
+  verificationInspectTool
 ];
 
 export * from './processManage.js';
@@ -116,6 +124,7 @@ export * from './agentMessageTools.js';
 export * from './proactiveTools.js';
 export * from './communicationTools.js';
 export * from './multimodalTools.js';
+export * from './reliabilityTools.js';
 import { DEFAULT_TOOL_MANIFESTS, ToolManifest } from './toolRuntime.js';
 export * from './toolRuntime.js';
 

@@ -26,8 +26,13 @@
 | **V2 P4D** | **Computer Use & Application Control (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p4d` | ✅ **Completed & Verified** |
 | **V2 P5** | **Learning: Skills, Routines, Workflows (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p5` | ✅ **Completed & Verified** |
 | **V2 P6** | **Multi-Agent: Profiles, Delegation, A2A (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p6` | ✅ **Completed & Verified** |
+| **V2 P7** | **Proactive Agent: Event Pipeline, Webhooks, Heartbeats (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p7` | ✅ **Completed & Verified** |
 | **V2 P8** | **Communication: Channels, Gateway, Calendar (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p8` | ✅ **Completed & Verified** |
-| **V2 P9+** | **Multimodal, Intelligence, Reliability, P9–P13 (Athena V2)** | Athena V2 | **0%** | see `docs/architecture/athena_v2_build_plan.md` | ⏳ Awaiting approval |
+| **V2 P9** | **Multimodal & Voice: Vision, STT, TTS, Image Gen (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p9` | ✅ **Completed & Verified** |
+| **V2 P10** | **Intelligence: Router, Credential Pool, Ollama (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p10` | ✅ **Completed & Verified** |
+| **V2 P11** | **Reliability: Verification, Reviewer, Approvals, Replay (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p11` | ✅ **Completed & Verified** |
+| **V2 P12** | **Platform: Express, Postgres Adapter, SSE, Complete APIs (Athena V2)** | Athena V2 | **100%** | `npm run test:v2p12` | ✅ **Completed & Verified** |
+| **V2 P13** | **Production Hardening, E2E Chaos, Security Audit (Athena V2)** | Athena V2 | **0%** | `npm run test:v2p13` | ⏳ Awaiting approval |
 
 ---
 
@@ -346,3 +351,21 @@ flowchart TD
 - [x] Capability Registry reflection: `models.ollama`, `models.router`, `models.caching`, `security.credential_pool`, `security.secret_scanner` registered as `real`.
 - [x] ADR: `docs/decisions/0016-intelligence-model-router-credential-pool-ollama-p10.md`.
 - [x] Verification: `npm run test:v2p10` (10/10 passing).
+
+### V2 P11: RELIABILITY SUBSYSTEM — [100% COMPLETE]
+- [x] Schema Migration 12 (`v2_p11_reliability`): `approvals`, `artifacts`, `artifact_versions`, and `replay_logs` tables.
+- [x] `SqliteApprovalStore`, `SqliteArtifactStore`, and `SqliteReplayStore` implementations behind store interfaces.
+- [x] `TaskVerificationEngine`: Multi-category verification (`page_inspected`, `file_verified`, `test_build`, `sources_checked`, `delivery_result`, `resulting_state`).
+- [x] `IndependentReviewer`: Isolated review engine with strict rubrics catching 100% of seeded defects.
+- [x] Exit Criterion 2: Independent reviewer catches 100% of seeded defects in eval suite.
+- [x] `SelfRepairEngine`: Bounded 5-stage loop (`classify → diagnose → replan → repair → verify`) with hard attempt budget.
+- [x] `ApprovalEngine`: Evaluates 7 HITL triggers, persists `ApprovalRequest`, registers `RunWait`, and survives process restarts.
+- [x] Exit Criterion 1: Approval requested → process killed → approval granted after restart → run resumes.
+- [x] `ClarificationManager`: Formulates single high-impact clarifying question for ambiguous prompts and resumes autonomy.
+- [x] Versioned `ArtifactStore`: Deliverables tracked with version history, content hashes, and run/goal linkage.
+- [x] `DeterministicReplayer`: Offline step-by-step playback from logged model and tool I/O without live LLM calls.
+- [x] Exit Criterion 3: A recorded run replays deterministically from log with 0 divergences.
+- [x] Tools: `approvalRequestTool`, `artifactManageTool`, `verificationInspectTool`.
+- [x] Capability Registry honesty: `reliability.task_verification`, `reliability.independent_reviewer`, `reliability.self_repair`, `reliability.approvals_gateway`, `reliability.versioned_artifacts`, `reliability.deterministic_replay` registered as `real`.
+- [x] ADR: `docs/decisions/0017-reliability-verification-reviewer-approvals-replay-p11.md`.
+- [x] Verification: `npm run test:v2p11` (10/10 passing).

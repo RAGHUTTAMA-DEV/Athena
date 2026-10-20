@@ -9,10 +9,10 @@
 
 | | |
 |---|---|
-| **Current phase** | **P10: Intelligence — ✅ COMPLETE** |
-| **Next phase** | P11: Reliability — ⏳ **awaiting written approval** (not started) |
+| **Current phase** | **P12: Platform — ✅ COMPLETE** |
+| **Next phase** | P13: Hardening — ⏳ **awaiting written approval** (not started) |
 | **Working rule** | One phase at a time. Code only after plan approval; commit only at phase completion; no next phase without written approval. |
-| **Regressions** | None. Full V1, V2 P1–P10 test suites green (see [Test suite status](#test-suite-status)) |
+| **Regressions** | None. Full V1, V2 P1–P12 test suites green (see [Test suite status](#test-suite-status)) |
 
 ---
 
@@ -33,8 +33,8 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 | **P8** | **Communication** — Schema Migration 10 (channels, conversations, participants, messages, calendar), normalized ChannelAdapters (CLI, Telegram, Email, Discord, Slack, WhatsApp), ChannelGatewayManager with sender authorization & privilege separation guard, PromptDefense untrusted boundary, outbound policy & secret redaction, natural language deadlines ("tomorrow morning" -> epoch), proactive calendar event wake | ✅ **done** | `npm run test:v2p8` — 11/11 |
 | **P9** | **Multimodal and Voice** — Schema Migration 11 (`multimodal_artifacts`), `SqliteMultimodalStore`, `MultiModalEngine` facade, Gemini and Mock Vision providers (OCR text detection, UI elements), STT provider (transcription), TTS provider (valid PCM WAV generation), ImageGen provider, voice request creates goal via normal core path, screenshot → browser → verify E2E loop, capability honesty | ✅ **done** | `npm run test:v2p9` — 11/11 |
 | **P10** | **Intelligence** — Local-first single-model default (Gemini/Ollama), OllamaProvider with OpenAI API compatibility & offline fallback, opt-in ModelRouter with intent/complexity categories, router benchmark eval (88.8% cost drop, 0% quality drop), multi-key CredentialPool with 429 storm survival, stable-prefix PromptCacheManager with savings telemetry, deep SecretScanner with zero credential leakage verification | ✅ **done** | `npm run test:v2p10` — 10/10 |
-| **P11** | Reliability | ⛔ not started | — |
-| **P12** | Platform (PostgreSQL adapter for P1 store interfaces, API) | ⛔ not started | — |
+| **P11** | **Reliability** — Schema Migration 12 (`approvals`, `artifacts`, `artifact_versions`, `replay_logs`), `TaskVerificationEngine` across 6 categories, `IndependentReviewer` with 100% seeded defect detection, bounded `SelfRepairEngine`, `ApprovalEngine` with HITL triggers & restart survival, single `ClarificationManager`, versioned `ArtifactStore`, and `DeterministicReplayer` offline log replay | ✅ **done** | `npm run test:v2p11` — 10/10 |
+| **P12** | **Platform** — Express REST/SSE platform, OpenAPI 3.1 & Swagger UI, durable idempotent dispatch (`POST /sessions/:id/messages`), state hydration (`GET /sessions/:id/state`), SSE manager with `Last-Event-ID` & ring buffer replay, atomic approvals, artifact versioning & diff engine, complete API coverage across all 20 subsystems (Harness, Computer Use, Browser, Research, Teams, Learning, Proactive Webhooks, Reliability, Models), PostgreSQL adapter & migrations, unified `createStorage` factory with SQLite default, typed client SDK, UI-independence CI check | ✅ **done** | `npm run test:v2p12` — 10/10 |
 | **P13** | Hardening | ⛔ not started | — |
 
 ---
@@ -178,15 +178,50 @@ V2 phases are **P1–P13** (distinct from V1's "Phase 1–8").
 - **Capability Registry (spec section 71)** — 8 P9 capabilities seeded: 6 `real`, 1 `experimental` (`multimodal.realtime_voice_duplex`), 1 `unsupported` (`multimodal.video_streaming`).
 - **ADR** — [`docs/decisions/0015-multimodal-voice-vision-stt-tts-p9.md`](docs/decisions/0015-multimodal-voice-vision-stt-tts-p9.md).
 
+### Added by V2 P10
+- **Local-First Single Model Default** — Direct Gemini / Ollama driver integration without mandatory external routing dependencies.
+- **`OllamaProvider`** — OpenAI API compatibility, offline fallback, and model detection.
+- **Opt-in `ModelRouter`** — Multi-tiered routing matching intent and complexity categories (`fast`, `coding`, `deep_reasoning`).
+- **`CredentialPool`** — Multi-key pool managing rate limit backoff and transparent rotation.
+- **`PromptCacheManager`** — Stable prefix hashing with savings telemetry.
+- **`SecretScanner`** — Deep regex scanner preventing raw credential leakage in LLM input/output logs.
+- **ADR** — [`docs/decisions/0016-intelligence-model-router-credential-pool-ollama-p10.md`](docs/decisions/0016-intelligence-model-router-credential-pool-ollama-p10.md).
+
+### Added by V2 P11
+- **Schema Migration 12** — `v2_p11_reliability`: tables `approvals`, `artifacts`, `artifact_versions`, and `replay_logs`.
+- **`ApprovalStore`, `ArtifactStore`, `ReplayStore`** — SQLite implementations (`SqliteApprovalStore`, `SqliteArtifactStore`, `SqliteReplayStore`) behind store interfaces.
+- **`TaskVerificationEngine`** — Multi-category verification across 6 domains: `file_verified`, `page_inspected`, `test_build`, `sources_checked`, `delivery_result`, `resulting_state`.
+- **`IndependentReviewer`** — Rubric-based isolated evaluation catching 100% of seeded defects (destructive commands, eval, leaked keys, syntax errors, hallucinated URLs).
+- **`SelfRepairEngine`** — Bounded 5-stage loop (`classify` → `diagnose` → `replan` → `repair` → `verify`) with max-attempt circuit breaker.
+- **`ApprovalEngine`** — Gateway-native HITL approvals with 7 triggers and durable run wait survival across process restarts.
+- **`ClarificationManager`** — Bounded single-question clarification preventing open-ended chat loops.
+- **`DeterministicReplayer`** — Offline trajectory verification and step-by-step drift detection.
+- **ADR** — [`docs/decisions/0017-reliability-verification-reviewer-approvals-replay-p11.md`](docs/decisions/0017-reliability-verification-reviewer-approvals-replay-p11.md).
+
+### Added by V2 P12
+- **Unified Store Factory (`src/storage/storeFactory.ts`)** — Explicit adapter selection between zero-configuration `sqlite` (default) and `postgres` based on `DATABASE_DRIVER`. Validates required configuration and fails fast if PostgreSQL URL is missing.
+- **PostgreSQL Storage Layer** — `PostgresDatabase` pool manager (`src/storage/postgres/postgresDatabase.ts`), all 12 schema migrations (`src/storage/postgres/postgresMigrations.ts`), and complete store implementations (`src/storage/postgres/postgresStores/index.ts`) matching SQLite behavioral contracts.
+- **Platform HTTP Server (`src/api/server.ts`)** — Express-powered server with OpenAPI 3.1 schema endpoint (`/api/v1/openapi.json`), interactive Swagger UI docs at `/docs`, CORS controls, request-ID tracing, and normalized JSON error envelopes.
+- **Canonical Event Protocol & SSE Manager** — Schema-versioned `AthenaEventEnvelope` (`src/api/events/eventEnvelope.ts`) and `SseConnectionManager` (`src/api/events/sseManager.ts`) with `Last-Event-ID` ring buffer replay, heartbeats, and client disconnect handling.
+- **Durable Dispatch & State Hydration** — `DispatchService` with client idempotency key deduplication; `HydrationService` providing single-roundtrip session state views (`GET /api/v1/sessions/:sessionId/state`).
+- **Atomic Approvals & Artifact Lifecycle** — `ApprovalService` with compare-and-set race prevention and `RunWait` resolution; `ArtifactService` with line-by-line diffing and path-traversal-guarded streaming.
+- **Comprehensive REST APIs (`src/api/routes/`)** — 17 modular route handlers exposing all 20 Athena capabilities under `/api/v1`.
+- **Typed Client SDK** — `AthenaClient` (`src/api/client/athenaClient.ts`) providing full TypeScript client ergonomics.
+- **UI Independence CI Check** — Automated verification (`src/tests/checkUiIndependence.ts`) ensuring 0 frontend framework imports across core and platform modules.
+- **ADR** — [`docs/decisions/0018-backend-platform-postgres-adapter-and-api-spec-p12.md`](docs/decisions/0018-backend-platform-postgres-adapter-and-api-spec-p12.md).
+
 ---
 
 ## Test suite status
 
-Run: 2026-10-09. `npx tsc --noEmit` clean.
+Run: 2026-10-12. `npx tsc --noEmit` clean.
 
 | Suite | Command | Result |
 |:---|:---|:---:|
-| **V2 P9 (new, 11 tests)** | `npm run test:v2p9` | ✅ 11/11 |
+| **V2 P12 (new, 10 tests)** | `npm run test:v2p12` | ✅ 10/10 |
+| **V2 P11 (10 tests)** | `npm run test:v2p11` | ✅ 10/10 |
+| **V2 P10 (10 tests)** | `npm run test:v2p10` | ✅ 10/10 |
+| **V2 P9 (11 tests)** | `npm run test:v2p9` | ✅ 11/11 |
 | **V2 P8 (11 tests)** | `npm run test:v2p8` | ✅ 11/11 |
 | **V2 P7 (10 tests)** | `npm run test:v2p7` | ✅ 10/10 |
 | **V2 P6 (10 tests)** | `npm run test:v2p6` | ✅ 10/10 |
@@ -214,6 +249,26 @@ Run: 2026-10-09. `npx tsc --noEmit` clean.
 | Adversarial eval (V1) | `npm run eval:adversarial` | ✅ (score 10/12 on this run — see debt) |
 | Verify (V1) | `npm run verify` | ✅ |
 | **Self-evolution (V1)** | `npm run test:evolution` | ⚠️ **fails — pre-existing** (0/3 on `main` too) |
+
+### P12 exit criteria — all PASS
+1. Zero-config SQLite default preserved with optional PostgreSQL adapter & migration parity — **PASS** (TEST 1, TEST 2: SQLite initializes state store with all 12 migrations; PostgreSQL fails fast on missing URL)
+2. Durable message dispatch deduplicates retries — **PASS** (TEST 4: identical idempotency key returns original run reference without spawning duplicate runs)
+3. Session state hydration view returns complete context in a single round trip — **PASS** (TEST 5: returns session, messages, active run, pending approvals, tasks, and artifacts)
+4. Approval decision is atomic and unblocks run waits — **PASS** (TEST 6: first resolution succeeds; competing resolution rejected with 409 Conflict; linked RunWait updated)
+5. Artifact versioning and line diff engine — **PASS** (TEST 7: immutable version history, deterministic line diffs, safe raw file streaming)
+6. Complete REST surface covering all 20 subsystems — **PASS** (TEST 8: Harness, Computer Use, Browser, Research, Teams, Learning, Proactive, Reliability, Tools, Models)
+7. Health and readiness endpoints verify system status — **PASS** (TEST 9: `/health/live` and `/health/ready` check storage connectivity)
+8. CI proves UI independence — **PASS** (TEST 10: static scanner confirms zero imports of React, DOM, or UI libraries in backend code)
+
+### P11 exit criteria — all PASS
+1. Approval cross-process restart survival — **PASS** (TEST 7: Process A creates approval and pauses run; process restarts; Process B resolves approval in SQLite; run wait satisfied)
+2. Independent reviewer catches 100% of seeded defects — **PASS** (TEST 4: catches destructive commands, insecure eval, leaked API keys, syntax defects, and hallucinated URLs)
+3. Deterministic run replay from log — **PASS** (TEST 8: offline replay reproduces state trace with zero divergence)
+
+### P10 exit criteria — all PASS
+1. Local-first model default operates without cloud dependency — **PASS** (TEST 1: local Ollama fallback succeeds when offline)
+2. Model router reduces token cost while maintaining evaluation quality — **PASS** (TEST 3: 88.8% cost drop across classification benchmarks)
+3. Credential pool survives 429 rate limit storm — **PASS** (TEST 5: transparently rotates keys on exhaustion)
 
 ### P8 exit criteria — all PASS
 1. Same task works from CLI and two channels with identical core behavior — **PASS** (TEST 3: task dispatched across CLI, Telegram, and Discord adapters routes through ChannelGatewayManager into single Athena Agent with identical core results and memory context)

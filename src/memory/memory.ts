@@ -439,6 +439,20 @@ export class EpisodicMemory {
     return this.multimodalEngine;
   }
 
+  // --- P11: Reliability Subsystem (Spec Sections 39-45, 62) ---
+
+  getApprovalStore(): SqliteStores['approval'] | null {
+    return this.stores ? this.stores.approval : null;
+  }
+
+  getArtifactStore(): SqliteStores['artifact'] | null {
+    return this.stores ? this.stores.artifact : null;
+  }
+
+  getReplayStore(): SqliteStores['replay'] | null {
+    return this.stores ? this.stores.replay : null;
+  }
+
   private requireRunStore(): SqliteStores['run'] {
     if (!this.stores) throw new Error('Database not initialized. Call init() first.');
     return this.stores.run;

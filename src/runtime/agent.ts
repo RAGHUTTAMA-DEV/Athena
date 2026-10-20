@@ -7,6 +7,13 @@ import { toolsRegistry } from '../tools/index.js';
 import { EpisodicMemory } from '../memory/memory.js';
 import { MultiModalEngine } from '../multimodal/index.js';
 import { ModelRouter } from '../intelligence/modelRouter.js';
+import {
+  ApprovalEngine,
+  TaskVerificationEngine,
+  IndependentReviewer,
+  SelfRepairEngine,
+  ClarificationManager
+} from '../reliability/index.js';
 import { ProceduralMemory } from '../memory/procedural.js';
 import { MemoryConsolidator } from '../memory/consolidation.js';
 import { cleanGeminiSchema } from '../mcp/mcpManager.js';
@@ -241,6 +248,58 @@ export class Agent {
 
   public setModelRouter(router: ModelRouter): void {
     this.modelRouter = router;
+  }
+
+  private approvalEngine?: ApprovalEngine;
+  private verificationEngine?: TaskVerificationEngine;
+  private independentReviewer?: IndependentReviewer;
+  private selfRepairEngine?: SelfRepairEngine;
+  private clarificationManager?: ClarificationManager;
+
+  public getApprovalEngine(): ApprovalEngine {
+    if (!this.approvalEngine) {
+      const store = this.memory?.getApprovalStore();
+      const runWaitStore = this.memory?.getRunWaitStore();
+      this.approvalEngine = new ApprovalEngine(
+        store || {
+          createRequest: async r => r,
+          getRequest: async () => null,
+          resolveRequest: async () => null,
+          listPending: async () => [],
+          listAll: async () => []
+        },
+        runWaitStore || undefined
+      );
+    }
+    return this.approvalEngine;
+  }
+
+  public getVerificationEngine(): TaskVerificationEngine {
+    if (!this.verificationEngine) {
+      this.verificationEngine = new TaskVerificationEngine();
+    }
+    return this.verificationEngine;
+  }
+
+  public getIndependentReviewer(): IndependentReviewer {
+    if (!this.independentReviewer) {
+      this.independentReviewer = new IndependentReviewer();
+    }
+    return this.independentReviewer;
+  }
+
+  public getSelfRepairEngine(): SelfRepairEngine {
+    if (!this.selfRepairEngine) {
+      this.selfRepairEngine = new SelfRepairEngine();
+    }
+    return this.selfRepairEngine;
+  }
+
+  public getClarificationManager(): ClarificationManager {
+    if (!this.clarificationManager) {
+      this.clarificationManager = new ClarificationManager();
+    }
+    return this.clarificationManager;
   }
 
   private waitingEngine: WaitingEngine | null = null;

@@ -6,6 +6,7 @@ import {
   ResolvedContextRef
 } from './memoryTypes.js';
 import { estimateTokens } from './contextEngine.js';
+import { DocumentParser, detectFormat } from '../research/documentParser.js';
 
 export interface ContextRefResolverOptions {
   workspaceDir?: string;
@@ -147,7 +148,19 @@ export class ContextRefResolver {
       return this.resolveFolder(ref);
     }
 
-    const rawContent = fs.readFileSync(targetPath, 'utf8');
+    let rawContent = '';
+    const format = detectFormat(targetPath);
+    if (format === 'text' || format === 'markdown') {
+      rawContent = fs.readFileSync(targetPath, 'utf8');
+    } else {
+      try {
+        const parser = new DocumentParser();
+        const doc = await parser.parseFile(targetPath);
+        rawContent = doc.text;
+      } catch (err: any) {
+        rawContent = `[Document extraction failed for ${format}: ${err.message}]`;
+      }
+    }
     const lines = rawContent.split('\n');
     let outputLines: string[] = [];
     let truncated = false;

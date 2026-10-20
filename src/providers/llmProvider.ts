@@ -58,17 +58,23 @@ export class GeminiProvider implements LLMProvider {
           return {
             functionResponse: {
               name: p.functionResponse.name,
-              response: p.functionResponse.response
+              response: p.functionResponse.response,
+              ...((p.functionResponse as any).id ? { id: (p.functionResponse as any).id } : {})
             }
           };
         }
         if ('functionCall' in p && p.functionCall) {
-          return {
+          const fcPart: any = {
             functionCall: {
               name: p.functionCall.name,
-              args: p.functionCall.args
+              args: p.functionCall.args,
+              ...((p.functionCall as any).id ? { id: (p.functionCall as any).id } : {})
             }
           };
+          if ((p as any).thoughtSignature) {
+            fcPart.thoughtSignature = (p as any).thoughtSignature;
+          }
+          return fcPart;
         }
         return p;
       })

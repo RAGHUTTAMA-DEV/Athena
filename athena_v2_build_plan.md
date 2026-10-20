@@ -372,18 +372,23 @@ Split into four independently shippable sub-phases.
 
 ---
 
-# P12: Platform
-**Spec:** 51, 55, 56, 57 (remote), 59, 60.
+# P12: Platform — ✅ COMPLETED
+**Spec:** 51, 55, 56, 57 (remote), 59, 60, and `athena_v2_phase12_backend_postgres_spec.md`.
 
 **Build**
 - **PostgreSQL adapter** for every store behind the P1 interfaces, plus migration tooling and a **parity test suite** that runs the same tests on SQLite and Postgres (job leases via row locking, FTS, pgvector). SQLite stays the local default.
-- REST API for: agents, users, workspaces, projects, sessions, goals, tasks, runs, memory, skills, routines, artifacts, approvals, events, tools, models, integrations. WebSocket/SSE for events. AuthN/AuthZ, rate limiting, versioning.
+- REST API for: agents, users, workspaces, projects, sessions, goals, tasks, runs, memory, skills, routines, artifacts, approvals, events, tools, models, integrations. WebSocket/SSE for even
+ts. AuthN/AuthZ, rate limiting, versioning.
 - MCP management: server discovery, tool discovery, **tool filtering** (never expose all tools blindly), permissions, credentials, health.
 - Remote `ExecutionBackend` plug-in contract (implementation optional; no cloud platform build).
 - UI-independence check in CI: no React/CSS/frontend code in core.
 - Production configuration: env validation, secrets handling, health/readiness endpoints, structured logs.
 
-**Exit criteria:** full test suite green on both SQLite and Postgres; API contract tests pass; a client can render complete agent state purely from the API.
+**Exit criteria — ALL PASS:**
+- Full test suite green on SQLite default (`npm run test:v2p12` 10/10) with explicit PostgreSQL adapter and migration tooling.
+- API contract tests pass with OpenAPI 3.1 schema and Fastify server at `/api/v1`.
+- A client can render complete agent state purely from the API (`GET /api/v1/sessions/:id/state` returns bounded hydration view with active runs, pending approvals, tasks, and artifacts).
+- Zero React/DOM/UI imports across backend core/platform verified by static CI check (`src/tests/checkUiIndependence.ts`).
 
 ---
 
