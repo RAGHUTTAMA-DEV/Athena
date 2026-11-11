@@ -1,0 +1,74 @@
+:root {
+  /* Athena / Obsidian Neutral-Graphite Palette (Sampled directly from Athena-Neutral-graphite.png) */
+  --athena-canvas: #171819;
+  --athena-surface: #1D1E20;
+  --athena-surface-raised: #202123;
+  --athena-surface-deep: #191A1C;
+  --athena-surface-hover: #26272A;
+  --athena-surface-active: #2A2C2F;
+
+  --athena-border: #303234;
+  --athena-border-subtle: #252729;
+  --athena-border-focus: #55585B;
+
+  --athena-text: #EDEEEF;
+  --athena-text-secondary: #BFC2C3;
+  --athena-text-muted: #777D80;
+  --athena-text-dim: #54595C;
+
+  /* Restrained semantic accents */
+  --athena-accent: #A8B6AE;         /* Restrained sage/grey-green */
+  --athena-accent-dim: rgba(168, 182, 174, 0.15);
+  --athena-success: #8EAD9A;        /* Completed / healthy */
+  --athena-success-dim: rgba(142, 173, 154, 0.15);
+  --athena-warning: #C5A66A;        /* Waiting / needs approval */
+  --athena-warning-dim: rgba(197, 166, 106, 0.15);
+  --athena-danger: #C77D7D;         /* Destructive / failed */
+  --athena-danger-dim: rgba(199, 125, 125, 0.15);
+  --athena-info: #91A7B7;           /* Info / neutral cyan-blue */
+  --athena-info-dim: rgba(145, 167, 183, 0.15);
+
+  /* Geometry & Typography */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono', 'SF Mono', Consolas, Menlo, monospace;
+
+  --header-height: 48px;
+  --sidebar-width: 220px;
+  --inspector-width-collapsed: 40px;
+  --inspector-width-expanded: 340px;
+}
+
+html.light {
+  --athena-canvas: #F5F6F8;
+  --athena-surface: #FFFFFF;
+  --athena-surface-raised: #FFFFFF;
+  --athena-surface-deep: #ECEEF1;
+  --athena-surface-hover: #E7E9ED;
+  --athena-surface-active: #DFE2E6;
+
+  --athena-border: #D8DCE0;
+  --athena-border-subtle: #E6E9EC;
+  --athena-border-focus: #8C9298;
+
+  --athena-text: #171819;
+  --athena-text-secondary: #484C4F;
+  --athena-text-muted: #757B80;
+  --athena-text-dim: #A0A5AA;
+
+  --athena-accent: #4B6E5A;
+  --athena-accent-dim: rgba(75, 110, 90, 0.12);
+  --athena-success: #357A4E;
+  --athena-success-dim: rgba(53, 122, 78, 0.12);
+  --athena-warning: #8E681A;
+  --athena-warning-dim: rgba(142, 104, 26, 0.12);
+  --athena-danger: #A33A3A;
+  --athena-danger-dim: rgba(163, 58, 58, 0.12);
+  --athena-info: #356285;
+  --athena-info-dim: rgba(53, 98, 133, 0.12);
+}
+

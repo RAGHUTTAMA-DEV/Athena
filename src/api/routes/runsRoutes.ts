@@ -8,8 +8,10 @@ export function registerRunsRoutes(
 ) {
   const controller = new RunsController(services);
 
+  app.get('/api/v1/runs', controller.listRuns);
   app.get('/api/v1/runs/:runId', controller.getRun);
   app.post('/api/v1/runs/:runId/abort', controller.abortRun);
   app.get('/api/v1/runs/:runId/events', controller.getEvents);
   app.get('/api/v1/runs/:runId/replay', controller.getReplay);
+  app.get('/api/v1/runs/:runId/trace', controller.getTrace);
 }

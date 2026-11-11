@@ -10,6 +10,19 @@ export class RunsController {
     }
   ) {}
 
+  listRuns = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const sessionId = req.query.sessionId ? String(req.query.sessionId) : undefined;
+      const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
+      const runs = await this.services.stores.run.list(sessionId, limit);
+      res.json({ runs, count: runs.length });
+    } catch (err: any) {
+      res.status(500).json({
+        error: { code: 'RUNS_FETCH_FAILED', message: err.message, requestId: req.id }
+      });
+    }
+  };
+
   getRun = async (req: Request, res: Response): Promise<void> => {
     try {
       const run = await this.services.stores.run.get(req.params.runId);
@@ -82,6 +95,51 @@ export class RunsController {
     } catch (err: any) {
       res.status(500).json({
         error: { code: 'REPLAY_FETCH_FAILED', message: err.message, requestId: req.id }
+      });
+    }
+  };
+
+  getTrace = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const runId = req.params.runId;
+      const run = await this.services.stores.run.get(runId);
+      if (!run) {
+        res.status(404).json({
+          error: { code: 'RUN_NOT_FOUND', message: `Run not found: ${runId}`, requestId: req.id }
+        });
+        return;
+      }
+
+      let events: any[] = [];
+      try {
+        if (this.services.stores.event?.getRunEvents) {
+          events = await this.services.stores.event.getRunEvents(runId);
+        }
+      } catch {}
+
+      let approvals: any[] = [];
+      try {
+        if (this.services.stores.approval?.listAll) {
+          approvals = await this.services.stores.approval.listAll({ runId, limit: 50 });
+        }
+      } catch {}
+
+      let replaySteps: any[] = [];
+      try {
+        if (this.services.stores.replay?.getSteps) {
+          replaySteps = await this.services.stores.replay.getSteps(runId);
+        }
+      } catch {}
+
+      res.json({
+        run,
+        events,
+        approvals,
+        replaySteps
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        error: { code: 'TRACE_FETCH_FAILED', message: err.message, requestId: req.id }
       });
     }
   };

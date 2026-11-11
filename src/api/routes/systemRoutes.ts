@@ -12,4 +12,5 @@ export function registerSystemRoutes(
   app.get('/health/ready', controller.getReadiness);
   app.get('/api/v1/system/capabilities', controller.listCapabilities);
   app.get('/api/v1/system/policy', controller.getPolicy);
+  app.get('/api/v1/system/files', controller.listFiles);
 }

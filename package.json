@@ -10,6 +10,8 @@
     "start:backend": "node dist/api/startServer.js",
     "dev": "tsc && node dist/index.js",
     "dev:backend": "tsc && node dist/api/startServer.js",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
     "dev:allowAll": "tsc && node dist/index.js --allow-all",
     "start:allowAll": "node dist/index.js --allow-all",
     "verify": "tsc && node dist/tests/verify.js",

@@ -28,9 +28,13 @@ import { registerReliabilityRoutes } from './routes/reliabilityRoutes.js';
 import { registerToolsRoutes } from './routes/toolsRoutes.js';
 import { registerIntelligenceRoutes } from './routes/intelligenceRoutes.js';
 import { registerSystemRoutes } from './routes/systemRoutes.js';
+import { AgentRunner } from './services/dispatchService.js';
+import { AgentEventEmitter } from '../runtime/events.js';
 
 export interface ServerOptions {
   storage: InitializedStorage;
+  agent?: any;
+  agentRunner?: AgentRunner;
   port?: number;
   host?: string;
   corsOrigin?: string | string[] | boolean;
@@ -81,26 +85,61 @@ export async function createAthenaServer(options: ServerOptions): Promise<Athena
 
   // 6. Instantiate Core Platform Services
   const sseManager = new SSEManager();
-  const dispatchService = new DispatchService(options.storage.stores.run, sseManager);
+  const approvalService = new ApprovalService(
+    options.storage.stores.approval,
+    options.storage.stores.runWait,
+    sseManager
+  );
+
+  let runner = options.agentRunner;
+  if (!runner && options.agent) {
+    runner = async (input, runId, callbacks) => {
+      const history: any[] = [];
+      let promptText = input.content;
+      if (Array.isArray(input.attachments) && input.attachments.length > 0) {
+        const attachmentBlocks = input.attachments.map((att: any) => {
+          const name = att.name || 'attachment';
+          const text = att.content ? String(att.content).slice(0, 20000) : `[Binary or empty attachment: ${att.mimeType || 'unknown'}]`;
+          return `\n\n--- Attached File: ${name} ---\n${text}\n--- End of ${name} ---`;
+        });
+        promptText = `${promptText}${attachmentBlocks.join('')}`;
+      }
+      const events = new AgentEventEmitter();
+      events.onAny((ev) => {
+        if (options.storage.stores.event?.saveRunEvent && ev.type !== 'status_change' && ev.type !== 'completed') {
+          options.storage.stores.event.saveRunEvent(ev).catch(() => {});
+        }
+      });
+      return options.agent.run(promptText, history, {
+        sessionId: input.sessionId,
+        runId,
+        events,
+        onUpdate: callbacks.onUpdate,
+        confirm: callbacks.confirm
+      });
+    };
+  }
+
+  const dispatchService = new DispatchService(
+    options.storage.stores.run,
+    sseManager,
+    runner,
+    approvalService
+  );
   const hydrationService = new HydrationService(
     options.storage.stores.run,
     options.storage.stores.approval,
     options.storage.stores.goal,
     options.storage.stores.task
   );
-  const approvalService = new ApprovalService(
-    options.storage.stores.approval,
-    options.storage.stores.runWait,
-    sseManager
-  );
   const artifactService = new ArtifactService(options.storage.stores.artifact);
 
   // 7. Register Modular Subsystem Routes
-  registerSessionsRoutes(app, { dispatch: dispatchService, hydration: hydrationService, sse: sseManager, stores: options.storage.stores });
+  registerSessionsRoutes(app, { dispatch: dispatchService, hydration: hydrationService, sse: sseManager, stores: options.storage.stores, storage: options.storage, agent: options.agent });
   registerRunsRoutes(app, { stores: options.storage.stores, sse: sseManager });
   registerApprovalsRoutes(app, { approvalService, stores: options.storage.stores });
   registerArtifactsRoutes(app, { artifactService });
-  registerGoalsRoutes(app, { stores: options.storage.stores });
+  registerGoalsRoutes(app, { stores: options.storage.stores, agent: options.agent });
   registerHarnessRoutes(app);
   registerComputerRoutes(app);
   registerBrowserRoutes(app, { stores: options.storage.stores });

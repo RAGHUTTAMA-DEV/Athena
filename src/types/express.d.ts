@@ -1,7 +1,4 @@
-import * as http from 'http';
-
 declare module 'cors' {
-  import { RequestHandler } from 'express';
   interface CorsOptions {
     origin?: boolean | string | RegExp | (string | RegExp)[] | ((origin: string | undefined, callback: (err: Error | null, origin?: any) => void) => void);
     methods?: string | string[];
@@ -12,11 +9,14 @@ declare module 'cors' {
     preflightContinue?: boolean;
     optionsSuccessStatus?: number;
   }
-  function cors(options?: CorsOptions): RequestHandler;
+  function cors(options?: CorsOptions): any;
+  export default cors;
   export = cors;
 }
 
 declare module 'express' {
+  import * as http from 'http';
+
   export interface Request extends http.IncomingMessage {
     params: Record<string, string>;
     query: Record<string, any>;

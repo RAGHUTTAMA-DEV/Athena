@@ -4,6 +4,8 @@ dotenv.config();
 import { createStorage } from '../storage/storeFactory.js';
 import { createAthenaServer } from './server.js';
 import { tools } from '../tools/index.js';
+import { Agent } from '../runtime/agent.js';
+import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 
 async function bootstrap() {
   const port = parseInt(process.env.PORT || '3000', 10);
@@ -13,8 +15,21 @@ async function bootstrap() {
   const storage = await createStorage();
   console.log(`✔ Storage initialized with driver: [${storage.driver}]`);
 
+  console.log('🤖 Initializing Autonomous Agent Core...');
+  const agent = new Agent({
+    provider: (process.env.LLM_PROVIDER as any) || 'gemini',
+    modelName: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+    maxTurns: parseInt(process.env.MAX_TURNS || '20', 10),
+    systemPrompt: DEFAULT_AGENT_PROMPT,
+    soulPath: './SOUL.md',
+    dbPath: process.env.DATABASE_PATH || './state.db'
+  });
+  await agent.init();
+  console.log('✔ Agent Core initialized with SOUL.md & memory.');
+
   const app = await createAthenaServer({
     storage,
+    agent,
     corsOrigin: process.env.CORS_ORIGIN || '*',
     apiKey: process.env.ATHENA_API_KEY
   });
@@ -30,6 +45,7 @@ async function bootstrap() {
   📜 OpenAPI 3.1 Spec:   http://localhost:${port}/api/v1/openapi.json
   🩺 Health Live:        http://localhost:${port}/health/live
   🩺 Health Ready:       http://localhost:${port}/health/ready
+  🤖 Active LLM Model:   ${process.env.GEMINI_MODEL || 'gemini-2.5-flash'} (${process.env.LLM_PROVIDER || 'gemini'})
   💾 Database Driver:    ${storage.driver.toUpperCase()}
   🛠️  Registered Tools:   ${tools.length} real tools
 =================================================================

@@ -504,7 +504,7 @@ export class Agent {
           console.warn(`[Agent Warning] Failed to load SOUL.md from ${this.config.soulPath}: ${err.message}`);
         }
       }
-      if (this.config.memory) {
+      if (this.config.memory && typeof this.config.memory.getAgentStore === 'function') {
         this.memory = this.config.memory;
         await this.initIdentity();
       } else if (this.config.dbPath) {

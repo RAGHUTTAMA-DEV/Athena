@@ -6,11 +6,12 @@ import { SessionsController } from '../controllers/sessionsController.js';
 
 export function registerSessionsRoutes(
   app: Router,
-  services: { dispatch: DispatchService; hydration: HydrationService; sse: SSEManager; stores: any }
+  services: { dispatch: DispatchService; hydration: HydrationService; sse: SSEManager; stores: any; storage?: any; agent?: any }
 ) {
   const controller = new SessionsController(services);
 
   app.post('/api/v1/sessions/:sessionId/messages', controller.submitMessage);
+  app.get('/api/v1/sessions/:sessionId/messages', controller.getMessages);
   app.get('/api/v1/sessions/:sessionId/state', controller.getState);
   app.get('/api/v1/sessions/:sessionId/events', controller.getEvents);
   app.get('/api/v1/sessions', controller.listSessions);
