@@ -14,6 +14,7 @@ export const KnowledgePage: React.FC = () => {
   const [docTitle, setDocTitle] = useState('');
   const [docUri, setDocUri] = useState('');
   const [docText, setDocText] = useState('');
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -66,6 +67,22 @@ export const KnowledgePage: React.FC = () => {
       await loadData();
     } catch (err: any) {
       alert(`Upload failed: ${err.message}`);
+    }
+  };
+
+  const handleFileIngest = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingFile(true);
+    try {
+      await apiClient.uploadAttachment(file);
+      setShowUpload(false);
+      await loadData();
+    } catch (err: any) {
+      alert(`File ingest failed: ${err.message}`);
+    } finally {
+      setIsUploadingFile(false);
+      e.target.value = '';
     }
   };
 
@@ -130,6 +147,16 @@ export const KnowledgePage: React.FC = () => {
           onSubmit={handleUpload}
           style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'var(--athena-surface)', border: '1px solid var(--athena-border-focus)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '10px' }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: 'var(--athena-surface-deep)', border: '1px dashed var(--athena-border)', borderRadius: 'var(--radius-xs)' }}>
+            <span style={{ fontSize: '12px', color: 'var(--athena-text-secondary)' }}>
+              Upload a file directly (PDF, DOCX, XLSX, CSV, Markdown, Image) — extracts pages, photos, and TOC/Index automatically:
+            </span>
+            <label style={{ padding: '5px 12px', backgroundColor: 'var(--athena-accent)', color: '#171819', borderRadius: 'var(--radius-xs)', fontSize: '11px', fontWeight: 600, cursor: isUploadingFile ? 'wait' : 'pointer' }}>
+              {isUploadingFile ? 'Parsing & Indexing...' : 'Choose File'}
+              <input type="file" onChange={handleFileIngest} disabled={isUploadingFile} style={{ display: 'none' }} />
+            </label>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--athena-text-muted)', textAlign: 'center' }}>— or paste raw text below —</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <input
               required
@@ -232,7 +259,11 @@ export const KnowledgePage: React.FC = () => {
               <div>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--athena-text)' }}>{doc.title || doc.sourceUri}</div>
                 <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--athena-text-muted)' }}>
-                  {doc.sourceType} · {doc.sourceUri} · {doc.chunkCount} chunks · {doc.charCount} chars
+                  {doc.format || doc.sourceType}
+                  {doc.metadata?.pageCount ? ` · ${doc.metadata.pageCount} pages` : ''}
+                  {doc.metadata?.mediaAssets?.length ? ` · ${doc.metadata.mediaAssets.length} photo(s)` : ''}
+                  {doc.metadata?.hasIndexPage ? ` · Index/TOC` : ''}
+                  {` · ${doc.chunkCount} chunks · ${doc.charCount} chars`}
                 </div>
               </div>
               <span style={{ fontSize: '11px', color: 'var(--athena-text-muted)' }}>

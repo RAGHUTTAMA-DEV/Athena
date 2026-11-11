@@ -827,11 +827,36 @@ export class Agent {
       // 6. Prepare the session messages
       // Working Memory = User Prompt + Chat History + System Prompt
       const currentRunHistory: Message[] = [...history];
-      
+      const userParts: Part[] = [{ text: userPrompt }];
+      if (Array.isArray(options.mediaAttachments) && options.mediaAttachments.length > 0) {
+        for (const media of options.mediaAttachments) {
+          try {
+            let data = media.dataBase64;
+            if (!data && media.filePath) {
+              const buf = await fs.readFile(media.filePath);
+              // Cap single inline visual attachment at 6 MB to stay safe inside Gemini payloads
+              if (buf.length > 0 && buf.length <= 6 * 1024 * 1024) {
+                data = buf.toString('base64');
+              }
+            }
+            if (data) {
+              userParts.push({
+                inlineData: {
+                  mimeType: media.mimeType,
+                  data
+                }
+              });
+            }
+          } catch {
+            // Non-fatal if visual asset could not be read; text transcription remains in prompt
+          }
+        }
+      }
+
       // Add the new user message to current run context
       currentRunHistory.push({
         role: 'user',
-        parts: [{ text: userPrompt }]
+        parts: userParts
       });
 
       const allAllowedTools = Array.from(toolsRegistry.values())
@@ -839,10 +864,16 @@ export class Agent {
       const recentContext = history.slice(-4)
         .map(m => m.parts?.map((p: any) => p.text || '').join(' ') || '')
         .join(' ');
-      const activeTools = ToolSelector.selectRelevantTools(userPrompt, allAllowedTools, recentContext, {
-        policyEngine: this.getPolicyEngine(),
-        isBackground: options?.isBackground
-      });
+      const activeTools = ToolSelector.selectRelevantTools(
+        options?.toolIntent || userPrompt,
+        allAllowedTools,
+        recentContext,
+        {
+          policyEngine: this.getPolicyEngine(),
+          isBackground: options?.isBackground,
+          forcedTools: options?.forcedTools
+        }
+      );
       const functionDeclarations = activeTools.map(tool => cleanGeminiSchema(tool.definition, true));
 
       // Adaptive Orchestration: classify task complexity and initialize plan if complex
@@ -1053,7 +1084,9 @@ export class Agent {
             },
             async (generation) => {
               generation.update({
-                input: JSON.stringify(currentRunHistory),
+                input: JSON.stringify(currentRunHistory, (k, v) =>
+                  k === 'data' && typeof v === 'string' && v.length > 512 ? `<base64:${v.length}chars>` : v
+                ),
                 model: this.config.modelName,
               });
 
@@ -1480,9 +1513,10 @@ export class Agent {
           }
 
           // Push the user prompt and final model response to the persistent history
+          const cleanUserPrompt = options.persistedUserPrompt || userPrompt;
           history.push({
             role: 'user',
-            parts: [{ text: userPrompt }]
+            parts: [{ text: cleanUserPrompt }]
           });
           history.push({
             role: 'model',
@@ -1492,7 +1526,7 @@ export class Agent {
           // Save to SQLite database if sessionId is provided and database is active
           if (sessionId && this.memory) {
             try {
-              await this.memory.saveMessage(sessionId, 'user', [{ text: userPrompt }]);
+              await this.memory.saveMessage(sessionId, 'user', [{ text: cleanUserPrompt }]);
               await this.memory.saveMessage(sessionId, 'model', [{ text }]);
             } catch (err: any) {
               safeOnUpdate({ type: 'error', message: `Failed to save message to database: ${err.message}` });
@@ -1570,9 +1604,10 @@ export class Agent {
       safeOnUpdate({ type: 'error', message: warningText });
       
       // Add warning as final model turn so the user sees it
+      const cleanUserPrompt = options.persistedUserPrompt || userPrompt;
       history.push({
         role: 'user',
-        parts: [{ text: userPrompt }]
+        parts: [{ text: cleanUserPrompt }]
       });
       history.push({
         role: 'model',
@@ -1582,7 +1617,7 @@ export class Agent {
       // Save to SQLite database if sessionId is provided and database is active
       if (sessionId && this.memory) {
         try {
-          await this.memory.saveMessage(sessionId, 'user', [{ text: userPrompt }]);
+          await this.memory.saveMessage(sessionId, 'user', [{ text: cleanUserPrompt }]);
           await this.memory.saveMessage(sessionId, 'model', [{ text: warningText }]);
         } catch (err: any) {
           safeOnUpdate({ type: 'error', message: `Failed to save guardrail alert to database: ${err.message}` });

@@ -1,10 +1,14 @@
 import { Request, Response } from 'express';
 import { ConfiguredEmbeddingProvider } from '../../providers/embeddingProvider.js';
+import { AttachmentService } from '../services/attachmentService.js';
 
 export class ResearchController {
   private embedder = new ConfiguredEmbeddingProvider();
+  private attachmentService: AttachmentService;
 
-  constructor(private stores: any) {}
+  constructor(private stores: any) {
+    this.attachmentService = new AttachmentService(stores);
+  }
 
   private async generateRealEmbedding(text: string): Promise<number[]> {
     if (this.embedder.isConfigured()) {
@@ -21,7 +25,7 @@ export class ResearchController {
     // Deterministic bag-of-words vector projection with cosine geometry
     const dims = 128;
     const vec = new Array(dims).fill(0);
-    const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 1);
+    const tokens = text.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
     for (const token of tokens) {
       let h = 2166136261;
       for (let i = 0; i < token.length; i++) {
@@ -31,21 +35,70 @@ export class ResearchController {
       vec[Math.abs(h) % dims] += 1;
     }
     const norm = Math.sqrt(vec.reduce((a, b) => a + b * b, 0)) || 1;
-    return vec.map(v => v / norm);
+    return vec.map((v) => v / norm);
   }
 
   listDocuments = async (req: Request, res: Response): Promise<void> => {
     try {
       const wsId = req.query.workspaceId ? parseInt(String(req.query.workspaceId), 10) : undefined;
-      const docs = await this.stores.researchDocument.list({
+      const sessionIdFilter = req.query.sessionId ? String(req.query.sessionId) : undefined;
+      let docs = await this.stores.researchDocument.list({
         workspaceId: wsId,
         sourceType: req.query.sourceType ? String(req.query.sourceType) : undefined,
         limit: req.query.limit ? parseInt(String(req.query.limit), 10) : undefined
       });
+      if (sessionIdFilter) {
+        docs = docs.filter(
+          (d: any) =>
+            d.metadata?.sessionId === sessionIdFilter ||
+            (Array.isArray(d.metadata?.sessionIds) && d.metadata.sessionIds.includes(sessionIdFilter))
+        );
+      }
       res.json({ documents: docs, count: docs.length });
     } catch (err: any) {
       res.status(500).json({
         error: { code: 'DOCUMENTS_FETCH_FAILED', message: err.message, requestId: req.id }
+      });
+    }
+  };
+
+  /**
+   * Unified intelligent upload handler for both Knowledge Base documents and
+   * binary file attachments (PDF, DOCX, XLSX, CSV, HTML, Markdown, Images).
+   */
+  uploadAttachment = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const fileName = req.body?.name || req.body?.fileName || req.body?.title;
+      const contentBase64 = req.body?.contentBase64;
+      const textContent = req.body?.textContent ?? req.body?.content;
+
+      if (!fileName || (!contentBase64 && typeof textContent !== 'string')) {
+        res.status(400).json({
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Fields "name" (or "title") and "contentBase64" or "textContent" are required.',
+            requestId: req.id
+          }
+        });
+        return;
+      }
+
+      const result = await this.attachmentService.ingestUpload({
+        fileName: String(fileName),
+        mimeType: req.body?.mimeType ? String(req.body.mimeType) : undefined,
+        contentBase64: contentBase64 ? String(contentBase64) : undefined,
+        textContent: typeof textContent === 'string' ? textContent : undefined,
+        sessionId: req.body?.sessionId ? String(req.body.sessionId) : undefined,
+        workspaceId: req.auth?.workspaceId,
+        sourceUri: req.body?.sourceUri ? String(req.body.sourceUri) : undefined,
+        sourceType: req.body?.sourceType,
+        namespace: req.body?.namespace ? String(req.body.namespace) : undefined
+      });
+
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(500).json({
+        error: { code: 'ATTACHMENT_UPLOAD_FAILED', message: err.message, requestId: req.id }
       });
     }
   };
@@ -58,41 +111,20 @@ export class ResearchController {
         });
         return;
       }
-      const id = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const text = req.body.textContent || '';
-      const hash = Buffer.from(text).toString('base64').slice(0, 16);
 
-      const doc = await this.stores.researchDocument.save({
-        id,
-        sourceType: req.body.sourceType || 'text',
-        sourceUri: req.body.sourceUri,
-        title: req.body.title,
-        format: 'txt',
-        contentHash: hash || 'empty_hash',
-        chunkCount: Math.ceil((text.length || 1) / 500),
-        charCount: text.length,
+      const result = await this.attachmentService.ingestUpload({
+        fileName: String(req.body.title),
+        mimeType: req.body.mimeType ? String(req.body.mimeType) : undefined,
+        contentBase64: req.body.contentBase64 ? String(req.body.contentBase64) : undefined,
+        textContent: typeof req.body.textContent === 'string' ? req.body.textContent : '',
         workspaceId: req.auth?.workspaceId,
-        metadata: {},
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+        sourceUri: String(req.body.sourceUri),
+        sourceType: req.body.sourceType || 'text',
+        namespace: req.body.namespace ? String(req.body.namespace) : undefined
       });
 
-      // Index chunks into vector store if content is provided
-      if (text.length > 0 && this.stores.vector) {
-        const embedding = await this.generateRealEmbedding(text.slice(0, 500));
-        await this.stores.vector.upsert({
-          id: `vec_${id}`,
-          refId: id,
-          namespace: 'documents',
-          embedding,
-          dims: embedding.length,
-          model: this.embedder.model || 'athena-bag-of-words-v1',
-          text: text.slice(0, 500),
-          metadata: { title: req.body.title, sourceUri: req.body.sourceUri }
-        });
-      }
-
-      res.status(201).json(doc);
+      const doc = result.documentId ? await this.stores.researchDocument.get(result.documentId) : null;
+      res.status(201).json(doc || result);
     } catch (err: any) {
       res.status(500).json({
         error: { code: 'DOCUMENT_UPLOAD_FAILED', message: err.message, requestId: req.id }
@@ -110,14 +142,25 @@ export class ResearchController {
       }
 
       const queryEmbedding = await this.generateRealEmbedding(req.body.query);
-      const vectorResults = await this.stores.vector.search(queryEmbedding, {
+      const docIds: string[] | undefined = Array.isArray(req.body.documentIds)
+        ? req.body.documentIds.map(String)
+        : undefined;
+      const limit = req.body.limit || 5;
+
+      let vectorResults = await this.stores.vector.search(queryEmbedding, {
         namespace: req.body.namespace,
-        limit: req.body.limit || 5,
+        limit: docIds && docIds.length > 0 ? Math.max(limit * 5, 30) : limit,
         threshold: req.body.threshold
       });
 
+      if (docIds && docIds.length > 0) {
+        const allow = new Set(docIds);
+        vectorResults = vectorResults.filter((r: any) => r.refId && allow.has(r.refId)).slice(0, limit);
+      }
+
       res.json({
         query: req.body.query,
+        results: vectorResults,
         matches: vectorResults,
         model: this.embedder.model
       });

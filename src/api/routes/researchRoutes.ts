@@ -6,6 +6,7 @@ export function registerResearchRoutes(app: Router, services: { stores: any }) {
 
   app.get('/api/v1/research/documents', controller.listDocuments);
   app.post('/api/v1/research/documents/upload', controller.uploadDocument);
+  app.post('/api/v1/attachments/upload', controller.uploadAttachment);
   app.post('/api/v1/research/search', controller.search);
   app.get('/api/v1/research/vectors/stats', controller.getVectorStats);
 }

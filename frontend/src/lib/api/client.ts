@@ -289,12 +289,65 @@ export class AthenaApiClient {
   }
 
   // Knowledge & RAG
-  async listResearchDocuments(): Promise<any[]> {
-    const res = await this.request<{ documents: any[] }>('/api/v1/research/documents');
+  async listResearchDocuments(sessionId?: string): Promise<any[]> {
+    const qs = sessionId ? `?sessionId=${encodeURIComponent(sessionId)}` : '';
+    const res = await this.request<{ documents: any[] }>(`/api/v1/research/documents${qs}`);
     return res.documents || [];
   }
 
-  async uploadResearchDocument(data: { title: string; sourceUri: string; sourceType?: string; textContent: string }): Promise<any> {
+  async uploadAttachment(
+    file: File,
+    sessionId?: string
+  ): Promise<{
+    attachmentId: string;
+    documentId: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    filePath: string;
+    sidecarPath: string;
+    format: string;
+    pageCount?: number;
+    charCount: number;
+    chunkCount: number;
+    ocrUsed: boolean;
+    hasIndexPage: boolean;
+    indexPages: number[];
+    indexEntryCount: number;
+    mediaCount: number;
+    scannedPages: number[];
+    mixedPages: number[];
+    outlineSummary?: string;
+    preview: string;
+    ragIndexed: boolean;
+    deduplicated?: boolean;
+    warning?: string;
+  }> {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+    return this.request('/api/v1/attachments/upload', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        contentBase64: dataUrl,
+        sessionId,
+      }),
+    });
+  }
+
+  async uploadResearchDocument(data: {
+    title: string;
+    sourceUri: string;
+    sourceType?: string;
+    textContent?: string;
+    contentBase64?: string;
+    mimeType?: string;
+  }): Promise<any> {
     return this.request('/api/v1/research/documents/upload', {
       method: 'POST',
       body: JSON.stringify(data),

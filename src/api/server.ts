@@ -7,6 +7,7 @@ import { DispatchService } from './services/dispatchService.js';
 import { HydrationService } from './services/hydrationService.js';
 import { ApprovalService } from './services/approvalService.js';
 import { ArtifactService } from './services/artifactService.js';
+import { AttachmentService } from './services/attachmentService.js';
 import { authMiddleware } from './auth.js';
 import { athenaOpenApiSpec, renderSwaggerUiHtml } from './openApiSpec.js';
 
@@ -66,9 +67,9 @@ export async function createAthenaServer(options: ServerOptions): Promise<Athena
     allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-idempotency-key', 'x-workspace-id', 'last-event-id', 'x-signature']
   }));
 
-  // 3. Body parsers
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // 3. Body parsers (50mb limit supports base64 PDF/DOCX/image attachment uploads)
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
   // 4. OpenAPI 3.1 & Interactive Documentation (Swagger UI)
   app.get('/api/v1/openapi.json', (req: Request, res: Response) => {
@@ -91,31 +92,33 @@ export async function createAthenaServer(options: ServerOptions): Promise<Athena
     sseManager
   );
 
+  const attachmentService = new AttachmentService(options.storage.stores);
+
   let runner = options.agentRunner;
   if (!runner && options.agent) {
     runner = async (input, runId, callbacks) => {
       const history: any[] = [];
-      let promptText = input.content;
-      if (Array.isArray(input.attachments) && input.attachments.length > 0) {
-        const attachmentBlocks = input.attachments.map((att: any) => {
-          const name = att.name || 'attachment';
-          const text = att.content ? String(att.content).slice(0, 20000) : `[Binary or empty attachment: ${att.mimeType || 'unknown'}]`;
-          return `\n\n--- Attached File: ${name} ---\n${text}\n--- End of ${name} ---`;
-        });
-        promptText = `${promptText}${attachmentBlocks.join('')}`;
-      }
+      const prepared = await attachmentService.preparePromptContext({
+        userPrompt: input.content,
+        attachments: input.attachments,
+        sessionId: input.sessionId
+      });
       const events = new AgentEventEmitter();
       events.onAny((ev) => {
         if (options.storage.stores.event?.saveRunEvent && ev.type !== 'status_change' && ev.type !== 'completed') {
           options.storage.stores.event.saveRunEvent(ev).catch(() => {});
         }
       });
-      return options.agent.run(promptText, history, {
+      return options.agent.run(prepared.promptText, history, {
         sessionId: input.sessionId,
         runId,
         events,
         onUpdate: callbacks.onUpdate,
-        confirm: callbacks.confirm
+        confirm: callbacks.confirm,
+        mediaAttachments: prepared.mediaAttachments,
+        forcedTools: prepared.forcedTools,
+        persistedUserPrompt: prepared.persistedUserPrompt,
+        toolIntent: input.content
       });
     };
   }

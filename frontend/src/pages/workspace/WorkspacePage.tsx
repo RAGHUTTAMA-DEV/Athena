@@ -316,7 +316,14 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
     if ((!text.trim() && (!attachments || attachments.length === 0)) || isSending) return;
 
     const attachmentNames = attachments && attachments.length > 0
-      ? `\n\n[Attached: ${attachments.map((a) => a.name).join(', ')}]`
+      ? `\n\n[Attached: ${attachments.map((a) => {
+          const tags: string[] = [];
+          if (a.format) tags.push(a.format.toUpperCase());
+          if (a.pageCount) tags.push(`${a.pageCount}p`);
+          if (a.mediaCount) tags.push(`${a.mediaCount} photo${a.mediaCount > 1 ? 's' : ''}`);
+          if (a.hasIndexPage) tags.push('Index');
+          return tags.length > 0 ? `${a.name} (${tags.join(', ')})` : a.name;
+        }).join(', ')}]`
       : '';
 
     const now = Date.now();
@@ -764,10 +771,11 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         }}
       >
         <Composer
+          sessionId={sessionId}
           onSendMessage={handleSendMessage}
           isSending={isSending}
           disabled={isSending}
-          placeholder="Message Athena... (type @ to reference workspace files)"
+          placeholder="Message Athena... (type @ to reference workspace files, or attach/drop PDFs, DOCX, Images)"
         />
       </div>
     </div>

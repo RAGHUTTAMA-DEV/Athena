@@ -151,7 +151,7 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     parallelSafe: true,
     timeoutMs: 15000,
     permissions: ['fs:read'],
-    maxOutputBytes: 16384,
+    maxOutputBytes: 65536,
     tags: ['fs', 'code']
   },
   listFiles: {
@@ -252,7 +252,7 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     parallelSafe: true,
     timeoutMs: 60000,
     permissions: ['memory'],
-    maxOutputBytes: 20480,
+    maxOutputBytes: 49152,
     tags: ['rag', 'documents', 'search']
   },
   readDocument: {
@@ -260,7 +260,7 @@ export const DEFAULT_TOOL_MANIFESTS: Record<string, Partial<ToolManifest>> = {
     parallelSafe: true,
     timeoutMs: 60000,
     permissions: ['fs:read', 'memory'],
-    maxOutputBytes: 20480,
+    maxOutputBytes: 65536,
     tags: ['documents', 'pdf', 'read']
   },
   semantic_memory_manage: {
@@ -845,13 +845,11 @@ export class ToolExecutor {
 }
 
 export class ToolSelector {
-  // Always include these foundation utility tools
+  // Always include safe, non-destructive foundation utility tools; terminal/write tools are selected on intent
   private static CORE_TOOLS = new Set([
     'calculate',
     'systemTime',
     'readFile',
-    'writeFile',
-    'executeCommand',
     'semantic_memory_manage',
     'cronjob',
     'routineManage',
@@ -895,7 +893,7 @@ export class ToolSelector {
     userPrompt: string,
     availableTools: Tool[],
     context?: string,
-    options?: { policyEngine?: PolicyEngine; isBackground?: boolean }
+    options?: { policyEngine?: PolicyEngine; isBackground?: boolean; forcedTools?: string[] }
   ): Tool[] {
     if (availableTools.length <= 8) {
       return availableTools;
@@ -908,7 +906,7 @@ export class ToolSelector {
       isBackground: options?.isBackground,
       maxPromptTokens: 2500,
       maxTools: 15,
-      forcedTools: Array.from(ToolSelector.CORE_TOOLS)
+      forcedTools: [...Array.from(ToolSelector.CORE_TOOLS), ...(options?.forcedTools || [])]
     });
   }
 }

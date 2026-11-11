@@ -63,8 +63,12 @@ export class DispatchService {
   ) {}
 
   async submitMessage(input: DispatchMessageInput): Promise<DispatchResult> {
-    if (!input.content || input.content.trim() === '') {
+    const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
+    if ((!input.content || input.content.trim() === '') && !hasAttachments) {
       throw new Error('Message content cannot be empty');
+    }
+    if (!input.content || input.content.trim() === '') {
+      input.content = 'Analyze the attached document(s) and image(s).';
     }
 
     // 1. Idempotency check

@@ -98,6 +98,10 @@ export interface RunOptions {
   events?: AgentEventEmitter;
   onUpdate?: (status: { type: 'thought' | 'tool_call' | 'tool_response' | 'error' | 'memory'; message: string }) => void;
   confirm?: (toolName: string, args: any) => Promise<boolean>;
+  mediaAttachments?: AgentMediaAttachment[];
+  forcedTools?: string[];
+  persistedUserPrompt?: string;
+  toolIntent?: string;
 }
 
 export type ProviderType = 'gemini' | 'nvidia' | 'ollama';

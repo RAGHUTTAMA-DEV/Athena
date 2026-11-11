@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { ChunkOptions, chunkText } from './chunker.js';
-import { DocumentParser } from './documentParser.js';
-import { IngestResult, RagQueryResult, DocumentFormat } from './researchTypes.js';
+import { DocumentParser, ParseDocumentOptions } from './documentParser.js';
+import { IngestResult, RagQueryResult, DocumentFormat, ParsedDocument } from './researchTypes.js';
 import { CapabilityRegistry } from '../tools/capabilityRegistry.js';
 import { EmbeddingProvider } from '../providers/embeddingProvider.js';
 import { LocalCrossEncoderReranker, Reranker } from '../providers/localReranker.js';
@@ -56,9 +56,13 @@ export class RagEngine {
   }
 
   /** Ingest a local file. */
-  async ingestFile(filePath: string, options: { workspaceId?: number } = {}): Promise<IngestResult> {
-    const parsed = await this.getParser().parseFile(filePath);
-    return this.ingestParsed(parsed, 'file', filePath, options.workspaceId);
+  async ingestFile(
+    filePath: string,
+    options: { workspaceId?: number; assetDir?: string; sessionId?: string; title?: string; sidecarPath?: string } = {}
+  ): Promise<IngestResult> {
+    const parseOpts: ParseDocumentOptions = { assetDir: options.assetDir, source: filePath };
+    const parsed = await this.getParser().parseFile(filePath, parseOpts);
+    return this.ingestParsed(parsed, 'file', filePath, options.workspaceId, options);
   }
 
   /** Ingest raw bytes (e.g. a downloaded page or upload). */
@@ -66,10 +70,23 @@ export class RagEngine {
     buffer: Buffer,
     format: DocumentFormat,
     sourceUri: string,
-    options: { workspaceId?: number; sourceType?: 'file' | 'url' | 'text' } = {}
+    options: { workspaceId?: number; sourceType?: 'file' | 'url' | 'text'; assetDir?: string; sessionId?: string; title?: string; sidecarPath?: string } = {}
   ): Promise<IngestResult> {
-    const parsed = await this.getParser().parseBuffer(buffer, format, { source: sourceUri });
-    return this.ingestParsed(parsed, options.sourceType || 'file', sourceUri, options.workspaceId);
+    const parsed = await this.getParser().parseBuffer(buffer, format, {
+      source: sourceUri,
+      assetDir: options.assetDir
+    });
+    return this.ingestParsed(parsed, options.sourceType || 'file', sourceUri, options.workspaceId, options);
+  }
+
+  /** Ingest an already-parsed document (avoids double-parsing/OCR/Vision calls). */
+  async ingestParsedDocument(
+    parsed: ParsedDocument,
+    sourceType: 'file' | 'url' | 'text',
+    sourceUri: string,
+    options: { workspaceId?: number; sessionId?: string; title?: string; sidecarPath?: string } = {}
+  ): Promise<IngestResult> {
+    return this.ingestInternal(parsed, sourceType, sourceUri, options.workspaceId, options);
   }
 
   /** Ingest plain text (no parsing stage needed). */
@@ -77,25 +94,27 @@ export class RagEngine {
     text: string,
     format: DocumentFormat,
     sourceUri: string,
-    options: { workspaceId?: number } = {}
+    options: { workspaceId?: number; sessionId?: string; title?: string; sidecarPath?: string } = {}
   ): Promise<IngestResult> {
-    return this.ingestParsed({ format, text }, 'text', sourceUri, options.workspaceId);
+    return this.ingestParsed({ format, text }, 'text', sourceUri, options.workspaceId, options);
   }
 
   private ingestParsed(
-    parsed: { format: DocumentFormat; text: string; pageCount?: number; metadata?: Record<string, any> },
+    parsed: ParsedDocument,
     sourceType: 'file' | 'url' | 'text',
     sourceUri: string,
-    workspaceId?: number
+    workspaceId?: number,
+    options: { sessionId?: string; title?: string; sidecarPath?: string } = {}
   ): Promise<IngestResult> {
-    return this.ingestInternal(parsed, sourceType, sourceUri, workspaceId);
+    return this.ingestInternal(parsed, sourceType, sourceUri, workspaceId, options);
   }
 
   private async ingestInternal(
-    parsed: { format: DocumentFormat; text: string; pageCount?: number; metadata?: Record<string, any> },
+    parsed: ParsedDocument,
     sourceType: 'file' | 'url' | 'text',
     sourceUri: string,
-    workspaceId?: number
+    workspaceId?: number,
+    options: { sessionId?: string; title?: string; sidecarPath?: string } = {}
   ): Promise<IngestResult> {
     if (!this.deps.embedder.isConfigured()) {
       const reason =
@@ -117,6 +136,7 @@ export class RagEngine {
         format: existingByHash.format as DocumentFormat,
         chunkCount: existingByHash.chunkCount,
         charCount: existingByHash.charCount,
+        pageCount: existingByHash.metadata?.pageCount,
         deduplicated: true
       };
     }
@@ -132,6 +152,8 @@ export class RagEngine {
     const chunks = chunkText(parsed.text, this.chunkOptions);
 
     for (const chunk of chunks) {
+      const pageMatch = chunk.text.match(/===\s*Page\s+(\d+)\b/i);
+      const pageNumber = pageMatch ? parseInt(pageMatch[1], 10) : undefined;
       const embedding = await this.deps.embedder.embed(chunk.text);
       if (!embedding) {
         throw new Error('Embedding provider returned no vector during ingest.');
@@ -147,23 +169,47 @@ export class RagEngine {
         metadata: {
           chunkIndex: chunk.index,
           section: chunk.section,
+          pageNumber,
           charStart: chunk.charStart,
-          charEnd: chunk.charEnd
+          charEnd: chunk.charEnd,
+          sessionId: options.sessionId
         }
       });
     }
+
+    const compactPages = parsed.pages?.map((p) => ({
+      pageNumber: p.pageNumber,
+      kind: p.kind,
+      charCount: p.charCount,
+      imageCount: p.imageCount,
+      isIndexPage: p.isIndexPage,
+      headings: p.headings,
+      screenshotPath: p.screenshotPath
+    }));
 
     await this.deps.documentStore.save({
       id: documentId,
       sourceType,
       sourceUri,
-      title: sourceUri.split('/').pop() || sourceUri,
+      title: options.title || sourceUri.split(/[\\/]/).pop() || sourceUri,
       format: parsed.format,
       contentHash,
       chunkCount: chunks.length,
       charCount: parsed.text.length,
       workspaceId: workspaceId ?? null,
-      metadata: { pageCount: parsed.pageCount, ...parsed.metadata }
+      metadata: {
+        pageCount: parsed.pageCount,
+        ocr: parsed.ocr,
+        hasIndexPage: parsed.hasIndexPage,
+        indexPages: parsed.indexPages,
+        indexEntries: parsed.indexEntries?.slice(0, 80),
+        mediaAssets: parsed.mediaAssets,
+        outlineSummary: parsed.outlineSummary,
+        pageSummaries: compactPages,
+        sidecarPath: options.sidecarPath,
+        sessionId: options.sessionId,
+        ...parsed.metadata
+      }
     });
 
     return {
@@ -183,9 +229,14 @@ export class RagEngine {
    * cross-encoder is available; otherwise the result honestly reports
    * `reranked: false` with the skip reason.
    */
-  async query(query: string, options: { topK?: number; namespace?: string } = {}): Promise<RagQueryResult> {
+  async query(
+    query: string,
+    options: { topK?: number; namespace?: string; documentIds?: string[] } = {}
+  ): Promise<RagQueryResult> {
     const topK = options.topK || 5;
     const namespace = options.namespace || this.namespace;
+    const docIdFilter =
+      options.documentIds && options.documentIds.length > 0 ? new Set(options.documentIds) : null;
 
     const queryEmbedding = await this.deps.embedder.embed(query);
     if (!queryEmbedding) {
@@ -194,10 +245,18 @@ export class RagEngine {
       throw new Error(reason);
     }
 
-    const candidates = await this.deps.vectorStore.search(queryEmbedding, {
+    const fetchLimit = docIdFilter
+      ? Math.max(topK * this.retrievalMultiplier * 4, 40)
+      : Math.max(topK * this.retrievalMultiplier, topK);
+
+    let candidates = await this.deps.vectorStore.search(queryEmbedding, {
       namespace,
-      limit: Math.max(topK * this.retrievalMultiplier, topK)
+      limit: fetchLimit
     });
+
+    if (docIdFilter) {
+      candidates = candidates.filter((c) => c.refId && docIdFilter.has(c.refId));
+    }
 
     // Map chunk ids back to their source documents for citations.
     const documentIds = new Set(candidates.map((c) => c.refId).filter(Boolean));
@@ -213,7 +272,9 @@ export class RagEngine {
       text: c.text,
       retrievalScore: c.score,
       rank: 0,
-      sourceUri: c.refId ? documentsById.get(c.refId)?.sourceUri : undefined
+      sourceUri: c.refId ? documentsById.get(c.refId)?.sourceUri : undefined,
+      pageNumber: c.metadata?.pageNumber as number | undefined,
+      section: c.metadata?.section as string | undefined
     }));
 
     if (!this.deps.reranker) {
