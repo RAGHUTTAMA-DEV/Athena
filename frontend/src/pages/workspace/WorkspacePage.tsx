@@ -116,8 +116,36 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
 
     const sse = new AthenaSSEClient(`/api/v1/sessions/${sessionId}/events`);
 
+    const upsertAgentMessage = (
+      prev: ChatMessage[],
+      runId: string,
+      updater: (m: ChatMessage) => ChatMessage
+    ): ChatMessage[] => {
+      const idx = prev.findIndex((m) => m.sender === 'agent' && m.runId === runId);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = updater(next[idx]);
+        return next;
+      }
+      const base: ChatMessage = {
+        id: `agent_${runId}`,
+        sender: 'agent',
+        senderName: 'Athena',
+        content: '',
+        timestamp: Date.now(),
+        runId,
+        status: 'running',
+        thoughts: [],
+        toolCalls: [],
+        flowSteps: [],
+        approvals: [],
+      };
+      return [...prev, updater(base)];
+    };
+
     sse.subscribe((envelope) => {
       const runId = envelope.runId || envelope.data?.runId;
+      if (!runId) return;
 
       if (envelope.type === 'agent.progress') {
         const msgText = envelope.data?.message;
@@ -136,15 +164,11 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         };
 
         setMessages((prev) =>
-          prev.map((m) =>
-            m.sender === 'agent' && m.runId === runId
-              ? {
-                  ...m,
-                  thoughts: [...(m.thoughts || []), msgText],
-                  flowSteps: [...(m.flowSteps || []), step],
-                }
-              : m
-          )
+          upsertAgentMessage(prev, runId, (m) => ({
+            ...m,
+            thoughts: [...(m.thoughts || []), msgText],
+            flowSteps: [...(m.flowSteps || []), step],
+          }))
         );
       } else if (envelope.type === 'tool.started') {
         const toolName = envelope.data?.tool || 'tool';
@@ -164,25 +188,20 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         };
 
         setMessages((prev) =>
-          prev.map((m) =>
-            m.sender === 'agent' && m.runId === runId
-              ? {
-                  ...m,
-                  toolCalls: [
-                    ...(m.toolCalls || []),
-                    { tool: toolName, args, status: 'running' as const },
-                  ],
-                  flowSteps: [...(m.flowSteps || []), step],
-                }
-              : m
-          )
+          upsertAgentMessage(prev, runId, (m) => ({
+            ...m,
+            toolCalls: [
+              ...(m.toolCalls || []),
+              { tool: toolName, args, status: 'running' as const },
+            ],
+            flowSteps: [...(m.flowSteps || []), step],
+          }))
         );
       } else if (envelope.type === 'tool.completed') {
         const resultText = envelope.data?.result;
         const toolName = envelope.data?.tool;
         setMessages((prev) =>
-          prev.map((m) => {
-            if (m.sender !== 'agent' || m.runId !== runId) return m;
+          upsertAgentMessage(prev, runId, (m) => {
             const calls = [...(m.toolCalls || [])];
             const runningIdx = calls.findIndex((t) => (!toolName || t.tool === toolName) && t.status === 'running');
             if (runningIdx >= 0) {
@@ -223,8 +242,7 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         };
 
         setMessages((prev) =>
-          prev.map((m) => {
-            if (m.sender !== 'agent' || m.runId !== runId) return m;
+          upsertAgentMessage(prev, runId, (m) => {
             const existing = m.approvals || [];
             if (existing.some((a) => (a.id || a.approvalId) === newAppr.id)) return m;
             return {
@@ -253,41 +271,35 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
       } else if (envelope.type === 'message.completed') {
         const content = formatSafeText(envelope.data?.content);
         setMessages((prev) =>
-          prev.map((m) =>
-            m.sender === 'agent' && m.runId === runId
-              ? { ...m, content, status: 'completed' }
-              : m
-          )
+          upsertAgentMessage(prev, runId, (m) => ({
+            ...m,
+            content,
+            status: 'completed',
+          }))
         );
         onSessionActivity?.();
-      } else if (envelope.type === 'run.completed' || envelope.type === 'run.started' || envelope.type === 'run.waiting_for_approval') {
-        if (runId) {
-          apiClient.getRun(runId).then((updated) => {
-            setActiveRun(updated);
-            onSelectRun?.(updated);
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.sender === 'agent' && m.runId === runId
-                  ? {
-                      ...m,
-                      status: updated.status,
-                      content: updated.result ? formatSafeText(updated.result) : m.content,
-                      error: updated.error,
-                    }
-                  : m
-              )
-            );
-          }).catch(() => {});
-        }
+      } else if (envelope.type === 'run.completed' || envelope.type === 'run.started' || envelope.type === 'run.queued' || envelope.type === 'run.waiting_for_approval') {
+        apiClient.getRun(runId).then((updated) => {
+          setActiveRun(updated);
+          onSelectRun?.(updated);
+          setMessages((prev) =>
+            upsertAgentMessage(prev, runId, (m) => ({
+              ...m,
+              status: updated.status,
+              content: updated.result ? formatSafeText(updated.result) : m.content,
+              error: updated.error,
+            }))
+          );
+        }).catch(() => {});
         onSessionActivity?.();
       } else if (envelope.type === 'run.progress' && envelope.data?.stage === 'failed') {
         const errText = envelope.data?.error || 'Execution failed';
         setMessages((prev) =>
-          prev.map((m) =>
-            m.sender === 'agent' && m.runId === runId
-              ? { ...m, status: 'failed', error: errText }
-              : m
-          )
+          upsertAgentMessage(prev, runId, (m) => ({
+            ...m,
+            status: 'failed',
+            error: errText,
+          }))
         );
         onSessionActivity?.();
       }
@@ -334,7 +346,10 @@ export const WorkspacePage: React.FC<WorkspacePageProps> = ({
         toolCalls: [],
         approvals: [],
       };
-      setMessages((prev) => [...prev, agentMsg]);
+      setMessages((prev) => {
+        if (prev.some((m) => m.sender === 'agent' && m.runId === result.runId)) return prev;
+        return [...prev, agentMsg];
+      });
 
       apiClient.getRun(result.runId).then((r) => {
         setActiveRun(r);

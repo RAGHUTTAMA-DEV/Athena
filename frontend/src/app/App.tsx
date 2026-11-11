@@ -7,6 +7,10 @@ import { ArtifactsPage } from '../pages/artifacts/ArtifactsPage';
 import { GoalsPage } from '../pages/goals/GoalsPage';
 import { ApprovalsPage } from '../pages/approvals/ApprovalsPage';
 import { InspectionPage } from '../pages/inspection/InspectionPage';
+import { ToolsPage } from '../pages/tools/ToolsPage';
+import { AutomationsPage } from '../pages/automations/AutomationsPage';
+import { KnowledgePage } from '../pages/knowledge/KnowledgePage';
+import { AgentStudioPage } from '../pages/agents/AgentStudioPage';
 import { ConnectionStatus } from '../types/events';
 import { AthenaSSEClient } from '../lib/events/sseClient';
 import { apiClient } from '../lib/api/client';
@@ -138,6 +142,10 @@ export const App: React.FC = () => {
           <Route path="artifacts" element={<ArtifactsPage />} />
           <Route path="goals" element={<GoalsPage onSelectSession={handleSelectSession} />} />
           <Route path="approvals" element={<ApprovalsPage />} />
+          <Route path="automations" element={<AutomationsPage />} />
+          <Route path="knowledge" element={<KnowledgePage />} />
+          <Route path="agents" element={<AgentStudioPage />} />
+          <Route path="tools" element={<ToolsPage />} />
           <Route path="inspection" element={<InspectionPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

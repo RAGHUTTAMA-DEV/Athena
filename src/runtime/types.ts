@@ -2,6 +2,13 @@ export interface TextPart {
   text: string;
 }
 
+export interface InlineDataPart {
+  inlineData: {
+    mimeType: string;
+    data: string;
+  };
+}
+
 export interface FunctionCallPart {
   functionCall: {
     id?: string;
@@ -18,7 +25,15 @@ export interface FunctionResponsePart {
   };
 }
 
-export type Part = TextPart | FunctionCallPart | FunctionResponsePart;
+export type Part = TextPart | InlineDataPart | FunctionCallPart | FunctionResponsePart;
+
+export interface AgentMediaAttachment {
+  filePath?: string;
+  mimeType: string;
+  dataBase64?: string;
+  name?: string;
+  pageNumber?: number;
+}
 
 export interface Message {
   role: 'user' | 'model';

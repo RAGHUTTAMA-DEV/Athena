@@ -50,7 +50,24 @@ export class ToolsController {
       if (fs.existsSync(this.configPath)) {
         try {
           const parsed = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
-          servers = parsed.mcpServers || {};
+          const raw = parsed.mcpServers || {};
+          for (const [k, v] of Object.entries<any>(raw)) {
+            const safeEnv: Record<string, string> | undefined = v?.env
+              ? Object.fromEntries(
+                  Object.entries<string>(v.env).map(([ek, ev]) => [
+                    ek,
+                    String(ev).startsWith('${') ? String(ev) : '••••••••',
+                  ])
+                )
+              : undefined;
+            servers[k] = {
+              type: v?.url ? 'sse' : (v?.type || 'stdio'),
+              command: v?.command,
+              args: v?.args,
+              url: v?.url,
+              ...(safeEnv ? { env: safeEnv } : {}),
+            };
+          }
         } catch {
           servers = {};
         }
@@ -65,12 +82,13 @@ export class ToolsController {
 
   registerMcpServer = async (req: Request, res: Response): Promise<void> => {
     try {
-      if (!req.body?.name || !req.body?.type) {
+      if (!req.body?.name) {
         res.status(400).json({
-          error: { code: 'VALIDATION_ERROR', message: 'Fields "name" and "type" are required', requestId: req.id }
+          error: { code: 'VALIDATION_ERROR', message: 'Field "name" is required', requestId: req.id }
         });
         return;
       }
+      const serverType = req.body.type || (req.body.url ? 'sse' : 'stdio');
       let config: any = { mcpServers: {} };
       if (fs.existsSync(this.configPath)) {
         try {
@@ -78,17 +96,41 @@ export class ToolsController {
         } catch {}
       }
       config.mcpServers = config.mcpServers || {};
-      config.mcpServers[req.body.name] = {
-        type: req.body.type,
-        command: req.body.command,
-        args: req.body.args,
-        url: req.body.url
+      const entry: any = {
+        type: serverType,
+        ...(req.body.command ? { command: req.body.command } : {}),
+        ...(req.body.args ? { args: req.body.args } : {}),
+        ...(req.body.url ? { url: req.body.url } : {}),
+        ...(req.body.env && Object.keys(req.body.env).length > 0 ? { env: req.body.env } : {}),
       };
+      config.mcpServers[req.body.name] = entry;
       fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf-8');
-      res.status(201).json({ success: true, server: config.mcpServers[req.body.name] });
+      res.status(201).json({ success: true, name: req.body.name, server: entry });
     } catch (err: any) {
       res.status(500).json({
         error: { code: 'MCP_SAVE_FAILED', message: err.message, requestId: req.id }
+      });
+    }
+  };
+
+  deleteMcpServer = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const name = req.params.name;
+      if (!fs.existsSync(this.configPath)) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: 'mcp_servers.json not found', requestId: req.id } });
+        return;
+      }
+      const config = JSON.parse(fs.readFileSync(this.configPath, 'utf-8'));
+      if (!config.mcpServers || !config.mcpServers[name]) {
+        res.status(404).json({ error: { code: 'NOT_FOUND', message: `MCP server "${name}" not found`, requestId: req.id } });
+        return;
+      }
+      delete config.mcpServers[name];
+      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf-8');
+      res.json({ success: true, deleted: name });
+    } catch (err: any) {
+      res.status(500).json({
+        error: { code: 'MCP_DELETE_FAILED', message: err.message, requestId: req.id }
       });
     }
   };

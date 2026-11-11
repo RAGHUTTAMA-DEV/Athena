@@ -1,9 +1,34 @@
-import { AthenaEventEnvelope, ConnectionStatus } from '../../types/events';
+import { AthenaEventEnvelope, AthenaEventFamily, ConnectionStatus } from '../../types/events';
 
 export type EventCallback = (event: AthenaEventEnvelope) => void;
 export type StatusCallback = (status: ConnectionStatus) => void;
 
 const DEFAULT_API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000';
+
+const ALL_EVENT_TYPES: AthenaEventFamily[] = [
+  'run.queued',
+  'run.started',
+  'run.progress',
+  'run.waiting_for_approval',
+  'run.cancellation_requested',
+  'run.completed',
+  'message.started',
+  'message.delta',
+  'message.completed',
+  'agent.progress',
+  'tool.started',
+  'tool.progress',
+  'tool.completed',
+  'subagent.started',
+  'subagent.progress',
+  'subagent.completed',
+  'approval.required',
+  'approval.resolved',
+  'artifact.created',
+  'artifact.updated',
+  'task.updated',
+  'heartbeat',
+];
 
 export class AthenaSSEClient {
   private eventSource: EventSource | null = null;
@@ -39,6 +64,34 @@ export class AthenaSSEClient {
     }
   }
 
+  private handleIncomingEvent = (e: MessageEvent) => {
+    try {
+      if (!e.data || String(e.data).startsWith(':')) {
+        return;
+      }
+      const envelope: AthenaEventEnvelope = JSON.parse(e.data);
+      if (envelope.eventId) {
+        if (this.seenEventIds.has(envelope.eventId)) {
+          return; // Deduplicate
+        }
+        this.seenEventIds.add(envelope.eventId);
+        this.lastEventId = envelope.eventId;
+
+        if (this.seenEventIds.size > 2000) {
+          const iterator = this.seenEventIds.values();
+          for (let i = 0; i < 500; i++) {
+            const item = iterator.next().value;
+            if (item) this.seenEventIds.delete(item);
+          }
+        }
+      }
+
+      this.listeners.forEach((cb) => cb(envelope));
+    } catch (err) {
+      console.warn('[SSE] Failed to parse event payload:', err);
+    }
+  };
+
   connect() {
     this.isExplicitlyClosed = false;
     this.cleanup();
@@ -57,35 +110,13 @@ export class AthenaSSEClient {
         this.setStatus('connected');
       };
 
-      this.eventSource.onmessage = (e) => {
-        try {
-          if (!e.data || e.data.startsWith(':')) {
-            // Heartbeat comment or empty
-            return;
-          }
-          const envelope: AthenaEventEnvelope = JSON.parse(e.data);
-          if (envelope.eventId) {
-            if (this.seenEventIds.has(envelope.eventId)) {
-              return; // Deduplicate
-            }
-            this.seenEventIds.add(envelope.eventId);
-            this.lastEventId = envelope.eventId;
+      // Listen for unnamed default messages
+      this.eventSource.onmessage = this.handleIncomingEvent;
 
-            // Keep bounded set of recent seen IDs
-            if (this.seenEventIds.size > 2000) {
-              const iterator = this.seenEventIds.values();
-              for (let i = 0; i < 500; i++) {
-                const item = iterator.next().value;
-                if (item) this.seenEventIds.delete(item);
-              }
-            }
-          }
-
-          this.listeners.forEach((cb) => cb(envelope));
-        } catch (err) {
-          console.warn('[SSE] Failed to parse event payload:', err);
-        }
-      };
+      // Listen for all named Athena SSE event families
+      for (const evtType of ALL_EVENT_TYPES) {
+        this.eventSource.addEventListener(evtType, this.handleIncomingEvent as EventListener);
+      }
 
       this.eventSource.onerror = () => {
         if (this.isExplicitlyClosed) return;
@@ -139,4 +170,3 @@ export class AthenaSSEClient {
     }
   }
 }
-

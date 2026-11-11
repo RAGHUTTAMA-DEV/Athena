@@ -9,6 +9,10 @@ import {
   Plus,
   MessageSquare,
   Lock,
+  Wrench,
+  Clock,
+  BookOpen,
+  Bot,
 } from 'lucide-react';
 import { RunRecord, SessionSummary } from '../../types/api';
 import { apiClient } from '../../lib/api/client';
@@ -44,10 +48,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { name: 'Workspace', path: '/', icon: MessageSquare, shortcut: '~1' },
     { name: 'Run activity', path: '/activity', icon: Activity, shortcut: '~2' },
-    { name: 'Artifacts', path: '/artifacts', icon: FileText, shortcut: '~3' },
-    { name: 'Goals & tasks', path: '/goals', icon: Target, shortcut: '~4' },
-    { name: 'Approvals', path: '/approvals', icon: ShieldCheck, shortcut: '~5', badge: pendingApprovalCount },
-    { name: 'Inspection', path: '/inspection', icon: Eye, shortcut: '~6' },
+    { name: 'Goals & tasks', path: '/goals', icon: Target, shortcut: '~3' },
+    { name: 'Approvals', path: '/approvals', icon: ShieldCheck, shortcut: '~4', badge: pendingApprovalCount },
+    { name: 'Automations', path: '/automations', icon: Clock, shortcut: '~5' },
+    { name: 'Knowledge', path: '/knowledge', icon: BookOpen, shortcut: '~6' },
+    { name: 'Artifacts', path: '/artifacts', icon: FileText, shortcut: '~7' },
+    { name: 'Agent Studio', path: '/agents', icon: Bot, shortcut: '~8' },
+    { name: 'Tools & MCP', path: '/tools', icon: Wrench, shortcut: '~9' },
+    { name: 'Inspection', path: '/inspection', icon: Eye, shortcut: '~0' },
   ];
 
   return (

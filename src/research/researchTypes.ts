@@ -43,6 +43,42 @@ export interface ResearchReport {
   notes: string[];
 }
 
+export type PageElementType = 'text' | 'mixed' | 'scanned' | 'image';
+
+export interface DocumentMediaAsset {
+  id: string;
+  pageNumber?: number;
+  filePath: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  caption?: string;
+  ocrText?: string;
+  kind: 'page_scan' | 'embedded_photo' | 'image_file';
+}
+
+export interface DocumentIndexEntry {
+  title: string;
+  level: number;
+  pageStart?: number;
+  pageEnd?: number;
+  source: 'pdf_outline' | 'toc_page' | 'heading' | 'page_summary';
+  preview?: string;
+}
+
+export interface DocumentPageRecord {
+  pageNumber: number;
+  kind: PageElementType;
+  charCount: number;
+  imageCount: number;
+  text: string;
+  visualSummary?: string;
+  screenshotPath?: string;
+  mediaIds?: string[];
+  headings?: string[];
+  isIndexPage?: boolean;
+}
+
 /** Parsed document representation before chunking. */
 export interface ParsedDocument {
   format: DocumentFormat;
@@ -50,8 +86,14 @@ export interface ParsedDocument {
   pageCount?: number;
   sheets?: string[];
   rows?: number;
-  /** Populated by OCR; experimental capability. */
+  /** Populated by OCR / Vision extraction. */
   ocr?: boolean;
+  pages?: DocumentPageRecord[];
+  indexEntries?: DocumentIndexEntry[];
+  hasIndexPage?: boolean;
+  indexPages?: number[];
+  mediaAssets?: DocumentMediaAsset[];
+  outlineSummary?: string;
   metadata?: Record<string, any>;
 }
 
@@ -99,6 +141,8 @@ export interface RagQueryResult {
     rerankScore?: number;
     rank: number;
     sourceUri?: string;
+    pageNumber?: number;
+    section?: string;
   }[];
   reranked: boolean;
   rerankerModel?: string;

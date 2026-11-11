@@ -49,6 +49,14 @@ export const AppShell: React.FC<AppShellProps> = ({
         return ['Ops room', 'Goals & tasks'];
       case '/approvals':
         return ['Ops room', 'Approvals'];
+      case '/automations':
+        return ['Ops room', 'Automations'];
+      case '/knowledge':
+        return ['Ops room', 'Knowledge'];
+      case '/agents':
+        return ['Ops room', 'Agent Studio'];
+      case '/tools':
+        return ['Ops room', 'Tools & Connections'];
       case '/inspection':
         return ['Ops room', 'Inspection'];
       default:

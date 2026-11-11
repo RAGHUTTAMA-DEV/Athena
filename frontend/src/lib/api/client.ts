@@ -211,6 +211,176 @@ export class AthenaApiClient {
     const res = await this.request<{ files: Array<{ name: string; path: string; type: 'file' | 'folder' }> }>(`/api/v1/system/files${qs}`);
     return res.files || [];
   }
+
+  // Tools & MCP
+  async listTools(q?: string, category?: string): Promise<{ tools: any[]; count: number; totalRegistered: number }> {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (category) params.set('category', category);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return this.request(`/api/v1/tools${qs}`);
+  }
+
+  async listMcpServers(): Promise<{ servers: Record<string, any>; count: number }> {
+    return this.request('/api/v1/mcp/servers');
+  }
+
+  async registerMcpServer(data: { name: string; type: string; command?: string; args?: string[]; url?: string; env?: Record<string, string> }): Promise<any> {
+    return this.request('/api/v1/mcp/servers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteMcpServer(name: string): Promise<any> {
+    return this.request(`/api/v1/mcp/servers/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Communication & Calendar
+  async listChannels(): Promise<any[]> {
+    const res = await this.request<{ channels: any[] }>('/api/v1/communication/channels');
+    return res.channels || [];
+  }
+
+  async listCalendarEvents(): Promise<any[]> {
+    const res = await this.request<{ events: any[] }>('/api/v1/calendar/events');
+    return res.events || [];
+  }
+
+  async createCalendarEvent(data: { title: string; description?: string; startTime: number; endTime: number; location?: string }): Promise<any> {
+    return this.request('/api/v1/calendar/events', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Automations / Proactive / Routines
+  async listRoutines(): Promise<any[]> {
+    const res = await this.request<{ routines: any[] }>('/api/v1/learning/routines');
+    return res.routines || [];
+  }
+
+  async createRoutine(data: { name: string; triggerType: string; triggerConfig: any; workflow: any }): Promise<any> {
+    return this.request('/api/v1/learning/routines', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getHeartbeats(): Promise<{ summary: any; recentLogs: any[] }> {
+    return this.request('/api/v1/proactive/heartbeats');
+  }
+
+  async listProactiveEvents(status?: string): Promise<any[]> {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const res = await this.request<{ events: any[] }>(`/api/v1/proactive/events${qs}`);
+    return res.events || [];
+  }
+
+  async retryProactiveEvent(id: string): Promise<any> {
+    return this.request(`/api/v1/proactive/events/${id}/retry`, { method: 'POST' });
+  }
+
+  async listWebhooks(): Promise<any[]> {
+    const res = await this.request<{ endpoints: any[] }>('/api/v1/proactive/webhooks');
+    return res.endpoints || [];
+  }
+
+  // Knowledge & RAG
+  async listResearchDocuments(): Promise<any[]> {
+    const res = await this.request<{ documents: any[] }>('/api/v1/research/documents');
+    return res.documents || [];
+  }
+
+  async uploadResearchDocument(data: { title: string; sourceUri: string; sourceType?: string; textContent: string }): Promise<any> {
+    return this.request('/api/v1/research/documents/upload', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async searchResearch(query: string, limit = 8): Promise<any> {
+    return this.request('/api/v1/research/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, limit }),
+    });
+  }
+
+  async getVectorStats(): Promise<any> {
+    return this.request('/api/v1/research/vectors/stats');
+  }
+
+  // Agent Studio (Skills, Workflows, Multi-agent)
+  async listSkills(): Promise<any[]> {
+    const res = await this.request<{ skills: any[] }>('/api/v1/learning/skills');
+    return res.skills || [];
+  }
+
+  async listWorkflows(): Promise<any[]> {
+    const res = await this.request<{ workflows: any[] }>('/api/v1/learning/workflows');
+    return res.workflows || [];
+  }
+
+  async reviewWorkflow(id: string, status: 'active' | 'rejected' | 'approved', notes?: string): Promise<any> {
+    return this.request(`/api/v1/learning/workflows/${id}/review`, {
+      method: 'POST',
+      body: JSON.stringify({ status, notes }),
+    });
+  }
+
+  async listTeams(): Promise<any[]> {
+    const res = await this.request<{ teams: any[] }>('/api/v1/teams');
+    return res.teams || [];
+  }
+
+  async createTeam(data: { name: string; justification: string; leadAgentId: string; memberAgentIds: string[] }): Promise<any> {
+    return this.request('/api/v1/teams', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listAgentMessages(recipientId: string): Promise<any[]> {
+    const res = await this.request<{ messages: any[] }>(`/api/v1/agents/messages?recipientId=${encodeURIComponent(recipientId)}`);
+    return res.messages || [];
+  }
+
+  // Intelligence, Telemetry, Harness, Browser, Computer
+  async listModels(): Promise<{ models: any[]; policies: any[] }> {
+    return this.request('/api/v1/intelligence/models');
+  }
+
+  async getCacheStats(): Promise<any> {
+    return this.request('/api/v1/intelligence/cache/stats');
+  }
+
+  async getTelemetryMetrics(): Promise<any> {
+    return this.request('/api/v1/telemetry/metrics');
+  }
+
+  async getHarnessStatus(): Promise<any> {
+    return this.request('/api/v1/harness/status');
+  }
+
+  async getHarnessDiff(): Promise<any> {
+    return this.request('/api/v1/harness/diff');
+  }
+
+  async listBrowserProfiles(): Promise<any[]> {
+    const res = await this.request<{ profiles: any[] }>('/api/v1/browser/profiles');
+    return res.profiles || [];
+  }
+
+  async getComputerScreen(): Promise<any> {
+    return this.request('/api/v1/computer/screen');
+  }
+
+  async listComputerWindows(): Promise<any[]> {
+    const res = await this.request<{ windows: any[] }>('/api/v1/computer/windows');
+    return res.windows || [];
+  }
 }
 
 export const apiClient = new AthenaApiClient();

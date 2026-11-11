@@ -7,4 +7,5 @@ export function registerToolsRoutes(app: Router) {
   app.get('/api/v1/tools', controller.listTools);
   app.get('/api/v1/mcp/servers', controller.listMcpServers);
   app.post('/api/v1/mcp/servers', controller.registerMcpServer);
+  app.delete('/api/v1/mcp/servers/:name', controller.deleteMcpServer);
 }
