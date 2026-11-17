@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@xyflow/react": "^13.0.1",
     "athena": "file:..",
     "lucide-react": "^1.16.0",
     "react": "^18.3.1",

@@ -371,7 +371,7 @@ export class AthenaApiClient {
     return res.skills || [];
   }
 
-  async listWorkflows(): Promise<any[]> {
+  async listLearnedWorkflows(): Promise<any[]> {
     const res = await this.request<{ workflows: any[] }>('/api/v1/learning/workflows');
     return res.workflows || [];
   }
@@ -433,6 +433,96 @@ export class AthenaApiClient {
   async listComputerWindows(): Promise<any[]> {
     const res = await this.request<{ windows: any[] }>('/api/v1/computer/windows');
     return res.windows || [];
+  }
+
+  // ── Workflows & Integrations ──────────────────────────────────────────
+
+  async listWorkflows(): Promise<any[]> {
+    const res = await this.request<{ workflows: any[] }>('/api/v1/workflows');
+    return res.workflows || [];
+  }
+
+  async listWorkflowTemplates(): Promise<any[]> {
+    const res = await this.request<{ templates: any[] }>('/api/v1/workflows/templates');
+    return res.templates || [];
+  }
+
+  async instantiateWorkflowTemplate(id: string, options?: { id?: string; name?: string }): Promise<any> {
+    const res = await this.request<{ workflow: any }>(`/api/v1/workflows/templates/${id}/instantiate`, {
+      method: 'POST',
+      body: JSON.stringify(options || {}),
+    });
+    return res.workflow;
+  }
+
+  async getWorkflow(id: string): Promise<any> {
+    const res = await this.request<{ workflow: any }>(`/api/v1/workflows/${id}`);
+    return res.workflow;
+  }
+
+  async createWorkflow(wf: any): Promise<any> {
+    const res = await this.request<{ workflow: any }>('/api/v1/workflows', {
+      method: 'POST',
+      body: JSON.stringify(wf),
+    });
+    return res.workflow;
+  }
+
+  async updateWorkflow(id: string, wf: any): Promise<any> {
+    const res = await this.request<{ workflow: any }>(`/api/v1/workflows/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(wf),
+    });
+    return res.workflow;
+  }
+
+  async deleteWorkflow(id: string): Promise<void> {
+    await this.request(`/api/v1/workflows/${id}`, { method: 'DELETE' });
+  }
+
+  async runWorkflow(id: string, inputs: Record<string, any> = {}, sync = false): Promise<any> {
+    return this.request(`/api/v1/workflows/${id}/run`, {
+      method: 'POST',
+      body: JSON.stringify({ inputs, sync }),
+    });
+  }
+
+  async getWorkflowRun(runId: string): Promise<any> {
+    return this.request(`/api/v1/workflows/runs/${runId}`);
+  }
+
+  async resumeWorkflowRun(runId: string, decision: { approved: boolean; notes?: string }): Promise<any> {
+    return this.request(`/api/v1/workflows/runs/${runId}/resume`, {
+      method: 'POST',
+      body: JSON.stringify(decision),
+    });
+  }
+
+  async listIntegrations(): Promise<any[]> {
+    const res = await this.request<{ integrations: any[] }>('/api/v1/integrations');
+    return res.integrations || [];
+  }
+
+  async getIntegrationAuthUrl(id: string): Promise<{ authUrl: string; state: string; redirectUri: string }> {
+    return this.request(`/api/v1/integrations/${id}/auth-url`);
+  }
+
+  async saveIntegrationCredentials(id: string, data: { accessToken: string; refreshToken?: string; expiresIn?: number }): Promise<any> {
+    return this.request(`/api/v1/integrations/${id}/credentials`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async testIntegration(id: string, accessToken?: string): Promise<{ valid: boolean; username?: string; name?: string; message?: string; scopes?: string }> {
+    return this.request(`/api/v1/integrations/${id}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ accessToken }),
+    });
+  }
+
+  async disconnectIntegration(id: string): Promise<void> {
+    await this.request(`/api/v1/integrations/${id}`, { method: 'DELETE' });
   }
 }
 

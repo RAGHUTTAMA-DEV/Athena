@@ -186,4 +186,41 @@ export function registerDynamicTools(dynamicTools: Tool[]) {
   }
 }
 
+import { WorkflowRegistry } from '../workflows/registry.js';
+import { WorkflowExecutor } from '../workflows/executor.js';
+import {
+  createRunWorkflowTool,
+  createCreateWorkflowTool,
+  createGetWorkflowTool
+} from '../workflows/chatTools.js';
+import {
+  createAddWorkflowNodeTool,
+  createRemoveWorkflowNodeTool,
+  createUpdateWorkflowNodeTool,
+  createAddWorkflowEdgeTool,
+  createRemoveWorkflowEdgeTool,
+  createUpdateWorkflowSettingsTool
+} from '../workflows/patchTools.js';
+
+/**
+ * Registers all workflow chat and refinement patch tools into the global tools registry.
+ */
+export function registerWorkflowTools(registry: WorkflowRegistry, executor: WorkflowExecutor): Tool[] {
+  const workflowTools: Tool[] = [
+    createRunWorkflowTool(registry, executor),
+    createCreateWorkflowTool(registry),
+    createGetWorkflowTool(registry),
+    createAddWorkflowNodeTool(registry),
+    createRemoveWorkflowNodeTool(registry),
+    createUpdateWorkflowNodeTool(registry),
+    createAddWorkflowEdgeTool(registry),
+    createRemoveWorkflowEdgeTool(registry),
+    createUpdateWorkflowSettingsTool(registry)
+  ];
+
+  registerDynamicTools(workflowTools);
+  return workflowTools;
+}
+
+
 

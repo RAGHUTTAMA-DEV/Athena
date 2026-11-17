@@ -9,6 +9,7 @@ import { ApprovalsPage } from '../pages/approvals/ApprovalsPage';
 import { InspectionPage } from '../pages/inspection/InspectionPage';
 import { ToolsPage } from '../pages/tools/ToolsPage';
 import { AutomationsPage } from '../pages/automations/AutomationsPage';
+import { WorkflowsPage } from '../pages/workflows/WorkflowsPage';
 import { KnowledgePage } from '../pages/knowledge/KnowledgePage';
 import { AgentStudioPage } from '../pages/agents/AgentStudioPage';
 import { ConnectionStatus } from '../types/events';
@@ -142,6 +143,7 @@ export const App: React.FC = () => {
           <Route path="artifacts" element={<ArtifactsPage />} />
           <Route path="goals" element={<GoalsPage onSelectSession={handleSelectSession} />} />
           <Route path="approvals" element={<ApprovalsPage />} />
+          <Route path="workflows" element={<WorkflowsPage />} />
           <Route path="automations" element={<AutomationsPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />
           <Route path="agents" element={<AgentStudioPage />} />

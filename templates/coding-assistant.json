@@ -1,0 +1,67 @@
+{
+  "id": "coding-assistant",
+  "version": 1,
+  "name": "Autonomous Coding Assistant",
+  "description": "Generates code implementation, runs automated unit tests, and conditionally branches to branch repair or PR creation.",
+  "inputs": {
+    "task": {
+      "type": "string",
+      "required": true,
+      "description": "Feature requirement or bug fix description"
+    }
+  },
+  "settings": {
+    "maxCostUsd": 1.5,
+    "maxTimeMs": 600000,
+    "model": "gemini-2.5-flash"
+  },
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "triggerType": "manual"
+    },
+    {
+      "id": "code_gen",
+      "type": "agent",
+      "prompt": "Implement the following task:\n{{inputs.task}}\nInspect workspace files, write clean implementation and tests.",
+      "tools": []
+    },
+    {
+      "id": "run_tests",
+      "type": "tool",
+      "tool": "noop",
+      "args": {
+        "command": "npm test"
+      }
+    },
+    {
+      "id": "eval_tests",
+      "type": "condition",
+      "expr": "nodes.run_tests.output.passed === true",
+      "trueBranch": "create_pr",
+      "falseBranch": "repair_agent"
+    },
+    {
+      "id": "create_pr",
+      "type": "tool",
+      "tool": "noop",
+      "args": {
+        "title": "feat: {{inputs.task}}"
+      }
+    },
+    {
+      "id": "repair_agent",
+      "type": "agent",
+      "prompt": "The test run failed:\n{{nodes.run_tests.output.error}}\nAnalyze stack trace, patch broken files, and verify fix.",
+      "tools": []
+    }
+  ],
+  "edges": [
+    ["trigger", "code_gen"],
+    ["code_gen", "run_tests"],
+    ["run_tests", "eval_tests"],
+    ["eval_tests", "create_pr"],
+    ["eval_tests", "repair_agent"]
+  ]
+}

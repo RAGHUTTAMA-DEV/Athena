@@ -1,0 +1,60 @@
+{
+  "id": "research-agent",
+  "version": 1,
+  "name": "Research Agent",
+  "description": "Breaks down a research topic, executes parallel sub-searches, synthesizes a report, and gates via approval.",
+  "inputs": {
+    "topic": {
+      "type": "string",
+      "required": true,
+      "description": "Topic to thoroughly investigate"
+    }
+  },
+  "settings": {
+    "maxCostUsd": 0.5,
+    "maxTimeMs": 300000,
+    "model": "gemini-2.5-flash"
+  },
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "triggerType": "manual"
+    },
+    {
+      "id": "plan",
+      "type": "agent",
+      "prompt": "Break '{{inputs.topic}}' into 3 targeted search queries. Return a JSON array of strings.",
+      "tools": [],
+      "output": "json"
+    },
+    {
+      "id": "search",
+      "type": "map",
+      "over": "nodes.plan.output",
+      "maxConcurrency": 3,
+      "node": {
+        "type": "agent",
+        "prompt": "Research this query thoroughly: {{item}}",
+        "tools": ["searchWeb"]
+      }
+    },
+    {
+      "id": "write",
+      "type": "agent",
+      "prompt": "Write a comprehensive report from these findings:\n{{nodes.search.output}}",
+      "tools": ["writeFile"]
+    },
+    {
+      "id": "review",
+      "type": "approval",
+      "message": "Report completed for topic '{{inputs.topic}}'. Approve publishing?"
+    }
+  ],
+  "edges": [
+    ["trigger", "plan"],
+    ["plan", "search"],
+    ["search", "write"],
+    ["write", "review"]
+  ]
+}

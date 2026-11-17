@@ -13,6 +13,7 @@ import {
   Clock,
   BookOpen,
   Bot,
+  GitBranch,
 } from 'lucide-react';
 import { RunRecord, SessionSummary } from '../../types/api';
 import { apiClient } from '../../lib/api/client';
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { name: 'Run activity', path: '/activity', icon: Activity, shortcut: '~2' },
     { name: 'Goals & tasks', path: '/goals', icon: Target, shortcut: '~3' },
     { name: 'Approvals', path: '/approvals', icon: ShieldCheck, shortcut: '~4', badge: pendingApprovalCount },
+    { name: 'Workflows', path: '/workflows', icon: GitBranch, shortcut: '~w' },
     { name: 'Automations', path: '/automations', icon: Clock, shortcut: '~5' },
     { name: 'Knowledge', path: '/knowledge', icon: BookOpen, shortcut: '~6' },
     { name: 'Artifacts', path: '/artifacts', icon: FileText, shortcut: '~7' },

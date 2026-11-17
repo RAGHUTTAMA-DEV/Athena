@@ -1,0 +1,101 @@
+{
+  "id": "pr-reviewer",
+  "version": 1,
+  "name": "PR Review Agent",
+  "description": "Multi-agent pull request reviewer inspecting security vulnerabilities, logic bugs, and code style in parallel with consensus voting.",
+  "inputs": {
+    "pr": {
+      "type": "string",
+      "required": true,
+      "description": "Pull Request URL or Number"
+    },
+    "repo": {
+      "type": "string",
+      "required": false,
+      "description": "GitHub repository (owner/repo)"
+    }
+  },
+  "settings": {
+    "maxCostUsd": 1.0,
+    "maxTimeMs": 600000,
+    "model": "gemini-2.5-flash"
+  },
+  "agentProfile": {
+    "publishAsAgent": true,
+    "name": "PR Review Bot",
+    "description": "Automated code review bot that coordinates specialist agents to audit PRs",
+    "toolName": "runPrReviewerBot"
+  },
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "triggerType": "manual"
+    },
+    {
+      "id": "fetch_diff",
+      "type": "tool",
+      "tool": "fetch_pr_diff",
+      "args": {
+        "pr": "{{inputs.pr}}",
+        "repo": "{{inputs.repo}}"
+      }
+    },
+    {
+      "id": "security_agent",
+      "type": "agent",
+      "prompt": "Audit PR #{{inputs.pr}} on repo {{inputs.repo}}:\nPR Diff:\n{{nodes.fetch_diff.output.diff}}\n\nInspect for security vulnerabilities, injection risks, leaked secrets, and unsafe dependencies. Return strictly valid JSON: { \"verdict\": \"approve\" | \"request_changes\", \"score\": 0-100, \"notes\": \"...\" }",
+      "tools": [],
+      "output": "json"
+    },
+    {
+      "id": "logic_agent",
+      "type": "agent",
+      "prompt": "Audit PR #{{inputs.pr}} on repo {{inputs.repo}}:\nPR Diff:\n{{nodes.fetch_diff.output.diff}}\n\nInspect for algorithmic correctness, race conditions, edge cases, and performance regressions. Return strictly valid JSON: { \"verdict\": \"approve\" | \"request_changes\", \"score\": 0-100, \"notes\": \"...\" }",
+      "tools": [],
+      "output": "json"
+    },
+    {
+      "id": "style_agent",
+      "type": "agent",
+      "prompt": "Audit PR #{{inputs.pr}} on repo {{inputs.repo}}:\nPR Diff:\n{{nodes.fetch_diff.output.diff}}\n\nInspect for clean architecture, TypeScript strictness, naming conventions, and test coverage. Return strictly valid JSON: { \"verdict\": \"approve\" | \"request_changes\", \"score\": 0-100, \"notes\": \"...\" }",
+      "tools": [],
+      "output": "json"
+    },
+    {
+      "id": "vote_collector",
+      "type": "collector",
+      "strategy": "consensus_voting",
+      "votingField": "verdict",
+      "votingPolicy": "majority",
+      "sources": ["security_agent", "logic_agent", "style_agent"]
+    },
+    {
+      "id": "human_gate",
+      "type": "approval",
+      "message": "Review consensus reached: {{nodes.vote_collector.output.decision}}. Approve publishing review to GitHub?"
+    },
+    {
+      "id": "post_review",
+      "type": "tool",
+      "tool": "post_pr_review",
+      "args": {
+        "pr": "{{inputs.pr}}",
+        "repo": "{{inputs.repo}}",
+        "decision": "{{nodes.vote_collector.output.decision}}",
+        "details": "{{nodes.vote_collector.output}}"
+      }
+    }
+  ],
+  "edges": [
+    ["trigger", "fetch_diff"],
+    ["fetch_diff", "security_agent"],
+    ["fetch_diff", "logic_agent"],
+    ["fetch_diff", "style_agent"],
+    ["security_agent", "vote_collector"],
+    ["logic_agent", "vote_collector"],
+    ["style_agent", "vote_collector"],
+    ["vote_collector", "human_gate"],
+    ["human_gate", "post_review"]
+  ]
+}

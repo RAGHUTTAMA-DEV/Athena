@@ -25,7 +25,7 @@ export const AgentStudioPage: React.FC = () => {
     try {
       const [skRes, wfRes, tmRes, msgRes] = await Promise.allSettled([
         apiClient.listSkills(),
-        apiClient.listWorkflows(),
+        apiClient.listLearnedWorkflows(),
         apiClient.listTeams(),
         apiClient.listAgentMessages(recipientFilter),
       ]);

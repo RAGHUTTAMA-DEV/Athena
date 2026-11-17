@@ -29,8 +29,17 @@ import { registerReliabilityRoutes } from './routes/reliabilityRoutes.js';
 import { registerToolsRoutes } from './routes/toolsRoutes.js';
 import { registerIntelligenceRoutes } from './routes/intelligenceRoutes.js';
 import { registerSystemRoutes } from './routes/systemRoutes.js';
+import { registerWorkflowRoutes, WorkflowServices } from './routes/workflowRoutes.js';
+import { WorkflowRegistry } from '../workflows/registry.js';
+import { WorkflowExecutor } from '../workflows/executor.js';
+import { WorkflowTriggerAdapter } from '../workflows/triggerAdapter.js';
+import { CredentialVault } from '../workflows/integrations/credentialVault.js';
+import { createOAuthRouter } from '../workflows/integrations/oauthRouter.js';
 import { AgentRunner } from './services/dispatchService.js';
 import { AgentEventEmitter } from '../runtime/events.js';
+import { Agent } from '../runtime/agent.js';
+import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
+import { ToolExecutor } from '../tools/toolRuntime.js';
 
 export interface ServerOptions {
   storage: InitializedStorage;
@@ -156,6 +165,52 @@ export async function createAthenaServer(options: ServerOptions): Promise<Athena
   registerIntelligenceRoutes(app, { stores: options.storage.stores });
   registerSystemRoutes(app, { storage: options.storage });
 
+  let triggerAdapter: WorkflowTriggerAdapter | undefined;
+  if (options.storage.sqliteDb) {
+    const db = options.storage.sqliteDb;
+    const vault = new CredentialVault(db);
+    const wfRegistry = new WorkflowRegistry(db);
+    const wfExecutor = new WorkflowExecutor({
+      registry: wfRegistry,
+      credentialVault: vault,
+      events: options.agent?.events,
+      policy: options.agent?.policyEngine,
+      promptDefense: options.agent?.promptDefense,
+      approvalEngine: options.agent?.approvalEngine,
+      selfRepair: options.agent?.selfRepairEngine,
+      toolExecutor: options.agent?.toolExecutor || new ToolExecutor(),
+      agentFactory: {
+        create: (cfg: any) => {
+          return new Agent({
+            provider: (process.env.LLM_PROVIDER as any) || 'gemini',
+            modelName: cfg.modelOverride || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+            maxTurns: cfg.budget?.maxTurns || 15,
+            systemPrompt: cfg.systemPromptOverride || DEFAULT_AGENT_PROMPT,
+            allowedTools: cfg.allowedTools,
+            soulPath: './SOUL.md',
+            dbPath: process.env.DATABASE_PATH || './state.db'
+          });
+        }
+      }
+    });
+    triggerAdapter = new WorkflowTriggerAdapter({
+      registry: wfRegistry,
+      executor: wfExecutor,
+      db
+    });
+    await triggerAdapter.init();
+
+    registerWorkflowRoutes(app, {
+      registry: wfRegistry,
+      executor: wfExecutor,
+      triggerAdapter,
+      sseManager
+    });
+
+    const oauthRouter = createOAuthRouter({ vault });
+    app.use('/api/v1/integrations', oauthRouter);
+  }
+
   // 8. Standardized Error Envelope Middleware
   app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     const statusCode = err.statusCode || err.status || 500;
@@ -175,6 +230,9 @@ export async function createAthenaServer(options: ServerOptions): Promise<Athena
   app.storage = options.storage;
 
   app.close = async () => {
+    if (triggerAdapter) {
+      await triggerAdapter.stop();
+    }
     sseManager.close();
     if (app.httpServer) {
       await new Promise<void>((resolve) => app.httpServer?.close(() => resolve()));

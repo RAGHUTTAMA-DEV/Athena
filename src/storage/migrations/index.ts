@@ -949,6 +949,74 @@ export const migrationV2P11Reliability: Migration = {
   }
 };
 
+const migrationV2P13Workflows: Migration = {
+  version: 13,
+  name: 'v2_p13_workflows',
+  up: async (db: Database) => {
+    await tryExec(db, `
+      CREATE TABLE IF NOT EXISTS workflow_definitions (
+        id           TEXT NOT NULL,
+        version      INTEGER NOT NULL,
+        name         TEXT NOT NULL,
+        description  TEXT,
+        definition   TEXT NOT NULL,
+        created_at   INTEGER NOT NULL,
+        deleted_at   INTEGER,
+        PRIMARY KEY (id, version)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wf_def_id ON workflow_definitions(id);
+
+      CREATE TABLE IF NOT EXISTS workflow_runs (
+        run_id        TEXT PRIMARY KEY,
+        workflow_id   TEXT NOT NULL,
+        version       INTEGER NOT NULL,
+        parent_run_id TEXT,
+        inputs        TEXT NOT NULL,
+        status        TEXT NOT NULL,
+        error         TEXT,
+        started_at    INTEGER NOT NULL,
+        finished_at   INTEGER,
+        FOREIGN KEY (workflow_id, version) REFERENCES workflow_definitions(id, version)
+      );
+      CREATE INDEX IF NOT EXISTS idx_wf_run_wf ON workflow_runs(workflow_id);
+      CREATE INDEX IF NOT EXISTS idx_wf_run_status ON workflow_runs(status);
+
+      CREATE TABLE IF NOT EXISTS workflow_node_outputs (
+        run_id      TEXT NOT NULL,
+        node_id     TEXT NOT NULL,
+        status      TEXT NOT NULL,
+        output      TEXT,
+        error       TEXT,
+        started_at  INTEGER,
+        finished_at INTEGER,
+        PRIMARY KEY (run_id, node_id),
+        FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS workflow_blackboard (
+        run_id      TEXT NOT NULL,
+        key         TEXT NOT NULL,
+        value       TEXT NOT NULL,
+        created_by  TEXT,
+        updated_at  INTEGER NOT NULL,
+        PRIMARY KEY (run_id, key),
+        FOREIGN KEY (run_id) REFERENCES workflow_runs(run_id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_wf_bb_run ON workflow_blackboard(run_id);
+
+      CREATE TABLE IF NOT EXISTS integration_credentials (
+        service_id      TEXT PRIMARY KEY,
+        encrypted_token TEXT NOT NULL,
+        token_type      TEXT NOT NULL,
+        scopes          TEXT,
+        expires_at      INTEGER,
+        refresh_token   TEXT,
+        updated_at      INTEGER NOT NULL
+      );
+    `);
+  }
+};
+
 export const MIGRATIONS: Migration[] = [
   migrationV1Baseline,
   migrationV2P1AgentFoundation,
@@ -961,7 +1029,8 @@ export const MIGRATIONS: Migration[] = [
   migrationV2P7ProactiveAgent,
   migrationV2P8Communication,
   migrationV2P9MultimodalVoice,
-  migrationV2P11Reliability
+  migrationV2P11Reliability,
+  migrationV2P13Workflows
 ];
 
 

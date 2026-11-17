@@ -1,0 +1,66 @@
+{
+  "id": "daily-briefing",
+  "version": 1,
+  "name": "Daily Morning Briefing",
+  "description": "Scheduled morning routine that aggregates calendar meetings, pull requests, and unread priority emails into an executive daily briefing.",
+  "inputs": {
+    "recipient": {
+      "type": "string",
+      "required": false,
+      "default": "me",
+      "description": "Recipient email or user handle"
+    }
+  },
+  "settings": {
+    "maxCostUsd": 0.5,
+    "maxTimeMs": 300000,
+    "model": "gemini-2.5-flash"
+  },
+  "nodes": [
+    {
+      "id": "schedule_trigger",
+      "type": "trigger",
+      "triggerType": "cron",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "id": "fetch_calendar",
+      "type": "tool",
+      "tool": "noop",
+      "args": {
+        "action": "list_events",
+        "timeMin": "today"
+      }
+    },
+    {
+      "id": "fetch_github_prs",
+      "type": "tool",
+      "tool": "noop",
+      "args": {
+        "action": "list_assigned_prs"
+      }
+    },
+    {
+      "id": "briefing_agent",
+      "type": "agent",
+      "prompt": "Compose a concise, high-priority morning briefing based on today's calendar and open PRs:\nCalendar: {{nodes.fetch_calendar.output}}\nPull Requests: {{nodes.fetch_github_prs.output}}\nHighlight immediate action items, conflicting meetings, and urgent reviews.",
+      "tools": []
+    },
+    {
+      "id": "deliver_briefing",
+      "type": "tool",
+      "tool": "noop",
+      "args": {
+        "channel": "slack",
+        "message": "{{nodes.briefing_agent.output}}"
+      }
+    }
+  ],
+  "edges": [
+    ["schedule_trigger", "fetch_calendar"],
+    ["schedule_trigger", "fetch_github_prs"],
+    ["fetch_calendar", "briefing_agent"],
+    ["fetch_github_prs", "briefing_agent"],
+    ["briefing_agent", "deliver_briefing"]
+  ]
+}

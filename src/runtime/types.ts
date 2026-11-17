@@ -67,6 +67,7 @@ export interface ToolContext {
   confirm?: (toolName: string, args: any) => Promise<boolean>;
   memory?: any;
   depth?: number;
+  sessionId?: string;
   runId?: string;
   parentRunId?: string;
   rootRunId?: string;
