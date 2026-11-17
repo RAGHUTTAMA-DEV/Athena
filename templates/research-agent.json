@@ -1,18 +1,25 @@
 {
   "id": "research-agent",
   "version": 1,
-  "name": "Research Agent",
-  "description": "Breaks down a research topic, executes parallel sub-searches, synthesizes a report, and gates via approval.",
+  "name": "Deep Research & Executive Synthesis Agent",
+  "description": "Multi-agent research system: planner decomposes topics, parallel web investigators and adversarial fact-checkers scour primary sources, collector merges findings, and an executive writer synthesizes a publication-ready whitepaper.",
   "inputs": {
     "topic": {
       "type": "string",
       "required": true,
-      "description": "Topic to thoroughly investigate"
+      "default": "Multi-Agent System architectures and Model Context Protocol (MCP) production adoption in 2026",
+      "description": "Research subject or technical domain to investigate"
+    },
+    "depth": {
+      "type": "string",
+      "required": false,
+      "default": "deep",
+      "description": "Investigation depth: 'deep' (primary sources & benchmarks) or 'quick' (summary overview)"
     }
   },
   "settings": {
-    "maxCostUsd": 0.5,
-    "maxTimeMs": 300000,
+    "maxCostUsd": 1.0,
+    "maxTimeMs": 600000,
     "model": "gemini-2.5-flash"
   },
   "nodes": [
@@ -22,39 +29,49 @@
       "triggerType": "manual"
     },
     {
-      "id": "plan",
+      "id": "research_planner",
       "type": "agent",
-      "prompt": "Break '{{inputs.topic}}' into 3 targeted search queries. Return a JSON array of strings.",
-      "tools": [],
-      "output": "json"
+      "prompt": "You are a Chief Research Officer. Decompose this research topic into an investigative blueprint:\nTopic: {{inputs.topic}}\nDepth: {{inputs.depth}}\n\n1. Formulate 3 distinct investigative dimensions:\n   - Dimension A: Core technical architecture, protocols, and architectural trade-offs.\n   - Dimension B: Real-world engineering benchmarks, enterprise adoption, and ecosystem tools.\n   - Dimension C: Failure modes, security boundaries, and unresolved challenges.\n2. Output the search strategy and key questions that each specialist must answer.",
+      "tools": ["searchWeb"]
     },
     {
-      "id": "search",
-      "type": "map",
-      "over": "nodes.plan.output",
-      "maxConcurrency": 3,
-      "node": {
-        "type": "agent",
-        "prompt": "Research this query thoroughly: {{item}}",
-        "tools": ["searchWeb"]
-      }
+      "id": "web_investigator",
+      "type": "agent",
+      "prompt": "You are an Elite Technical Intelligence Specialist. Investigate the blueprint for:\nTopic: {{inputs.topic}}\nBlueprint:\n{{nodes.research_planner.output}}\n\n1. Use searchWeb to find technical documentation, engineering blogs, GitHub repositories, and quantitative benchmarks.\n2. Extract concrete facts, architectural patterns, throughput/latency numbers, and real-world implementation case studies.\n3. Return a detailed, cited intelligence briefing.",
+      "tools": ["searchWeb", "readFile"]
     },
     {
-      "id": "write",
+      "id": "adversarial_fact_checker",
       "type": "agent",
-      "prompt": "Write a comprehensive report from these findings:\n{{nodes.search.output}}",
+      "prompt": "You are an Adversarial Fact Checker & Systems Auditor. Scrutinize the technical domain:\nTopic: {{inputs.topic}}\nBlueprint:\n{{nodes.research_planner.output}}\n\n1. Use searchWeb to actively search for counter-arguments, critical vulnerabilities, performance pitfalls, and criticisms.\n2. Validate whether industry claims are backed by reproducible engineering data or marketing hype.\n3. Identify edge cases, security implications, and deployment bottlenecks.\n4. Return an adversarial audit report.",
+      "tools": ["searchWeb", "calculate"]
+    },
+    {
+      "id": "dossier_collector",
+      "type": "collector",
+      "strategy": "structured_merge",
+      "sources": ["web_investigator", "adversarial_fact_checker"]
+    },
+    
+    {
+      "id": "executive_report_writer",
+      "type": "agent",
+      "prompt": "You are an Executive Technology Analyst. Synthesize the collected research intelligence into an authoritative whitepaper:\nTopic: {{inputs.topic}}\nCollected Data:\n{{nodes.dossier_collector.output}}\n\nStructure the whitepaper with:\n# Executive Intelligence Whitepaper: {{inputs.topic}}\n## 1. Executive Summary & Strategic Takeaways\n## 2. Core Architecture & Protocol Specifications\n## 3. Empirical Benchmarks & Performance Analysis\n## 4. Adversarial Audit, Security & Known Pitfalls\n## 5. Strategic Recommendations & Production Roadmap\n\nUse writeFile to save this complete report as 'scratch/research_dossier.md'. Return the full formatted Markdown whitepaper.",
       "tools": ["writeFile"]
     },
     {
-      "id": "review",
+      "id": "review_gate",
       "type": "approval",
-      "message": "Report completed for topic '{{inputs.topic}}'. Approve publishing?"
+      "message": "Executive whitepaper generated and saved to scratch/research_dossier.md for '{{inputs.topic}}'. Approve final dossier?"
     }
   ],
   "edges": [
-    ["trigger", "plan"],
-    ["plan", "search"],
-    ["search", "write"],
-    ["write", "review"]
+    ["trigger", "research_planner"],
+    ["research_planner", "web_investigator"],
+    ["research_planner", "adversarial_fact_checker"],
+    ["web_investigator", "dossier_collector"],
+    ["adversarial_fact_checker", "dossier_collector"],
+    ["dossier_collector", "executive_report_writer"],
+    ["executive_report_writer", "review_gate"]
   ]
 }

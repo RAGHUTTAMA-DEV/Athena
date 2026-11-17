@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -140,6 +141,9 @@ export const getDefaultInputsForWorkflow = (wf: any): Record<string, any> => {
 };
 
 const WorkflowsPageContent: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const urlWfId = searchParams.get('id');
+
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [activeWf, setActiveWf] = useState<any | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -153,6 +157,7 @@ const WorkflowsPageContent: React.FC = () => {
   const [selectedIntegrationId, setSelectedIntegrationId] = useState<string>('github');
   const [showAddNodeMenu, setShowAddNodeMenu] = useState(false);
   const [integrations, setIntegrations] = useState<any[]>([]);
+  const [availableTools, setAvailableTools] = useState<any[]>([]);
 
   // Run execution state
   const [runInputsJson, setRunInputsJson] = useState('{}');
@@ -171,17 +176,23 @@ const WorkflowsPageContent: React.FC = () => {
 
   const loadAllWorkflows = async () => {
     try {
-      const [wfs, ints] = await Promise.allSettled([
+      const [wfs, ints, tls] = await Promise.allSettled([
         apiClient.listWorkflows(),
-        apiClient.listIntegrations()
+        apiClient.listIntegrations(),
+        apiClient.listTools()
       ]);
+
+      if (tls.status === 'fulfilled' && tls.value?.tools) {
+        setAvailableTools(tls.value.tools);
+      }
 
       if (wfs.status === 'fulfilled') {
         const list = wfs.value;
         setWorkflows(list);
 
         if (list.length > 0 && !activeWf) {
-          const first = await apiClient.getWorkflow(list[0].id).catch(() => list[0]);
+          const target = (urlWfId && list.find((w: any) => w.id === urlWfId)) || list[0];
+          const first = await apiClient.getWorkflow(target.id).catch(() => target);
           loadWorkflowIntoCanvas(first);
         } else if (list.length === 0) {
           // If no workflow exists yet, load PR Reviewer starter template by default
@@ -204,6 +215,15 @@ const WorkflowsPageContent: React.FC = () => {
   useEffect(() => {
     loadAllWorkflows();
   }, []);
+
+  useEffect(() => {
+    if (urlWfId && workflows.length > 0) {
+      const match = workflows.find((w: any) => w.id === urlWfId);
+      if (match && (!activeWf || activeWf.id !== match.id)) {
+        apiClient.getWorkflow(match.id).then(loadWorkflowIntoCanvas).catch(() => loadWorkflowIntoCanvas(match));
+      }
+    }
+  }, [urlWfId, workflows]);
 
   // Converts a workflow DAG into arranged React Flow nodes & edges
   const loadWorkflowIntoCanvas = (wf: any) => {
@@ -1357,6 +1377,7 @@ const WorkflowsPageContent: React.FC = () => {
         <NodeConfigInspector
           node={selectedNodeObject}
           allNodes={nodes}
+          availableTools={availableTools}
           onChange={handleUpdateNodeConfig}
           onDelete={handleDeleteNode}
           onClose={() => setSelectedNodeId(null)}

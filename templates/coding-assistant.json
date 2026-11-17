@@ -1,13 +1,20 @@
 {
   "id": "coding-assistant",
   "version": 1,
-  "name": "Autonomous Coding Assistant",
-  "description": "Generates code implementation, runs automated unit tests, and conditionally branches to branch repair or PR creation.",
+  "name": "Autonomous Coding Assistant & Self-Repair Agent",
+  "description": "Multi-agent coding pipeline: software architect inspects repo, implementer writes code & test assertions, runner executes tests, and self-repair agent patches regressions before PR generation.",
   "inputs": {
     "task": {
       "type": "string",
       "required": true,
-      "description": "Feature requirement or bug fix description"
+      "default": "Implement a robust token bucket rate limiter with sliding window burst capacity in TypeScript",
+      "description": "Feature requirement, algorithm, or bug fix description"
+    },
+    "file": {
+      "type": "string",
+      "required": false,
+      "default": "scratch/rate_limiter.ts",
+      "description": "Target file path in workspace"
     }
   },
   "settings": {
@@ -22,17 +29,23 @@
       "triggerType": "manual"
     },
     {
-      "id": "code_gen",
+      "id": "repo_architect",
       "type": "agent",
-      "prompt": "Implement the following task:\n{{inputs.task}}\nInspect workspace files, write clean implementation and tests.",
-      "tools": []
+      "prompt": "You are a Principal Software Architect. Analyze this engineering task:\nTask: {{inputs.task}}\nTarget File: {{inputs.file}}\n\n1. Inspect existing workspace structure and code conventions using readFile and listFiles.\n2. Formulate a rigorous design with class/interface signatures, algorithmic complexity, error conditions, and concurrency considerations.\n3. Specify exact test requirements that must be verified.\n\nOutput a comprehensive implementation and testing blueprint.",
+      "tools": ["readFile", "listFiles", "grepSearch", "searchWeb"]
+    },
+    {
+      "id": "code_implementer",
+      "type": "agent",
+      "prompt": "You are an Expert Software Engineer. Execute the architect's blueprint:\nBlueprint:\n{{nodes.repo_architect.output}}\nTarget File: {{inputs.file}}\n\n1. Use writeFile to write the complete, clean, production-grade implementation into '{{inputs.file}}'. Ensure strict TypeScript types and clear docstrings.\n2. Use writeFile to write an automated test verification script at 'scratch/verify_solution.js' using Node.js assert. Include at least 3 distinct test cases (happy path, burst limit boundary, and invalid input validation).\n3. Return a summary of the code and tests written.",
+      "tools": ["readFile", "writeFile", "editFile", "calculate"]
     },
     {
       "id": "run_tests",
       "type": "tool",
-      "tool": "noop",
+      "tool": "run_tests",
       "args": {
-        "command": "npm test"
+        "command": "node scratch/verify_solution.js"
       }
     },
     {
@@ -40,28 +53,31 @@
       "type": "condition",
       "expr": "nodes.run_tests.output.passed === true",
       "trueBranch": "create_pr",
-      "falseBranch": "repair_agent"
+      "falseBranch": "self_repair_agent"
+    },
+    {
+      "id": "self_repair_agent",
+      "type": "agent",
+      "prompt": "The automated test suite failed with the following error output:\nError: {{nodes.run_tests.output.error}}\nStdout: {{nodes.run_tests.output.stdout}}\nCommand: {{nodes.run_tests.output.command}}\n\n1. Use readFile to inspect {{inputs.file}} and 'scratch/verify_solution.js'.\n2. Diagnose the root cause of the regression or assertion failure.\n3. Use editFile or writeFile to patch the bug in {{inputs.file}} or fix the test.\n4. Output an explanation of the diagnosis and patch applied.",
+      "tools": ["readFile", "writeFile", "editFile"]
     },
     {
       "id": "create_pr",
       "type": "tool",
-      "tool": "noop",
+      "tool": "create_pr",
       "args": {
-        "title": "feat: {{inputs.task}}"
+        "title": "feat: {{inputs.task}}",
+        "branch": "feat/autonomous-code-implementation"
       }
-    },
-    {
-      "id": "repair_agent",
-      "type": "agent",
-      "prompt": "The test run failed:\n{{nodes.run_tests.output.error}}\nAnalyze stack trace, patch broken files, and verify fix.",
-      "tools": []
     }
   ],
   "edges": [
-    ["trigger", "code_gen"],
-    ["code_gen", "run_tests"],
+    ["trigger", "repo_architect"],
+    ["repo_architect", "code_implementer"],
+    ["code_implementer", "run_tests"],
     ["run_tests", "eval_tests"],
     ["eval_tests", "create_pr"],
-    ["eval_tests", "repair_agent"]
+    ["eval_tests", "self_repair_agent"],
+    ["self_repair_agent", "create_pr"]
   ]
 }

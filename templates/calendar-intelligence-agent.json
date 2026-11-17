@@ -1,0 +1,88 @@
+{
+  "id": "calendar-intelligence",
+  "name": "Executive Calendar & Web Intelligence",
+  "version": 1,
+  "description": "Fetches daily meetings from Calendar MCP, runs parallel web searches on attendees and companies, detects schedule conflicts, and generates an executive intelligence briefing.",
+  "inputs": {
+    "date": {
+      "type": "string",
+      "required": false,
+      "default": "today",
+      "description": "Date or time range to inspect (e.g. 'today')"
+    },
+    "channel": {
+      "type": "string",
+      "required": false,
+      "default": "telegram",
+      "description": "Delivery channel for the executive briefing"
+    }
+  },
+  "settings": {
+    "maxTurns": 15,
+    "model": "gemini-2.5-flash"
+  },
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "triggerType": "manual"
+    },
+    {
+      "id": "fetch_calendar",
+      "type": "tool",
+      "tool": "calendar_list_events",
+      "args": {
+        "timeMin": "{{inputs.date}}",
+        "singleEvents": true
+      }
+    },
+    {
+      "id": "attendee_researcher",
+      "type": "agent",
+      "prompt": "Inspect today's calendar events fetched via Calendar MCP:\n{{nodes.fetch_calendar.output}}\n\nIdentify all meeting participants, client companies, and agenda topics. Use searchWeb to research:\n1. Recent company news and product launches for the organizations involved.\n2. Professional backgrounds and key projects for external attendees.\n3. 3 strategic talking points for each meeting.\nReturn a structured attendee intelligence briefing.",
+      "tools": ["searchWeb"]
+    },
+    {
+      "id": "conflict_auditor",
+      "type": "agent",
+      "prompt": "Audit today's calendar events:\n{{nodes.fetch_calendar.output}}\n\nPerform a schedule health check:\n1. Detect overlapping or double-booked meetings.\n2. Flag back-to-back blocks without at least 15 minutes of recovery/prep time.\n3. Score today's schedule intensity from 1 to 10 and recommend optimal focus blocks.\nReturn a schedule audit report.",
+      "tools": ["calculate"]
+    },
+    {
+      "id": "dossier_collector",
+      "type": "collector",
+      "strategy": "structured_merge",
+      "sources": ["attendee_researcher", "conflict_auditor"]
+    },
+    {
+      "id": "briefing_synthesizer",
+      "type": "agent",
+      "prompt": "Synthesize a Morning Executive Briefing Dossier combining calendar schedule, attendee intelligence, and conflict warnings:\n{{nodes.dossier_collector.output}}\n\nCreate a publication-ready briefing:\n# 🌅 Executive Morning Intelligence Dossier\n## 📅 Chronological Agenda & Priority Tiers\n## 👥 Meeting Intelligence & Attendee Talking Points\n## ⚠️ Schedule Health Warnings & Action Items\n\nUse writeFile to save this briefing to 'scratch/executive_briefing.md'. Return the full formatted Markdown briefing.",
+      "tools": ["writeFile"]
+    },
+    {
+      "id": "approval_gate",
+      "type": "approval",
+      "message": "Executive briefing prepared for {{inputs.date}}. Approve dispatch to {{inputs.channel}}?"
+    },
+    {
+      "id": "send_briefing",
+      "type": "tool",
+      "tool": "send_telegram",
+      "args": {
+        "channel": "{{inputs.channel}}",
+        "message": "{{nodes.briefing_synthesizer.output}}"
+      }
+    }
+  ],
+  "edges": [
+    ["trigger", "fetch_calendar"],
+    ["fetch_calendar", "attendee_researcher"],
+    ["fetch_calendar", "conflict_auditor"],
+    ["attendee_researcher", "dossier_collector"],
+    ["conflict_auditor", "dossier_collector"],
+    ["dossier_collector", "briefing_synthesizer"],
+    ["briefing_synthesizer", "approval_gate"],
+    ["approval_gate", "send_briefing"]
+  ]
+}

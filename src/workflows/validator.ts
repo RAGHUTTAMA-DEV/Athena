@@ -46,13 +46,14 @@ export function validateWorkflow(wf: Workflow): ValidationResult {
     }
   }
 
+  // Validate edges first
+  const edges = Array.isArray(wf.edges) ? wf.edges : [];
+
   // Validate nodes individually
   for (const n of wf.nodes) {
-    validateNode(n, nodeMap, errors);
+    validateNode(n, nodeMap, errors, edges);
   }
 
-  // Validate edges
-  const edges = Array.isArray(wf.edges) ? wf.edges : [];
   const adjacency = new Map<string, string[]>();
   for (const [from, to] of edges) {
     if (!nodeMap.has(from)) {

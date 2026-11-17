@@ -1,6 +1,17 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { GitBranch, ExternalLink } from 'lucide-react';
 import { ChatMessage, ResearchTrack } from '../../types/api';
 import { SubtaskTrackWidget } from './SubtaskTrackWidget';
+
+const extractWorkflowId = (text?: string): string | null => {
+  if (!text) return null;
+  const match = text.match(/\/workflows\?id=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  const match2 = text.match(/(?:workflow\s+id[:\s]+|workflowId[:\s'"]+|id:\s*)([a-zA-Z0-9_-]+)/i);
+  if (match2 && match2[1] !== 'undefined' && match2[1] !== 'null') return match2[1];
+  return null;
+};
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -135,6 +146,36 @@ export const MessageList: React.FC<MessageListProps> = ({
               >
                 {msg.content}
               </div>
+
+              {/* Interactive Workflow Canvas Quick-Access */}
+              {!isUser && (() => {
+                const wfId = extractWorkflowId(msg.content);
+                if (!wfId) return null;
+                return (
+                  <div style={{ marginTop: '12px' }}>
+                    <Link
+                      to={`/workflows?id=${encodeURIComponent(wfId)}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '6px 14px',
+                        borderRadius: 'var(--radius-sm, 6px)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                        border: '1px solid rgba(59, 130, 246, 0.35)',
+                        color: '#60a5fa',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                      }}
+                    >
+                      <GitBranch size={14} />
+                      <span>Open '{wfId}' in Workflow Canvas</span>
+                      <ExternalLink size={12} style={{ opacity: 0.8 }} />
+                    </Link>
+                  </div>
+                );
+              })()}
 
               {/* Parallel Research Tracks widget if attached */}
               {msg.tracks && msg.tracks.length > 0 && (

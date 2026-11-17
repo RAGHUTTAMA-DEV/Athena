@@ -776,7 +776,7 @@ export class ToolExecutor {
         isSuccess = false;
         errorInfo = {
           code: rawResult.code || 'TOOL_EXECUTION_ERROR',
-          message: rawResult.error || 'Tool indicated failure.',
+          message: (Array.isArray(rawResult.errors) ? rawResult.errors.join('; ') : (rawResult.error || (typeof rawResult.message === 'string' ? rawResult.message : undefined))) || 'Tool indicated failure.',
           details: rawResult
         };
       }
@@ -900,13 +900,17 @@ export class ToolSelector {
     }
 
     const registry = new SearchableToolRegistry(availableTools);
+    const lower = (userPrompt || '').toLowerCase();
+    const workflowForced = (lower.includes('workflow') || lower.includes('@workflow'))
+      ? ['createWorkflow', 'getWorkflow', 'runWorkflow']
+      : [];
     return ToolDiscoveryPipeline.discover(registry, userPrompt, {
       recentContext: context,
       policyEngine: options?.policyEngine,
       isBackground: options?.isBackground,
-      maxPromptTokens: 2500,
-      maxTools: 15,
-      forcedTools: [...Array.from(ToolSelector.CORE_TOOLS), ...(options?.forcedTools || [])]
+      maxPromptTokens: 8000,
+      maxTools: 25,
+      forcedTools: [...Array.from(ToolSelector.CORE_TOOLS), ...workflowForced, ...(options?.forcedTools || [])]
     });
   }
 }

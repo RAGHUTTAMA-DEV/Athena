@@ -18,13 +18,14 @@ export class ToolDiscoveryPipeline {
     'cmd:exec': ['run', 'exec', 'execute', 'terminal', 'shell', 'command', 'bash', 'powershell', 'npm', 'git', 'node', 'python', 'script', 'compile', 'build', 'convert', 'generate'],
     'net:http': ['search', 'google', 'web', 'fetch', 'url', 'http', 'api', 'curl', 'query'],
     'browser': ['browser', 'navigate', 'click', 'page', 'screenshot', 'dom', 'form', 'webpage'],
-    'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate', 'routine', 'routines', 'automate', 'automated', 'workflow', 'standing', 'multiagent', 'multi-agent', 'specialist', 'researcher', 'coder', 'reviewer', 'planner', 'agent', 'agents', 'pipeline', 'handoff', 'mailbox'],
+    'system': ['cron', 'schedule', 'timer', 'reminder', 'background', 'skill', 'delegate', 'routine', 'routines', 'automate', 'automated', 'standing', 'multiagent', 'multi-agent', 'specialist', 'researcher', 'coder', 'reviewer', 'planner', 'agent', 'agents', 'handoff', 'mailbox'],
+    'workflow': ['workflow', 'workflows', 'dag', 'pipeline', '@workflow', 'createworkflow', 'runworkflow', 'getworkflow', 'addworkflownode', 'orchestrator'],
     'memory': ['remember', 'memory', 'recall', 'fact', 'preference', 'store'],
     'research': ['research', 'investigate', 'cite', 'sources', 'report', 'corroborate', 'evidence', 'documents', 'document', 'pdf', 'docx', 'xlsx', 'csv', 'ingest', 'rag', 'knowledge', 'read', 'summarize'],
     'computer': ['computer', 'desktop', 'window', 'windows', 'screen', 'screenshot', 'mouse', 'keyboard', 'click', 'type', 'scroll', 'accessibility', 'tree', 'hwnd', 'foreground', 'focus', 'drag', 'button', 'display', 'resolution'],
     'proactive': ['webhook', 'webhooks', 'heartbeat', 'proactive', 'stall', 'stalled', 'replay', 'endpoint', 'receipts'],
     'communication': ['message', 'channel', 'send', 'email', 'telegram', 'discord', 'slack', 'whatsapp', 'outbound', 'inbound', 'conversation', 'recipient'],
-    'calendar': ['calendar', 'event', 'deadline', 'reminder', 'schedule', 'meeting', 'appointment'],
+    'calendar': ['calendar', 'calender', 'calneder', 'calander', 'event', 'events', 'deadline', 'deadlines', 'reminder', 'reminders', 'schedule', 'schedules', 'scheduling', 'meeting', 'meetings', 'appointment', 'appointments'],
     'multimodal': ['multimodal', 'image', 'picture', 'photo', 'vision', 'ocr', 'inspect', 'generate', 'voice', 'audio', 'speech', 'transcribe', 'tts', 'stt', 'listen', 'speak', 'talk', 'wav', 'mp3'],
     'vision': ['vision', 'image', 'inspect', 'see', 'look', 'screenshot', 'photo', 'picture', 'ocr'],
     'voice': ['voice', 'audio', 'speech', 'transcribe', 'stt', 'tts', 'speak', 'talk', 'listen', 'sound', 'wav', 'mp3']
@@ -71,8 +72,8 @@ export class ToolDiscoveryPipeline {
     intent: string,
     options?: ToolDiscoveryOptions
   ): Tool[] {
-    const maxTools = options?.maxTools || 15;
-    const maxPromptTokens = options?.maxPromptTokens || 2000;
+    const maxTools = options?.maxTools || 30;
+    const maxPromptTokens = options?.maxPromptTokens || 8000;
     const policyEngine = options?.policyEngine || PolicyEngine.getInstance();
     const forcedTools = new Set(options?.forcedTools || []);
 
@@ -89,8 +90,13 @@ export class ToolDiscoveryPipeline {
     // Stage 1: Capability Detection
     const capabilities = this.detectCapabilities(intent, options?.recentContext);
 
+    // Combined query: search current intent plus recent conversational context so follow-ups maintain tool availability
+    const searchQuery = options?.recentContext
+      ? `${intent} ${options.recentContext}`
+      : intent;
+
     // Stage 2: Search & Discovery
-    const scored = registry.search(intent, {
+    const scored = registry.search(searchQuery, {
       limit: Math.max(maxTools * 2, 30),
       capabilities
     });

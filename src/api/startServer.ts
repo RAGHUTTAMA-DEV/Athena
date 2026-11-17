@@ -3,7 +3,8 @@ dotenv.config();
 
 import { createStorage } from '../storage/storeFactory.js';
 import { createAthenaServer } from './server.js';
-import { tools } from '../tools/index.js';
+import { tools, registerDynamicTools } from '../tools/index.js';
+import { MCPManager } from '../mcp/mcpManager.js';
 import { Agent } from '../runtime/agent.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 
@@ -13,7 +14,19 @@ async function bootstrap() {
 
   console.log('🚀 Initializing Athena Backend Storage...');
   const storage = await createStorage();
-  console.log(`✔ Storage initialized with driver: [${storage.driver}]`);
+  console.log('✔ Storage initialized with driver: [' + storage.driver + ']');
+
+  console.log('🔌 Connecting Model Context Protocol (MCP) servers...');
+  const mcpManager = new MCPManager();
+  try {
+    const mcpTools = await mcpManager.loadAndInitialize('./mcp_servers.json');
+    if (mcpTools.length > 0) {
+      registerDynamicTools(mcpTools);
+      console.log(`✔ Loaded & registered ${mcpTools.length} dynamic MCP tools into Athena agent runtime.`);
+    }
+  } catch (err: any) {
+    console.warn(`[MCP Warning] Failed to initialize MCP servers: ${err.message}`);
+  }
 
   console.log('🤖 Initializing Autonomous Agent Core...');
   const agent = new Agent({
@@ -55,8 +68,9 @@ async function bootstrap() {
   const shutdown = async (signal: string) => {
     console.log(`\nReceived ${signal}. Gracefully shutting down Athena server...`);
     try {
+      await mcpManager.closeAll();
       await app.close();
-      console.log('✔ Server and database storage closed cleanly.');
+      console.log('✔ Server, MCP connections, and database storage closed cleanly.');
       process.exit(0);
     } catch (err) {
       console.error('Error during shutdown:', err);

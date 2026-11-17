@@ -196,7 +196,8 @@ export class MCPManager {
           console.log(`[MCP] Connecting "${serverName}"...`);
 
           const cleanEnv: Record<string, string> = {};
-          for (const [key, val] of Object.entries({ ...process.env, ...(serverConfig.env || {}) })) {
+          const rawEnv = { ...process.env, ...(serverConfig.env || {}) };
+          for (const [key, val] of Object.entries(rawEnv)) {
             if (val !== undefined) {
               let resolved = String(val).trim();
               const envMatch = resolved.match(/^\$\{?(?:env:)?([a-zA-Z0-9_]+)\}?$/);
@@ -206,6 +207,17 @@ export class MCPManager {
               }
               cleanEnv[key] = resolved;
             }
+          }
+
+          // Prevent child MCP servers (like excalidraw) from inheriting Athena's port 3000 and hijacking traffic
+          if (!serverConfig.env?.PORT) {
+            cleanEnv.PORT = '3099';
+          }
+          if (!serverConfig.env?.EXPRESS_SERVER_URL) {
+            cleanEnv.EXPRESS_SERVER_URL = 'http://127.0.0.1:3099';
+          }
+          if (serverName === 'excalidraw' && !serverConfig.env?.EXCALIDRAW_NO_AUTOSTART) {
+            cleanEnv.EXCALIDRAW_NO_AUTOSTART = '1';
           }
 
           const debugMcp = Boolean(process.env.ATHENA_DEBUG);
@@ -247,9 +259,25 @@ export class MCPManager {
           const rawSchema = (mcpTool.inputSchema as any) || {};
           const cleanedSchema = cleanGeminiSchema(rawSchema);
 
+          const toolCapabilities: string[] = [serverName.toLowerCase()];
+          if (serverName.toLowerCase().includes('calendar') || sanitizedToolName.includes('calendar')) {
+            toolCapabilities.push('calendar');
+          }
+          if (serverName.toLowerCase().includes('gmail') || serverName.toLowerCase().includes('mail')) {
+            toolCapabilities.push('communication', 'email');
+          }
+          if (serverName.toLowerCase().includes('filesystem') || serverName.toLowerCase().includes('file')) {
+            toolCapabilities.push('fs:read', 'fs:write');
+          }
+          if (serverName.toLowerCase().includes('github')) {
+            toolCapabilities.push('git', 'github');
+          }
+
           const toolDef: ToolDefinition = {
             name: namespacedName,
             description: `[MCP: ${serverName}] ${mcpTool.description || ''}`,
+            capabilities: toolCapabilities,
+            tags: [serverName.toLowerCase(), 'mcp'],
             parameters: cleanedSchema && cleanedSchema.properties && Object.keys(cleanedSchema.properties).length > 0 ? {
               type: 'OBJECT',
               properties: cleanedSchema.properties,
@@ -259,6 +287,14 @@ export class MCPManager {
 
           const athenaTool: Tool = {
             definition: toolDef,
+            manifest: {
+              name: namespacedName,
+              riskLevel: 'safe',
+              parallelSafe: true,
+              capabilities: toolCapabilities,
+              permissions: [serverName.toLowerCase()],
+              tags: [serverName.toLowerCase(), 'mcp']
+            },
             execute: async (args: any) => {
               try {
                 const response = await client.callTool({

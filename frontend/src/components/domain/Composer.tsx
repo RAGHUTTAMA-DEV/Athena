@@ -29,7 +29,7 @@ interface MentionOption {
   label: string;
   sublabel: string;
   insertText: string;
-  kind: 'file' | 'folder' | 'repo' | 'goal' | 'run' | 'document';
+  kind: 'file' | 'folder' | 'repo' | 'goal' | 'run' | 'document' | 'workflow';
   docRecord?: any;
 }
 
@@ -46,7 +46,7 @@ export const Composer: React.FC<ComposerProps> = ({
   onSendMessage,
   disabled = false,
   isSending = false,
-  placeholder = 'Message Athena... (type @ to reference workspace files)',
+  placeholder = 'Message Athena... (type @ to reference files or @workflow to build workflows)',
 }) => {
   const draftStorageKey = `athena_composer_draft_${sessionId || 'default'}`;
 
@@ -170,6 +170,16 @@ export const Composer: React.FC<ComposerProps> = ({
     const loadOptions = async () => {
       const options: MentionOption[] = [];
 
+      if (!cleanQ || 'workflow'.includes(cleanQ.toLowerCase())) {
+        options.push({
+          id: 'workflow',
+          label: '@workflow',
+          sublabel: 'Create an autonomous multi-agent workflow DAG with Athena',
+          insertText: '@workflow ',
+          kind: 'workflow',
+        });
+      }
+
       if (!cleanQ || 'repo'.includes(cleanQ.toLowerCase())) {
         options.push({
           id: 'repo',
@@ -181,10 +191,11 @@ export const Composer: React.FC<ComposerProps> = ({
       }
 
       try {
-        const [files, goals, docs] = await Promise.allSettled([
+        const [files, goals, docs, wfs] = await Promise.allSettled([
           apiClient.listWorkspaceFiles(cleanQ),
           apiClient.listGoals(),
           apiClient.listResearchDocuments(),
+          apiClient.listWorkflows(),
         ]);
 
         if (docs.status === 'fulfilled') {
@@ -231,6 +242,21 @@ export const Composer: React.FC<ComposerProps> = ({
                 sublabel: `Goal · ${g.id}`,
                 insertText: `@goal:${g.id} `,
                 kind: 'goal',
+              });
+            }
+          }
+        }
+
+        if (wfs.status === 'fulfilled' && Array.isArray(wfs.value)) {
+          for (const w of wfs.value) {
+            const name = w.name || w.id;
+            if (!cleanQ || name.toLowerCase().includes(cleanQ.toLowerCase()) || w.id.toLowerCase().includes(cleanQ.toLowerCase())) {
+              options.push({
+                id: `wf_${w.id}`,
+                label: name,
+                sublabel: `Workflow DAG · ${w.id}`,
+                insertText: `@workflow:${w.id} `,
+                kind: 'workflow',
               });
             }
           }
@@ -429,6 +455,8 @@ export const Composer: React.FC<ComposerProps> = ({
         return <Folder size={13} color="var(--athena-warning)" />;
       case 'repo':
         return <GitBranch size={13} color="var(--athena-info)" />;
+      case 'workflow':
+        return <GitBranch size={13} color="var(--athena-accent)" />;
       case 'goal':
         return <Target size={13} color="var(--athena-success)" />;
       case 'run':

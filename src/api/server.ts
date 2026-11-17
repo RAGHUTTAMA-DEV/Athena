@@ -40,6 +40,7 @@ import { AgentEventEmitter } from '../runtime/events.js';
 import { Agent } from '../runtime/agent.js';
 import { DEFAULT_AGENT_PROMPT } from '../prompts/index.js';
 import { ToolExecutor } from '../tools/toolRuntime.js';
+import { registerWorkflowTools } from '../tools/index.js';
 
 export interface ServerOptions {
   storage: InitializedStorage;
@@ -206,6 +207,9 @@ export async function createAthenaServer(options: ServerOptions): Promise<Athena
       triggerAdapter,
       sseManager
     });
+
+    // Expose workflow creation, inspection, and execution tools to Athena chat agent runtime
+    registerWorkflowTools(wfRegistry, wfExecutor);
 
     const oauthRouter = createOAuthRouter({ vault });
     app.use('/api/v1/integrations', oauthRouter);

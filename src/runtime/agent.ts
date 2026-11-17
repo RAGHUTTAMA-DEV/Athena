@@ -38,6 +38,23 @@ import * as path from 'path';
 import { startActiveObservation, propagateAttributes } from '@langfuse/tracing';
 import { TelemetryManager } from '../observability/telemetry.js';
 import { TrajectoryReplayer } from '../observability/replayDebugger.js';
+
+function isSafeInspectionCommand(cmd: any): boolean {
+  if (!cmd || typeof cmd !== 'string') return false;
+  const trimmed = cmd.trim();
+  // Disallow shell metacharacters that can chain or redirect
+  if (/[;&|><`$()]/.test(trimmed)) return false;
+  const parts = trimmed.split(/\s+/);
+  const first = parts[0].toLowerCase();
+  // Safe directory / status / version inspection commands
+  if (first === 'dir' || first === 'ls' || first === 'pwd' || first === 'whoami') return true;
+  if (first === 'git' && parts.length >= 2) {
+    const sub = parts[1].toLowerCase();
+    if (['status', 'branch', 'log', 'diff', 'show', 'remote'].includes(sub)) return true;
+  }
+  if (['node', 'npm', 'tsc', 'git', 'pnpm', 'python'].includes(first) && parts.length === 2 && ['-v', '--version', '-V'].includes(parts[1])) return true;
+  return false;
+}
 import {
   Goal,
   GoalStatus,
@@ -121,10 +138,6 @@ const TOOL_ALIASES: Record<string, string> = {
   'calendar_manage': 'calendarManage',
   'manage_calendar': 'calendarManage',
   'calendarManage': 'calendarManage',
-  'create_calendar_event': 'calendarManage',
-  'calendar_event': 'calendarManage',
-  'list_calendar_events': 'calendarManage',
-  'calendar_list_events': 'calendarManage',
   'reminder_set': 'reminderSet',
   'set_reminder': 'reminderSet',
   'reminderSet': 'reminderSet',
@@ -1192,8 +1205,8 @@ export class Agent {
                 message: `Calling tool: ${call.name} with args: ${JSON.stringify(call.args)}`
               });
 
-              // Enforce tool scoping with alias resolution
-              const canonicalName = TOOL_ALIASES[call.name] || call.name;
+              // Enforce tool scoping with alias resolution (prefer exact registered tool, e.g. MCP tools)
+              const canonicalName = toolsRegistry.has(call.name) ? call.name : (TOOL_ALIASES[call.name] || call.name);
               const isAllowed = !this.config.allowedTools || this.config.allowedTools.includes(canonicalName);
               const tool = isAllowed ? toolsRegistry.get(canonicalName) : null;
               if (!tool) {
@@ -1218,8 +1231,11 @@ export class Agent {
 
               const manifest = this.toolExecutor.resolveManifest(tool);
 
-              // Check for confirmation for risky actions
-              if (manifest.riskLevel === 'confirm' || manifest.riskLevel === 'destructive' || tool.requiresConfirmation) {
+              // Check for confirmation for risky actions (safe read-only inspection commands like 'dir' or 'ls' are auto-approved)
+              const isReadOnlyInspection = call.name === 'executeCommand' && isSafeInspectionCommand(call.args?.command);
+              const needsConfirmation = !isReadOnlyInspection && (manifest.riskLevel === 'confirm' || manifest.riskLevel === 'destructive' || tool.requiresConfirmation);
+
+              if (needsConfirmation) {
                 const silent = !confirm || (confirm as any).silent;
                 if (!silent) {
                   safeOnUpdate({

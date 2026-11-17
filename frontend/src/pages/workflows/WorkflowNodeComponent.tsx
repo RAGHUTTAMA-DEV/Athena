@@ -72,6 +72,15 @@ export const WorkflowNodeComponent: React.FC<NodeProps> = memo(({ id, data, sele
   const theme = getNodeTheme(nodeType);
   const status = nodeData.status;
 
+  const getMcpServer = (toolName?: string): string | null => {
+    if (!toolName) return null;
+    const prefixes = ['calendar', 'gmail', 'github', 'notion', 'excalidraw', 'filesystem'];
+    for (const p of prefixes) {
+      if (toolName === p || toolName.startsWith(p + '_')) return p;
+    }
+    return null;
+  };
+
   const renderDescription = () => {
     const c = nodeData.config || {};
     switch (nodeType) {
@@ -85,8 +94,20 @@ export const WorkflowNodeComponent: React.FC<NodeProps> = memo(({ id, data, sele
         return `Fan-in barrier: ${c.strategy || 'structured_merge'} (${c.sources?.length || 0} sources)`;
       case 'condition':
         return `Branch evaluation: ${c.expr || 'true'}`;
-      case 'tool':
-        return `Deterministic tool execution: ${c.tool || 'noop'}`;
+      case 'tool': {
+        const toolName = c.tool || nodeData.tool || (nodeData.id === 'fetch_diff' ? 'fetch_pr_diff' : nodeData.id === 'publish_review' ? 'post_pr_review' : 'noop');
+        const mcpServer = getMcpServer(toolName);
+        if (mcpServer) {
+          const action = toolName.replace(new RegExp(`^${mcpServer}_`), '');
+          return `🔌 MCP [${mcpServer}]: ${action}`;
+        }
+        if (toolName === 'fetch_pr_diff') return `🎯 Fetch GitHub PR diff & metadata`;
+        if (toolName === 'post_pr_review') return `🎯 Publish review comment & verdict`;
+        if (toolName === 'run_tests') return `🎯 Automated test suite runner`;
+        if (toolName === 'create_pr') return `🎯 Create pull request`;
+        if (toolName === 'send_telegram') return `🎯 Send Telegram briefing alert`;
+        return `⚡ Built-in tool: ${toolName}`;
+      }
       case 'approval':
         return c.message || 'Requires operator review & confirmation';
       case 'map':
@@ -162,9 +183,64 @@ export const WorkflowNodeComponent: React.FC<NodeProps> = memo(({ id, data, sele
               color: theme.badgeText,
               fontWeight: 500,
               textTransform: 'uppercase',
-              letterSpacing: '0.04em'
+              letterSpacing: '0.04em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
-              {theme.label}
+              <span>{theme.label}</span>
+              {nodeType === 'tool' && (() => {
+                const c = nodeData.config || {};
+                const toolName = c.tool || nodeData.tool || (nodeData.id === 'fetch_diff' ? 'fetch_pr_diff' : nodeData.id === 'publish_review' ? 'post_pr_review' : 'noop');
+                const mcpServer = getMcpServer(toolName);
+                if (mcpServer) {
+                  return (
+                    <span style={{
+                      fontSize: '9px',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                      color: '#F59E0B',
+                      fontWeight: 700,
+                      letterSpacing: '0.02em',
+                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                    }}>
+                      MCP: {mcpServer}
+                    </span>
+                  );
+                }
+                const isDomain = ['fetch_pr_diff', 'post_pr_review', 'run_tests', 'create_pr', 'send_telegram', 'noop'].includes(toolName);
+                if (isDomain) {
+                  return (
+                    <span style={{
+                      fontSize: '9px',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(142, 173, 154, 0.2)',
+                      color: '#8EAD9A',
+                      fontWeight: 600,
+                      letterSpacing: '0.02em',
+                      border: '1px solid rgba(142, 173, 154, 0.3)'
+                    }}>
+                      Workflow Action
+                    </span>
+                  );
+                }
+                return (
+                  <span style={{
+                    fontSize: '9px',
+                    padding: '1px 5px',
+                    borderRadius: '3px',
+                    backgroundColor: 'rgba(145, 167, 183, 0.15)',
+                    color: '#91A7B7',
+                    fontWeight: 600,
+                    letterSpacing: '0.02em',
+                    border: '1px solid rgba(145, 167, 183, 0.25)'
+                  }}>
+                    Built-in
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>

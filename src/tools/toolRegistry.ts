@@ -41,7 +41,16 @@ export class SearchableToolRegistry {
     }
 
     // Index capabilities
-    const caps = tool.definition.capabilities || tool.manifest?.capabilities || tool.manifest?.permissions || [];
+    const caps = new Set<string>(
+      (tool.definition.capabilities || tool.manifest?.capabilities || tool.manifest?.permissions || []).map(c => c.toLowerCase())
+    );
+    if (name.toLowerCase().startsWith('calendar_') || name.toLowerCase().includes('calendar')) {
+      caps.add('calendar');
+    }
+    if (name.toLowerCase().includes('workflow')) {
+      caps.add('workflow');
+      caps.add('system');
+    }
     for (const cap of caps) {
       const capKey = cap.toLowerCase();
       if (!this.capabilityIndex.has(capKey)) {
@@ -95,10 +104,12 @@ export class SearchableToolRegistry {
       if (matchingTools) {
         for (const toolName of matchingTools) {
           const current = scores.get(toolName) || { score: 0, matchedCaps: [] };
-          // Exact name match gets highest boost
+          // Exact name match gets highest boost; exact server prefix (e.g. calendar_*) gets highest priority
           const tool = this.toolsByName.get(toolName);
-          const isNameMatch = tool?.definition.name.toLowerCase().includes(token);
-          current.score += isNameMatch ? 3.0 : 1.0;
+          const toolNameLower = tool?.definition.name.toLowerCase() || '';
+          const isExactPrefix = toolNameLower.startsWith(token + '_');
+          const isNameMatch = toolNameLower.includes(token);
+          current.score += isExactPrefix ? 6.0 : (isNameMatch ? 3.0 : 1.0);
           scores.set(toolName, current);
         }
       }
@@ -151,10 +162,18 @@ export class SearchableToolRegistry {
   }
 
   private tokenize(text: string): string[] {
-    return text
+    const rawTokens = text
       .toLowerCase()
       .replace(/[^a-z0-9_]/g, ' ')
       .split(/\s+/)
       .filter(t => t.length >= 2);
+
+    const result = new Set<string>(rawTokens);
+    for (const t of rawTokens) {
+      if (t.endsWith('s') && t.length > 3) {
+        result.add(t.slice(0, -1)); // e.g. events -> event, meetings -> meeting
+      }
+    }
+    return Array.from(result);
   }
 }

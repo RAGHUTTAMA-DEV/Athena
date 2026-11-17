@@ -93,17 +93,33 @@ export function createCreateWorkflowTool(registry: WorkflowRegistry): Tool {
           },
           definition: {
             type: 'OBJECT',
-            description: 'Optional complete Workflow JSON object to validate and save immediately'
+            description: 'Complete Workflow JSON object (or stringified JSON) to validate and save immediately'
           }
-        },
-        required: ['description']
+        }
       }
     },
     requiresConfirmation: false,
     execute: async (args: any, ctx?: ToolContext) => {
+      let def = args?.definition;
+      if (typeof def === 'string') {
+        try {
+          def = JSON.parse(def);
+        } catch {}
+      }
+
+      // Check if definition was accidentally passed as description
+      if (!def && typeof args?.description === 'string' && args.description.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(args.description.trim());
+          if (parsed && (parsed.nodes || parsed.id)) {
+            def = parsed;
+          }
+        } catch {}
+      }
+
       // If a full definition object was provided, validate and save it directly
-      if (args.definition && typeof args.definition === 'object') {
-        const wf = args.definition as Workflow;
+      if (def && typeof def === 'object') {
+        const wf = def as Workflow;
         const validation = validateWorkflow(wf);
         if (!validation.valid) {
           return {

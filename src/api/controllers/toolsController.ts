@@ -16,17 +16,38 @@ export class ToolsController {
         toolList = searchableToolRegistry.search(query).map(s => s.tool);
       }
 
-      const formatted = toolList.map(t => ({
-        name: t.definition.name,
-        description: t.definition.description,
-        category: t.manifest?.tags?.[0] || 'general',
-        tags: t.manifest?.tags || [],
-        riskLevel: t.manifest?.riskLevel || (t.requiresConfirmation ? 'confirm' : 'safe'),
-        requiresConfirmation: Boolean(t.requiresConfirmation),
-        parameters: t.definition.parameters,
-        timeoutMs: t.manifest?.timeoutMs || 30000,
-        parallelSafe: t.manifest?.parallelSafe ?? false
-      }));
+      const formatted = toolList.map(t => {
+        const isMcp = Boolean(
+          t.manifest?.tags?.includes('mcp') ||
+          t.definition.description?.startsWith('[MCP:') ||
+          t.definition.name.includes('_') && ['calendar', 'gmail', 'github', 'notion', 'excalidraw', 'filesystem'].some(s => t.definition.name.startsWith(s + '_'))
+        );
+        let mcpServer: string | undefined = undefined;
+        if (isMcp) {
+          const match = t.definition.description?.match(/\[MCP:\s*([^\]]+)\]/);
+          if (match) {
+            mcpServer = match[1].trim();
+          } else {
+            const prefix = t.definition.name.split('_')[0];
+            mcpServer = prefix;
+          }
+        }
+
+        return {
+          name: t.definition.name,
+          description: t.definition.description,
+          category: isMcp ? (mcpServer || 'mcp') : (t.manifest?.tags?.[0] || 'general'),
+          tags: t.manifest?.tags || [],
+          riskLevel: t.manifest?.riskLevel || (t.requiresConfirmation ? 'confirm' : 'safe'),
+          requiresConfirmation: Boolean(t.requiresConfirmation),
+          parameters: t.definition.parameters,
+          timeoutMs: t.manifest?.timeoutMs || 30000,
+          parallelSafe: t.manifest?.parallelSafe ?? false,
+          isMcp,
+          mcpServer,
+          source: isMcp ? 'mcp' : 'builtin'
+        };
+      });
 
       const filtered = categoryFilter
         ? formatted.filter(t => t.category.toLowerCase() === categoryFilter || t.tags.some(tag => tag.toLowerCase() === categoryFilter))

@@ -1,10 +1,64 @@
-import React from 'react';
-import { X, Trash2, Sliders, Zap, CheckCircle } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { X, Trash2, Sliders, Zap, CheckCircle, Search, Wrench, Plug } from 'lucide-react';
+
+export interface ToolItem {
+  name: string;
+  description?: string;
+  category?: string;
+  isMcp?: boolean;
+  mcpServer?: string;
+  source?: 'mcp' | 'builtin';
+}
+
+const WORKFLOW_DOMAIN_TOOLS: ToolItem[] = [
+  {
+    name: 'fetch_pr_diff',
+    description: 'Fetch GitHub Pull Request diff, title, changed files, and patch metadata',
+    category: 'Workflow Domain',
+    isMcp: false,
+    source: 'builtin'
+  },
+  {
+    name: 'post_pr_review',
+    description: 'Publish review comment and approval/changes verdict back to GitHub PR',
+    category: 'Workflow Domain',
+    isMcp: false,
+    source: 'builtin'
+  },
+  {
+    name: 'run_tests',
+    description: 'Execute automated regression test suite or unit tests',
+    category: 'Workflow Domain',
+    isMcp: false,
+    source: 'builtin'
+  },
+  {
+    name: 'create_pr',
+    description: 'Create a new GitHub pull request with title, branch, and description',
+    category: 'Workflow Domain',
+    isMcp: false,
+    source: 'builtin'
+  },
+  {
+    name: 'send_telegram',
+    description: 'Send an executive dossier or briefing alert directly to Telegram channel/chat',
+    category: 'Workflow Domain',
+    isMcp: false,
+    source: 'builtin'
+  },
+  {
+    name: 'noop',
+    description: 'Pass-through step with no side effects',
+    category: 'Workflow Domain',
+    isMcp: false,
+    source: 'builtin'
+  }
+];
 
 interface NodeConfigInspectorProps {
   node: any;
   allNodes: any[];
-  availableTools?: string[];
+  availableTools?: (string | ToolItem)[];
   onChange: (updatedNode: any) => void;
   onDelete: (nodeId: string) => void;
   onClose: () => void;
@@ -13,16 +67,7 @@ interface NodeConfigInspectorProps {
 export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
   node,
   allNodes,
-  availableTools = [
-    'readFile',
-    'writeFile',
-    'editFile',
-    'searchWeb',
-    'runCommand',
-    'grepFiles',
-    'listDirectory',
-    'noop'
-  ],
+  availableTools = [],
   onChange,
   onDelete,
   onClose
@@ -31,10 +76,109 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
 
   const nodeType = node.type;
   const config = node.config || {};
+  const currentToolValue = config.tool || (node as any).tool || 'noop';
+  const [toolFilter, setToolFilter] = useState('');
+
+  const normalizedTools: ToolItem[] = useMemo(() => {
+    const rawList = availableTools && availableTools.length > 0 ? availableTools : [];
+    const knownMcp = ['calendar', 'gmail', 'github', 'notion', 'excalidraw', 'filesystem'];
+
+    const mapped: ToolItem[] = rawList.map(item => {
+      if (typeof item === 'string') {
+        const mcpPrefix = knownMcp.find(p => item.startsWith(p + '_'));
+        return {
+          name: item,
+          isMcp: Boolean(mcpPrefix),
+          mcpServer: mcpPrefix,
+          source: (mcpPrefix ? 'mcp' : 'builtin') as 'mcp' | 'builtin',
+          category: mcpPrefix ? `MCP: ${mcpPrefix.toUpperCase()}` : 'Built-in Athena'
+        };
+      }
+      const isMcp = Boolean(
+        item.isMcp ||
+        (item as any).tags?.includes('mcp') ||
+        item.description?.startsWith('[MCP:') ||
+        knownMcp.some(p => item.name?.startsWith(p + '_'))
+      );
+      let mcpServer = item.mcpServer;
+      if (isMcp && !mcpServer) {
+        const match = item.description?.match(/\[MCP:\s*([^\]]+)\]/);
+        mcpServer = match ? match[1].trim() : knownMcp.find(p => item.name?.startsWith(p + '_'));
+      }
+      return {
+        name: item.name,
+        description: item.description,
+        isMcp,
+        mcpServer,
+        source: (isMcp ? 'mcp' : 'builtin') as 'mcp' | 'builtin',
+        category: isMcp ? `MCP: ${(mcpServer || 'Server').toUpperCase()}` : 'Built-in Athena'
+      };
+    });
+
+    // Start with WORKFLOW_DOMAIN_TOOLS first
+    const combined: ToolItem[] = [...WORKFLOW_DOMAIN_TOOLS];
+    const seen = new Set(WORKFLOW_DOMAIN_TOOLS.map(t => t.name));
+
+    for (const item of mapped) {
+      if (!seen.has(item.name)) {
+        seen.add(item.name);
+        combined.push(item);
+      }
+    }
+
+    // Always ensure currentToolValue is present in the list so it is never missing from <select>
+    if (currentToolValue && !seen.has(currentToolValue)) {
+      const mcpPrefix = knownMcp.find(p => currentToolValue.startsWith(p + '_'));
+      combined.unshift({
+        name: currentToolValue,
+        description: 'Configured tool function for this node',
+        isMcp: Boolean(mcpPrefix),
+        mcpServer: mcpPrefix,
+        source: (mcpPrefix ? 'mcp' : 'builtin') as 'mcp' | 'builtin',
+        category: mcpPrefix ? `MCP: ${mcpPrefix.toUpperCase()}` : 'Configured Tool'
+      });
+    }
+
+    return combined;
+  }, [availableTools, currentToolValue]);
+
+  const toolGroups = useMemo(() => {
+    const groups: Record<string, ToolItem[]> = {};
+
+    // 1. Workflow domain tools first
+    const domainTools = normalizedTools.filter(t => WORKFLOW_DOMAIN_TOOLS.some(d => d.name === t.name));
+    if (domainTools.length > 0) {
+      groups['🎯 Workflow Actions & Domain Tools'] = domainTools;
+    }
+
+    // 2. MCP Tools grouped by server
+    const mcpServers = ['calendar', 'gmail', 'github', 'notion', 'excalidraw', 'filesystem'];
+    for (const server of mcpServers) {
+      const serverTools = normalizedTools.filter(t => t.isMcp && t.mcpServer?.toLowerCase() === server);
+      if (serverTools.length > 0) {
+        groups[`🔌 MCP: ${server.toUpperCase()} (${serverTools.length})`] = serverTools;
+      }
+    }
+
+    // Other MCP tools
+    const otherMcp = normalizedTools.filter(t => t.isMcp && (!t.mcpServer || !mcpServers.includes(t.mcpServer.toLowerCase())));
+    if (otherMcp.length > 0) {
+      groups[`🔌 MCP: OTHER SERVERS (${otherMcp.length})`] = otherMcp;
+    }
+
+    // 3. Built-in Athena Tools
+    const builtinTools = normalizedTools.filter(t => !t.isMcp && !WORKFLOW_DOMAIN_TOOLS.some(d => d.name === t.name));
+    if (builtinTools.length > 0) {
+      groups[`⚡ Built-in Athena Tools (${builtinTools.length})`] = builtinTools;
+    }
+
+    return groups;
+  }, [normalizedTools]);
 
   const updateConfig = (field: string, val: any) => {
     const updated = {
       ...node,
+      [field]: val,
       config: {
         ...config,
         [field]: val
@@ -376,11 +520,27 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
             </div>
 
             <div>
-              <label style={labelStyle}>Scoped Tool Allowlist</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={labelStyle}>Scoped Tool Allowlist</label>
+                <span style={{ fontSize: '10px', color: 'var(--athena-text-muted)' }}>
+                  {(config.tools || []).length} selected
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder="Filter tools by name..."
+                value={toolFilter}
+                onChange={(e) => setToolFilter(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  marginBottom: '6px',
+                  fontSize: '11px',
+                  padding: '3px 6px'
+                }}
+              />
               <div style={{
-                maxHeight: '110px',
+                maxHeight: '140px',
                 overflowY: 'auto',
-                marginTop: '4px',
                 padding: '6px',
                 backgroundColor: 'var(--athena-surface-deep)',
                 borderRadius: 'var(--radius-xs)',
@@ -389,25 +549,56 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
                 flexDirection: 'column',
                 gap: '4px'
               }}>
-                {availableTools.map(tool => {
-                  const isChecked = (config.tools || []).includes(tool);
-                  return (
-                    <label key={tool} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--athena-text-secondary)', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={(e) => {
-                          const current = config.tools || [];
-                          const updated = e.target.checked
-                            ? [...current, tool]
-                            : current.filter((t: string) => t !== tool);
-                          updateConfig('tools', updated);
-                        }}
-                      />
-                      {tool}
-                    </label>
-                  );
-                })}
+                {normalizedTools
+                  .filter(tool => !toolFilter || tool.name.toLowerCase().includes(toolFilter.toLowerCase()) || tool.mcpServer?.toLowerCase().includes(toolFilter.toLowerCase()))
+                  .map(tool => {
+                    const isChecked = (config.tools || []).includes(tool.name);
+                    return (
+                      <label key={tool.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '11px', color: 'var(--athena-text-secondary)', cursor: 'pointer', padding: '2px 0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const current = config.tools || [];
+                              const updated = e.target.checked
+                                ? [...current, tool.name]
+                                : current.filter((t: string) => t !== tool.name);
+                              updateConfig('tools', updated);
+                            }}
+                          />
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} title={tool.name}>
+                            {tool.name}
+                          </span>
+                        </div>
+                        {tool.isMcp ? (
+                          <span style={{
+                            fontSize: '9px',
+                            padding: '1px 5px',
+                            borderRadius: '2px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                            color: '#F59E0B',
+                            fontWeight: 600,
+                            flexShrink: 0
+                          }}>
+                            MCP: {tool.mcpServer}
+                          </span>
+                        ) : (
+                          <span style={{
+                            fontSize: '9px',
+                            padding: '1px 5px',
+                            borderRadius: '2px',
+                            backgroundColor: 'rgba(145, 167, 183, 0.15)',
+                            color: '#91A7B7',
+                            fontWeight: 500,
+                            flexShrink: 0
+                          }}>
+                            built-in
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
               </div>
             </div>
           </>
@@ -541,44 +732,153 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
         )}
 
         {/* 5. Tool Node */}
-        {nodeType === 'tool' && (
-          <>
-            <div>
-              <label style={labelStyle}>Tool Function</label>
-              <select
-                value={config.tool || 'noop'}
-                onChange={(e) => updateConfig('tool', e.target.value)}
-                style={selectStyle}
-              >
-                {availableTools.map(tool => (
-                  <option key={tool} value={tool}>{tool}</option>
-                ))}
-              </select>
-            </div>
+        {nodeType === 'tool' && (() => {
+          const selectedTool = normalizedTools.find(t => t.name === currentToolValue);
+          const isMcp = selectedTool?.isMcp;
+          const mcpServer = selectedTool?.mcpServer;
+          const isDomainTool = WORKFLOW_DOMAIN_TOOLS.some(d => d.name === currentToolValue);
 
-            <div>
-              <label style={labelStyle}>Arguments Payload (JSON)</label>
-              <textarea
-                rows={4}
-                placeholder={'JSON arguments e.g. {"key": "val"}'}
-                value={typeof config.args === 'string' ? config.args : JSON.stringify(config.args || {}, null, 2)}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    updateConfig('args', parsed);
-                  } catch {
-                    updateConfig('args', e.target.value);
-                  }
-                }}
-                style={{
-                  ...inputStyle,
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--athena-info)'
-                }}
-              />
-            </div>
-          </>
-        )}
+          return (
+            <>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={labelStyle}>Tool Function</label>
+                  {isMcp ? (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                      color: '#F59E0B',
+                      border: '1px solid rgba(245, 158, 11, 0.3)'
+                    }}>
+                      🔌 MCP Tool ({mcpServer})
+                    </span>
+                  ) : isDomainTool ? (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(142, 173, 154, 0.2)',
+                      color: '#8EAD9A',
+                      border: '1px solid rgba(142, 173, 154, 0.3)'
+                    }}>
+                      🎯 Workflow Action
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 500,
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      backgroundColor: 'rgba(145, 167, 183, 0.15)',
+                      color: '#91A7B7',
+                      border: '1px solid rgba(145, 167, 183, 0.25)'
+                    }}>
+                      ⚡ Built-in Athena Tool
+                    </span>
+                  )}
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Search tool (e.g. pr, calendar, search)..."
+                  value={toolFilter}
+                  onChange={(e) => setToolFilter(e.target.value)}
+                  style={{
+                    ...inputStyle,
+                    marginBottom: '6px',
+                    fontSize: '11px',
+                    padding: '3px 6px'
+                  }}
+                />
+
+                <select
+                  value={currentToolValue}
+                  onChange={(e) => updateConfig('tool', e.target.value)}
+                  style={selectStyle}
+                >
+                  {Object.entries(toolGroups).map(([groupName, groupTools]) => {
+                    const filtered = toolFilter
+                      ? groupTools.filter(t => t.name.toLowerCase().includes(toolFilter.toLowerCase()) || t.description?.toLowerCase().includes(toolFilter.toLowerCase()) || t.mcpServer?.toLowerCase().includes(toolFilter.toLowerCase()))
+                      : groupTools;
+                    if (filtered.length === 0) return null;
+
+                    return (
+                      <optgroup key={groupName} label={groupName}>
+                        {filtered.map(tool => (
+                          <option key={tool.name} value={tool.name}>
+                            {tool.isMcp ? `[MCP: ${tool.mcpServer}] ${tool.name}` : tool.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
+                </select>
+
+                {/* Selected Tool Details Card */}
+                {selectedTool && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px',
+                    backgroundColor: 'var(--athena-surface-deep)',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--athena-border-subtle)',
+                    fontSize: '11px',
+                    lineHeight: '1.4'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--athena-text)' }}>{selectedTool.name}</span>
+                      <span style={{
+                        fontSize: '9px',
+                        padding: '1px 5px',
+                        borderRadius: '2px',
+                        backgroundColor: isMcp
+                          ? 'rgba(245, 158, 11, 0.2)'
+                          : isDomainTool
+                          ? 'rgba(142, 173, 154, 0.2)'
+                          : 'rgba(145, 167, 183, 0.15)',
+                        color: isMcp ? '#F59E0B' : isDomainTool ? '#8EAD9A' : '#91A7B7',
+                        fontWeight: 600
+                      }}>
+                        {isMcp ? `MCP: ${mcpServer}` : isDomainTool ? 'Workflow Action' : 'Built-in Athena'}
+                      </span>
+                    </div>
+                    {selectedTool.description && (
+                      <div style={{ color: 'var(--athena-text-secondary)', fontSize: '10px' }}>
+                        {selectedTool.description}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={labelStyle}>Arguments Payload (JSON)</label>
+                <textarea
+                  rows={4}
+                  placeholder={'JSON arguments e.g. {"timeMin": "2026-11-18T00:00:00Z"}'}
+                  value={typeof config.args === 'string' ? config.args : JSON.stringify(config.args || {}, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const parsed = JSON.parse(e.target.value);
+                      updateConfig('args', parsed);
+                    } catch {
+                      updateConfig('args', e.target.value);
+                    }
+                  }}
+                  style={{
+                    ...inputStyle,
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--athena-info)'
+                  }}
+                />
+              </div>
+            </>
+          );
+        })()}
 
         {/* 6. Approval Node */}
         {nodeType === 'approval' && (

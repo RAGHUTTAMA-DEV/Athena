@@ -25,7 +25,12 @@
     },
     "excalidraw" : {
       "command":"npx",
-      "args": ["-y", "mcp-excalidraw-server"]
+      "args": ["-y", "mcp-excalidraw-server"],
+      "env": {
+        "PORT": "3099",
+        "EXPRESS_SERVER_URL": "http://127.0.0.1:3099",
+        "EXCALIDRAW_NO_AUTOSTART": "1"
+      }
     },
     "calendar": {
       "command": "npx",

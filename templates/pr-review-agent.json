@@ -1,18 +1,20 @@
 {
   "id": "pr-reviewer",
   "version": 1,
-  "name": "PR Review Agent",
-  "description": "Multi-agent pull request reviewer inspecting security vulnerabilities, logic bugs, and code style in parallel with consensus voting.",
+  "name": "PR Review Agent & Multi-Specialist Auditor",
+  "description": "Multi-agent pull request reviewer inspecting security vulnerabilities, algorithmic logic, and code style in parallel with consensus voting and automated GitHub publishing.",
   "inputs": {
+    "repo": {
+      "type": "string",
+      "required": true,
+      "default": "RAGHUTTAMA-DEV/search-agent",
+      "description": "GitHub repository (owner/repo or full URL)"
+    },
     "pr": {
       "type": "string",
       "required": true,
-      "description": "Pull Request URL or Number"
-    },
-    "repo": {
-      "type": "string",
-      "required": false,
-      "description": "GitHub repository (owner/repo)"
+      "default": "8",
+      "description": "Pull Request number"
     }
   },
   "settings": {
@@ -44,22 +46,22 @@
     {
       "id": "security_agent",
       "type": "agent",
-      "prompt": "Audit PR #{{inputs.pr}} on repo {{inputs.repo}}:\nPR Diff:\n{{nodes.fetch_diff.output.diff}}\n\nInspect for security vulnerabilities, injection risks, leaked secrets, and unsafe dependencies. Return strictly valid JSON: { \"verdict\": \"approve\" | \"request_changes\", \"score\": 0-100, \"notes\": \"...\" }",
-      "tools": [],
+      "prompt": "You are a Principal Application Security Auditor. Audit this PR for security vulnerabilities:\nRepository: {{nodes.fetch_diff.output.repo}} (PR #{{nodes.fetch_diff.output.pr}})\nTitle: {{nodes.fetch_diff.output.title}}\nDiff:\n{{nodes.fetch_diff.output.diff}}\n\nPerform a thorough security audit checking for:\n1. OWASP Top 10 risks: Injection, broken access control, SSRF, XSS, insecure deserialization.\n2. Leaked credentials, hardcoded secrets, API keys, or private tokens in code/config.\n3. Unsafe dependencies, prototype pollution, or regex denial of service (ReDoS).\n\nReturn strictly valid JSON:\n{\n  \"verdict\": \"approve\" | \"request_changes\",\n  \"score\": 0-100,\n  \"findings\": [\"<list of security findings or 'None identified'>\"],\n  \"notes\": \"<detailed, specific security review analysis>\"\n}",
+      "tools": ["searchWeb", "grepSearch"],
       "output": "json"
     },
     {
       "id": "logic_agent",
       "type": "agent",
-      "prompt": "Audit PR #{{inputs.pr}} on repo {{inputs.repo}}:\nPR Diff:\n{{nodes.fetch_diff.output.diff}}\n\nInspect for algorithmic correctness, race conditions, edge cases, and performance regressions. Return strictly valid JSON: { \"verdict\": \"approve\" | \"request_changes\", \"score\": 0-100, \"notes\": \"...\" }",
-      "tools": [],
+      "prompt": "You are a Principal Systems Architect & Logic Specialist. Audit the algorithmic correctness and system logic of this PR:\nRepository: {{nodes.fetch_diff.output.repo}} (PR #{{nodes.fetch_diff.output.pr}})\nTitle: {{nodes.fetch_diff.output.title}}\nDiff:\n{{nodes.fetch_diff.output.diff}}\n\nAnalyze:\n1. Algorithmic correctness and edge case handling (null/undefined inputs, empty collections, boundary values).\n2. Concurrency hazards, race conditions, async/await error propagation, and unhandled promise rejections.\n3. State mutations, idempotency, and potential resource leaks or infinite loops.\n\nReturn strictly valid JSON:\n{\n  \"verdict\": \"approve\" | \"request_changes\",\n  \"score\": 0-100,\n  \"findings\": [\"<list of logic findings or 'None identified'>\"],\n  \"notes\": \"<detailed, specific logic review analysis>\"\n}",
+      "tools": ["searchWeb", "calculate"],
       "output": "json"
     },
     {
       "id": "style_agent",
       "type": "agent",
-      "prompt": "Audit PR #{{inputs.pr}} on repo {{inputs.repo}}:\nPR Diff:\n{{nodes.fetch_diff.output.diff}}\n\nInspect for clean architecture, TypeScript strictness, naming conventions, and test coverage. Return strictly valid JSON: { \"verdict\": \"approve\" | \"request_changes\", \"score\": 0-100, \"notes\": \"...\" }",
-      "tools": [],
+      "prompt": "You are a Staff Code Quality & Maintainability Specialist. Review the code quality and maintainability of this PR:\nRepository: {{nodes.fetch_diff.output.repo}} (PR #{{nodes.fetch_diff.output.pr}})\nTitle: {{nodes.fetch_diff.output.title}}\nDiff:\n{{nodes.fetch_diff.output.diff}}\n\nReview:\n1. Clean Architecture: SOLID principles, separation of concerns, meaningful identifiers.\n2. TypeScript strictness: strict types, avoiding unsafe 'any', proper return contracts.\n3. Maintainability, self-documenting code, and clean refactoring standards.\n\nReturn strictly valid JSON:\n{\n  \"verdict\": \"approve\" | \"request_changes\",\n  \"score\": 0-100,\n  \"findings\": [\"<list of style/quality findings or 'None identified'>\"],\n  \"notes\": \"<detailed, specific code quality analysis>\"\n}",
+      "tools": ["grepSearch"],
       "output": "json"
     },
     {
