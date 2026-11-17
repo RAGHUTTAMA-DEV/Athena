@@ -45,8 +45,12 @@ import {
   Terminal,
   RefreshCw,
   Sliders,
-  Code
+  Code,
+  History,
+  Clock
 } from 'lucide-react';
+
+import { MarkdownRenderer } from '../../components/primitives/MarkdownRenderer';
 
 import { apiClient } from '../../lib/api/client';
 import { WorkflowNodeComponent } from './WorkflowNodeComponent';
@@ -163,8 +167,11 @@ const WorkflowsPageContent: React.FC = () => {
   const [runInputsJson, setRunInputsJson] = useState('{}');
   const [isRunning, setIsRunning] = useState(false);
   const [activeRunResult, setActiveRunResult] = useState<any | null>(null);
+  const [workflowRuns, setWorkflowRuns] = useState<any[]>([]);
+  const [showRunsDropdown, setShowRunsDropdown] = useState(false);
+  const [inspectingNodeId, setInspectingNodeId] = useState<string | null>(null);
   const [showOutputDrawer, setShowOutputDrawer] = useState(false);
-  const [drawerTab, setDrawerTab] = useState<'summary' | 'raw'>('summary');
+  const [drawerTab, setDrawerTab] = useState<'deliverable' | 'nodes' | 'raw'>('deliverable');
   const [isDrawerMaximized, setIsDrawerMaximized] = useState(false);
   const [copiedJson, setCopiedJson] = useState(false);
 
@@ -230,8 +237,41 @@ const WorkflowsPageContent: React.FC = () => {
     if (!wf) return;
     setActiveWf(wf);
     setSelectedNodeId(null);
+    setInspectingNodeId(null);
     setIsDirty(false);
-    setActiveRunResult(null);
+
+    // Fetch historical runs for this workflow to restore output viewer & telemetry
+    apiClient.listWorkflowRuns(wf.id).then(async (res) => {
+      const runsList = res?.runs || [];
+      setWorkflowRuns(runsList);
+      if (runsList.length > 0) {
+        try {
+          const latestRun = await apiClient.getWorkflowRun(runsList[0].runId);
+          if (latestRun?.run) {
+            setActiveRunResult(latestRun);
+            const nodeOuts = latestRun.nodeOutputs || latestRun.run?.nodeOutputs || {};
+            setNodes((nds) =>
+              nds.map((n) => {
+                const out = nodeOuts[n.id];
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    status: out?.status || 'completed',
+                    output: out?.output
+                  }
+                };
+              })
+            );
+          }
+        } catch {}
+      } else {
+        setActiveRunResult(null);
+      }
+    }).catch(() => {
+      setWorkflowRuns([]);
+      setActiveRunResult(null);
+    });
 
     // Sync input JSON to this workflow's appropriate inputs schema!
     const defaults = getDefaultInputsForWorkflow(wf);
@@ -510,6 +550,10 @@ const WorkflowsPageContent: React.FC = () => {
       const res = await apiClient.runWorkflow(activeWf.id, inputs, true);
       setActiveRunResult(res);
       setShowOutputDrawer(true);
+      setDrawerTab('deliverable');
+
+      // Refresh runs list
+      apiClient.listWorkflowRuns(activeWf.id).then((r) => setWorkflowRuns(r?.runs || [])).catch(() => {});
 
       const nodeOuts = res.run?.nodeOutputs || {};
       setNodes((nds) =>
@@ -906,9 +950,126 @@ const WorkflowsPageContent: React.FC = () => {
               <Play size={11} fill="#171819" /> Run Workflow
             </button>
 
+            {/* Run History Selector Dropdown */}
+            {workflowRuns.length > 0 && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRunsDropdown((p) => !p)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '5px 10px',
+                    backgroundColor: 'var(--athena-surface-deep)',
+                    border: '1px solid var(--athena-border-subtle)',
+                    borderRadius: 'var(--radius-xs)',
+                    color: 'var(--athena-text)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <History size={12} color="var(--athena-accent)" />
+                  <span>Runs ({workflowRuns.length})</span>
+                  <ChevronDown size={11} />
+                </button>
+
+                {showRunsDropdown && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '4px',
+                    width: '270px',
+                    maxHeight: '280px',
+                    overflowY: 'auto',
+                    backgroundColor: 'var(--athena-surface-elevated, #232528)',
+                    border: '1px solid var(--athena-border)',
+                    borderRadius: 'var(--radius-sm)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                    zIndex: 60,
+                    padding: '4px'
+                  }}>
+                    <div style={{
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: 'var(--athena-text-muted)',
+                      borderBottom: '1px solid var(--athena-border-subtle)',
+                      marginBottom: '4px'
+                    }}>
+                      Historical Runs
+                    </div>
+                    {workflowRuns.map((r: any, idx: number) => {
+                      const isCurrent = (activeRunResult?.runId || activeRunResult?.run?.runId) === r.runId;
+                      const dateStr = r.startedAt ? new Date(r.startedAt).toLocaleTimeString() : `#${idx + 1}`;
+                      return (
+                        <div
+                          key={r.runId}
+                          onClick={async () => {
+                            setShowRunsDropdown(false);
+                            try {
+                              const details = await apiClient.getWorkflowRun(r.runId);
+                              setActiveRunResult(details);
+                              setShowOutputDrawer(true);
+                              const nodeOuts = details.nodeOutputs || details.run?.nodeOutputs || {};
+                              setNodes((nds) =>
+                                nds.map((n) => ({
+                                  ...n,
+                                  data: {
+                                    ...n.data,
+                                    status: nodeOuts[n.id]?.status || 'completed',
+                                    output: nodeOuts[n.id]?.output
+                                  }
+                                }))
+                              );
+                            } catch (e: any) {
+                              alert(`Failed to load run: ${e.message}`);
+                            }
+                          }}
+                          style={{
+                            padding: '6px 8px',
+                            borderRadius: 'var(--radius-xs)',
+                            backgroundColor: isCurrent ? 'var(--athena-surface-deep)' : 'transparent',
+                            border: isCurrent ? '1px solid var(--athena-accent)' : '1px solid transparent',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '2px',
+                            fontSize: '11px'
+                          }}
+                          onMouseEnter={(e) => !isCurrent && (e.currentTarget.style.backgroundColor = 'var(--athena-surface)')}
+                          onMouseLeave={(e) => !isCurrent && (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: '50%',
+                              backgroundColor: r.status === 'completed' ? 'var(--athena-success)' : r.status === 'running' ? 'var(--athena-info)' : 'var(--athena-danger)'
+                            }} />
+                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--athena-text)', fontSize: '10px' }}>
+                              {r.runId.substring(0, 16)}...
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '10px', color: 'var(--athena-text-muted)' }}>
+                            {dateStr}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* View Run Output Button (shows when a run exists) */}
             {activeRunResult && (
               <button
+                type="button"
                 onClick={() => setShowOutputDrawer((p) => !p)}
                 style={{
                   display: 'flex',
@@ -984,13 +1145,13 @@ const WorkflowsPageContent: React.FC = () => {
             bottom: 0,
             left: 0,
             right: 0,
-            height: isDrawerMaximized ? '500px' : '280px',
+            height: isDrawerMaximized ? 'calc(100vh - 120px)' : '380px',
             backgroundColor: 'var(--athena-surface)',
             borderTop: '2px solid var(--athena-success)',
-            boxShadow: '0 -10px 25px -5px rgba(0, 0, 0, 0.6)',
+            boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.75)',
             display: 'flex',
             flexDirection: 'column',
-            zIndex: 25,
+            zIndex: 30,
             transition: 'height 0.2s ease'
           }}>
             {/* Drawer Header Bar */}
@@ -1019,10 +1180,10 @@ const WorkflowsPageContent: React.FC = () => {
                   <CheckCircle size={11} /> {activeRunResult.run?.status || activeRunResult.status || 'COMPLETED'}
                 </span>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--athena-text)' }}>
-                  Execution Run Inspector
+                  Execution Output Viewer
                 </span>
                 <span style={{ fontSize: '11px', fontFamily: 'var(--font-mono)', color: 'var(--athena-text-muted)' }}>
-                  ID: {activeRunResult.runId}
+                  Run: {activeRunResult.runId || activeRunResult.run?.runId}
                 </span>
               </div>
 
@@ -1035,30 +1196,51 @@ const WorkflowsPageContent: React.FC = () => {
                 border: '1px solid var(--athena-border-subtle)'
               }}>
                 <button
-                  onClick={() => setDrawerTab('summary')}
+                  type="button"
+                  onClick={() => setDrawerTab('deliverable')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '5px',
-                    padding: '3px 10px',
+                    padding: '3px 12px',
                     borderRadius: 'var(--radius-xs)',
                     border: 'none',
-                    backgroundColor: drawerTab === 'summary' ? 'var(--athena-surface)' : 'transparent',
-                    color: drawerTab === 'summary' ? 'var(--athena-text)' : 'var(--athena-text-muted)',
+                    backgroundColor: drawerTab === 'deliverable' ? 'var(--athena-surface)' : 'transparent',
+                    color: drawerTab === 'deliverable' ? 'var(--athena-accent)' : 'var(--athena-text-muted)',
                     fontSize: '11px',
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
-                  <FileText size={11} /> Visual Breakdown
+                  <FileText size={12} /> Executive Deliverable
                 </button>
                 <button
+                  type="button"
+                  onClick={() => setDrawerTab('nodes')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 12px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: 'none',
+                    backgroundColor: drawerTab === 'nodes' ? 'var(--athena-surface)' : 'transparent',
+                    color: drawerTab === 'nodes' ? 'var(--athena-text)' : 'var(--athena-text-muted)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Layers size={12} /> Node Steps & Telemetry
+                </button>
+                <button
+                  type="button"
                   onClick={() => setDrawerTab('raw')}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '5px',
-                    padding: '3px 10px',
+                    padding: '3px 12px',
                     borderRadius: 'var(--radius-xs)',
                     border: 'none',
                     backgroundColor: drawerTab === 'raw' ? 'var(--athena-surface)' : 'transparent',
@@ -1068,20 +1250,22 @@ const WorkflowsPageContent: React.FC = () => {
                     cursor: 'pointer'
                   }}
                 >
-                  <Terminal size={11} /> Raw JSON
+                  <Terminal size={12} /> Raw JSON
                 </button>
               </div>
 
               {/* Right: Actions (Copy, Maximize, Close) */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
+                  type="button"
                   onClick={() => {
-                    const payload = JSON.stringify(activeRunResult.output || activeRunResult.run?.nodeOutputs || activeRunResult, null, 2);
+                    const outs = activeRunResult.nodeOutputs || activeRunResult.output || activeRunResult.run?.nodeOutputs || {};
+                    const payload = JSON.stringify(outs, null, 2);
                     navigator.clipboard.writeText(payload);
                     setCopiedJson(true);
                     setTimeout(() => setCopiedJson(false), 2000);
                   }}
-                  title="Copy output payload"
+                  title="Copy full output payload"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1096,12 +1280,13 @@ const WorkflowsPageContent: React.FC = () => {
                   }}
                 >
                   <Copy size={11} />
-                  <span>{copiedJson ? 'Copied!' : 'Copy'}</span>
+                  <span>{copiedJson ? 'Copied!' : 'Copy JSON'}</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setIsDrawerMaximized((p) => !p)}
-                  title={isDrawerMaximized ? 'Restore height' : 'Expand drawer'}
+                  title={isDrawerMaximized ? 'Restore height' : 'Expand full height'}
                   style={{
                     padding: '4px 6px',
                     backgroundColor: 'transparent',
@@ -1115,8 +1300,9 @@ const WorkflowsPageContent: React.FC = () => {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setShowOutputDrawer(false)}
-                  title="Close inspector"
+                  title="Close viewer"
                   style={{
                     padding: '4px 6px',
                     backgroundColor: 'transparent',
@@ -1131,242 +1317,289 @@ const WorkflowsPageContent: React.FC = () => {
             </div>
 
             {/* Drawer Body */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-              {drawerTab === 'summary' ? (
-                (() => {
-                  const outs = activeRunResult.output || activeRunResult.run?.nodeOutputs || {};
-                  const voteCollectorOut = outs.vote_collector?.output;
-                  const fetchDiffOut = outs.fetch_diff?.output;
-                  const secAgentOut = outs.security_agent?.output;
-                  const logicAgentOut = outs.logic_agent?.output;
-                  const styleAgentOut = outs.style_agent?.output;
-                  const postReviewOut = outs.post_review?.output;
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column' }}>
+              {(() => {
+                const outs: Record<string, any> = activeRunResult.nodeOutputs || activeRunResult.output || activeRunResult.run?.nodeOutputs || {};
+                const nodeEntries = Object.entries(outs);
+
+                // Helper to resolve the primary deliverable markdown or text
+                const resolveDeliverable = (): { nodeId: string; title: string; content: string } => {
+                  if (inspectingNodeId && outs[inspectingNodeId]) {
+                    const nData = outs[inspectingNodeId];
+                    const raw = nData.output !== undefined ? nData.output : nData;
+                    const text = typeof raw === 'string' ? raw : (raw?.content || raw?.text || raw?.report || raw?.markdown || raw?.briefing || JSON.stringify(raw, null, 2));
+                    return { nodeId: inspectingNodeId, title: inspectingNodeId, content: text };
+                  }
+
+                  // Priority search for deliverable / synthesis nodes
+                  const preferredKeywords = ['synthesizer', 'writer', 'briefing', 'report', 'implementer', 'review', 'pr', 'collector'];
+                  for (const kw of preferredKeywords) {
+                    const match = nodeEntries.find(([id]) => id.toLowerCase().includes(kw));
+                    if (match) {
+                      const raw = match[1].output !== undefined ? match[1].output : match[1];
+                      const text = typeof raw === 'string' ? raw : (raw?.content || raw?.text || raw?.report || raw?.markdown || raw?.briefing);
+                      if (typeof text === 'string' && text.trim().length > 0) {
+                        return { nodeId: match[0], title: match[0], content: text };
+                      }
+                    }
+                  }
+
+                  // Fallback: check backwards from last node
+                  for (let i = nodeEntries.length - 1; i >= 0; i--) {
+                    const [id, data] = nodeEntries[i];
+                    const raw = data.output !== undefined ? data.output : data;
+                    const text = typeof raw === 'string' ? raw : (raw?.content || raw?.text || raw?.report || raw?.markdown);
+                    if (typeof text === 'string' && text.trim().length > 0) {
+                      return { nodeId: id, title: id, content: text };
+                    }
+                  }
+
+                  if (nodeEntries.length > 0) {
+                    const last = nodeEntries[nodeEntries.length - 1];
+                    const raw = last[1].output !== undefined ? last[1].output : last[1];
+                    return { nodeId: last[0], title: last[0], content: typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2) };
+                  }
+
+                  return { nodeId: 'none', title: 'No output available', content: 'No execution output recorded for this run.' };
+                };
+
+                const deliverable = resolveDeliverable();
+
+                // ── TAB 1: EXECUTIVE DELIVERABLE ─────────────────────────────
+                if (drawerTab === 'deliverable') {
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '10px' }}>
+                      {/* Sub-header / Node selector pill */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        backgroundColor: 'var(--athena-surface-deep)',
+                        borderRadius: 'var(--radius-xs)',
+                        border: '1px solid var(--athena-border-subtle)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '11px', color: 'var(--athena-text-muted)' }}>Viewing Output From Node:</span>
+                          <select
+                            value={deliverable.nodeId}
+                            onChange={(e) => setInspectingNodeId(e.target.value)}
+                            style={{
+                              backgroundColor: 'var(--athena-canvas)',
+                              color: 'var(--athena-accent)',
+                              border: '1px solid var(--athena-border-subtle)',
+                              borderRadius: 'var(--radius-xs)',
+                              padding: '3px 8px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {nodeEntries.map(([nId]) => (
+                              <option key={nId} value={nId}>{nId}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '10px', color: 'var(--athena-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                            {deliverable.content.length} characters
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(deliverable.content);
+                              setCopiedJson(true);
+                              setTimeout(() => setCopiedJson(false), 1800);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '3px 8px',
+                              backgroundColor: 'var(--athena-surface)',
+                              border: '1px solid var(--athena-border-subtle)',
+                              borderRadius: '2px',
+                              color: copiedJson ? 'var(--athena-success)' : 'var(--athena-text)',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Copy size={11} />
+                            <span>{copiedJson ? 'Copied Deliverable' : 'Copy Deliverable'}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Full Formatted Markdown Viewer */}
+                      <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '16px 20px',
+                        backgroundColor: 'var(--athena-canvas)',
+                        borderRadius: 'var(--radius-xs)',
+                        border: '1px solid var(--athena-border-subtle)',
+                        fontSize: '13px',
+                        color: 'var(--athena-text)',
+                        lineHeight: '1.6'
+                      }}>
+                        <MarkdownRenderer content={deliverable.content} />
+                      </div>
+                    </div>
+                  );
+                }
+
+                // ── TAB 2: NODE BREAKDOWN & TELEMETRY ─────────────────────────
+                if (drawerTab === 'nodes') {
+                  const currentSelectedId = inspectingNodeId || nodeEntries[0]?.[0];
+                  const currentNodeData = currentSelectedId ? outs[currentSelectedId] : null;
+                  const currentRawOutput = currentNodeData?.output !== undefined ? currentNodeData.output : currentNodeData;
+                  const currentText = typeof currentRawOutput === 'string'
+                    ? currentRawOutput
+                    : (currentRawOutput?.content || currentRawOutput?.text || currentRawOutput?.report || JSON.stringify(currentRawOutput, null, 2));
 
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {/* Top Highlight Banner: Consensus Verdict */}
-                      {voteCollectorOut && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '14px', height: '100%' }}>
+                      {/* Left: Nodes Execution List */}
+                      <div style={{
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        paddingRight: '6px',
+                        borderRight: '1px solid var(--athena-border-subtle)'
+                      }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--athena-text-muted)', marginBottom: '4px' }}>
+                          Workflow Pipeline Nodes ({nodeEntries.length})
+                        </div>
+                        {nodeEntries.map(([nId, nData]: [string, any]) => {
+                          const isInspecting = currentSelectedId === nId;
+                          const elapsed = nData.startedAt && nData.finishedAt ? `${nData.finishedAt - nData.startedAt}ms` : '';
+                          return (
+                            <div
+                              key={nId}
+                              onClick={() => setInspectingNodeId(nId)}
+                              style={{
+                                padding: '8px 10px',
+                                borderRadius: 'var(--radius-xs)',
+                                backgroundColor: isInspecting ? 'var(--athena-surface-elevated)' : 'var(--athena-surface-deep)',
+                                border: isInspecting ? '1px solid var(--athena-accent)' : '1px solid var(--athena-border-subtle)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '3px',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{
+                                    width: 7,
+                                    height: 7,
+                                    borderRadius: '50%',
+                                    backgroundColor: nData.status === 'completed' ? 'var(--athena-success)' : nData.status === 'running' ? 'var(--athena-info)' : 'var(--athena-warning)'
+                                  }} />
+                                  <span style={{ fontSize: '11px', fontWeight: 600, color: isInspecting ? 'var(--athena-accent)' : 'var(--athena-text)' }}>
+                                    {nId}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: '9px', textTransform: 'uppercase', color: 'var(--athena-success)', fontWeight: 700 }}>
+                                  {nData.status || 'DONE'}
+                                </span>
+                              </div>
+                              {elapsed && (
+                                <span style={{ fontSize: '10px', color: 'var(--athena-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                  Duration: {elapsed}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Right: Selected Node Output Details */}
+                      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                         <div style={{
-                          padding: '12px 16px',
-                          borderRadius: 'var(--radius-xs)',
-                          backgroundColor: voteCollectorOut.consensus ? 'rgba(142, 173, 154, 0.12)' : 'rgba(199, 125, 125, 0.12)',
-                          border: `1px solid ${voteCollectorOut.consensus ? 'var(--athena-success)' : 'var(--athena-danger)'}`,
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'space-between'
+                          justifyContent: 'space-between',
+                          paddingBottom: '8px',
+                          borderBottom: '1px solid var(--athena-border-subtle)',
+                          marginBottom: '8px'
                         }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{
-                              padding: '6px 12px',
-                              borderRadius: 'var(--radius-xs)',
-                              backgroundColor: voteCollectorOut.consensus ? 'var(--athena-success)' : 'var(--athena-danger)',
-                              color: '#171819',
-                              fontSize: '12px',
-                              fontWeight: 800,
-                              letterSpacing: '0.5px'
-                            }}>
-                              VERDICT: {String(voteCollectorOut.decision || 'PENDING').toUpperCase()}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--athena-text)' }}>
-                                Multi-Agent Consensus {voteCollectorOut.consensus ? 'Reached' : 'Inconclusive'}
-                              </div>
-                              <div style={{ fontSize: '11px', color: 'var(--athena-text-muted)', marginTop: '2px' }}>
-                                Policy: {voteCollectorOut.policy || 'majority'} • Total Votes: {voteCollectorOut.totalVotes || 0}
-                                {voteCollectorOut.votes && ` (${Object.entries(voteCollectorOut.votes).map(([k, v]) => `${k}: ${v}`).join(', ')})`}
-                              </div>
-                            </div>
-                          </div>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--athena-text)' }}>
+                            Output from: <code style={{ color: 'var(--athena-accent)' }}>{currentSelectedId}</code>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(currentText);
+                              setCopiedJson(true);
+                              setTimeout(() => setCopiedJson(false), 1800);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '2px 6px',
+                              backgroundColor: 'transparent',
+                              border: '1px solid var(--athena-border-subtle)',
+                              borderRadius: '2px',
+                              color: 'var(--athena-text-muted)',
+                              fontSize: '10px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Copy size={10} />
+                            <span>Copy Node Output</span>
+                          </button>
+                        </div>
 
-                          {postReviewOut && (
-                            <div style={{ fontSize: '11px', color: 'var(--athena-accent)', textAlign: 'right' }}>
-                              <strong>Post-Review Status:</strong> {postReviewOut.postedToGitHub ? 'Published to GitHub PR' : 'Prepared / Simulated'}
-                            </div>
+                        <div style={{
+                          flex: 1,
+                          overflowY: 'auto',
+                          padding: '12px 14px',
+                          backgroundColor: 'var(--athena-canvas)',
+                          borderRadius: 'var(--radius-xs)',
+                          border: '1px solid var(--athena-border-subtle)',
+                          fontSize: '12px',
+                          color: 'var(--athena-text)',
+                          lineHeight: '1.5'
+                        }}>
+                          {typeof currentRawOutput === 'string' ? (
+                            <MarkdownRenderer content={currentRawOutput} />
+                          ) : (
+                            <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: '11px', whiteSpace: 'pre-wrap', color: 'var(--athena-text-secondary)' }}>
+                              {JSON.stringify(currentRawOutput, null, 2)}
+                            </pre>
                           )}
-                        </div>
-                      )}
-
-                      {/* Specialist Agents Breakdown Grid */}
-                      {(secAgentOut || logicAgentOut || styleAgentOut) && (
-                        <div>
-                          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--athena-text-muted)', marginBottom: '8px', letterSpacing: '0.04em' }}>
-                            Specialist Agent Audits
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-                            {/* Security Agent Card */}
-                            {secAgentOut && (
-                              <div style={{
-                                padding: '10px 12px',
-                                borderRadius: 'var(--radius-xs)',
-                                backgroundColor: 'var(--athena-surface-deep)',
-                                border: '1px solid var(--athena-border-subtle)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--athena-info)' }}>
-                                    🛡️ Security Specialist
-                                  </span>
-                                  <span style={{
-                                    fontSize: '10px',
-                                    fontWeight: 700,
-                                    padding: '1px 6px',
-                                    borderRadius: '2px',
-                                    backgroundColor: String(secAgentOut.verdict).toLowerCase() === 'approve' ? 'rgba(142, 173, 154, 0.2)' : 'rgba(199, 125, 125, 0.2)',
-                                    color: String(secAgentOut.verdict).toLowerCase() === 'approve' ? 'var(--athena-success)' : 'var(--athena-danger)'
-                                  }}>
-                                    {String(secAgentOut.verdict || 'approve').toUpperCase()} ({secAgentOut.score || 95}/100)
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--athena-text-secondary)', lineHeight: '1.4' }}>
-                                  {secAgentOut.notes || 'No OWASP injection risks or leaked credentials identified in PR.'}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Logic Agent Card */}
-                            {logicAgentOut && (
-                              <div style={{
-                                padding: '10px 12px',
-                                borderRadius: 'var(--radius-xs)',
-                                backgroundColor: 'var(--athena-surface-deep)',
-                                border: '1px solid var(--athena-border-subtle)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#B89FD4' }}>
-                                    ⚙️ Logic & Concurrency
-                                  </span>
-                                  <span style={{
-                                    fontSize: '10px',
-                                    fontWeight: 700,
-                                    padding: '1px 6px',
-                                    borderRadius: '2px',
-                                    backgroundColor: String(logicAgentOut.verdict).toLowerCase() === 'approve' ? 'rgba(142, 173, 154, 0.2)' : 'rgba(199, 125, 125, 0.2)',
-                                    color: String(logicAgentOut.verdict).toLowerCase() === 'approve' ? 'var(--athena-success)' : 'var(--athena-danger)'
-                                  }}>
-                                    {String(logicAgentOut.verdict || 'approve').toUpperCase()} ({logicAgentOut.score || 94}/100)
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--athena-text-secondary)', lineHeight: '1.4' }}>
-                                  {logicAgentOut.notes || 'Algorithmic logic verified, edge cases and race conditions handled.'}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Style Agent Card */}
-                            {styleAgentOut && (
-                              <div style={{
-                                padding: '10px 12px',
-                                borderRadius: 'var(--radius-xs)',
-                                backgroundColor: 'var(--athena-surface-deep)',
-                                border: '1px solid var(--athena-border-subtle)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '6px'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--athena-accent)' }}>
-                                    🎨 Architecture & Style
-                                  </span>
-                                  <span style={{
-                                    fontSize: '10px',
-                                    fontWeight: 700,
-                                    padding: '1px 6px',
-                                    borderRadius: '2px',
-                                    backgroundColor: String(styleAgentOut.verdict).toLowerCase() === 'approve' ? 'rgba(142, 173, 154, 0.2)' : 'rgba(199, 125, 125, 0.2)',
-                                    color: String(styleAgentOut.verdict).toLowerCase() === 'approve' ? 'var(--athena-success)' : 'var(--athena-danger)'
-                                  }}>
-                                    {String(styleAgentOut.verdict || 'approve').toUpperCase()} ({styleAgentOut.score || 92}/100)
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: '11px', color: 'var(--athena-text-secondary)', lineHeight: '1.4' }}>
-                                  {styleAgentOut.notes || 'Clean TypeScript typings and clean separation of concerns verified.'}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* All Steps Execution Table */}
-                      <div>
-                        <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--athena-text-muted)', marginBottom: '8px', letterSpacing: '0.04em' }}>
-                          Workflow Pipeline Steps ({Object.keys(outs).length} nodes executed)
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {Object.entries(outs).map(([nodeId, nodeData]: [string, any]) => (
-                            <div
-                              key={nodeId}
-                              onClick={() => setSelectedNodeId(nodeId)}
-                              style={{
-                                padding: '8px 12px',
-                                borderRadius: 'var(--radius-xs)',
-                                backgroundColor: 'var(--athena-surface-deep)',
-                                border: '1px solid var(--athena-border-subtle)',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                cursor: 'pointer'
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--athena-surface-elevated)')}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--athena-surface-deep)')}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <span style={{
-                                  width: 7,
-                                  height: 7,
-                                  borderRadius: '50%',
-                                  backgroundColor: nodeData.status === 'completed' ? 'var(--athena-success)' : 'var(--athena-warning)'
-                                }} />
-                                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--athena-text)' }}>
-                                  {nodeId}
-                                </span>
-                              </div>
-
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <span style={{ fontSize: '11px', color: 'var(--athena-text-muted)', fontFamily: 'var(--font-mono)' }}>
-                                  {nodeData.startedAt && nodeData.finishedAt ? `${nodeData.finishedAt - nodeData.startedAt}ms` : ''}
-                                </span>
-                                <span style={{
-                                  fontSize: '10px',
-                                  padding: '1px 6px',
-                                  borderRadius: '2px',
-                                  backgroundColor: 'rgba(142, 173, 154, 0.15)',
-                                  color: 'var(--athena-success)',
-                                  textTransform: 'uppercase',
-                                  fontWeight: 600
-                                }}>
-                                  {nodeData.status || 'completed'}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
                         </div>
                       </div>
                     </div>
                   );
-                })()
-              ) : (
-                /* Raw JSON View */
-                <pre style={{
-                  margin: 0,
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-mono)',
-                  color: 'var(--athena-text-secondary)',
-                  backgroundColor: 'var(--athena-canvas)',
-                  padding: '12px',
-                  borderRadius: 'var(--radius-xs)',
-                  border: '1px solid var(--athena-border-subtle)',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-all'
-                }}>
-                  {JSON.stringify(activeRunResult.output || activeRunResult.run?.nodeOutputs || activeRunResult, null, 2)}
-                </pre>
-              )}
+                }
+
+                // ── TAB 3: RAW JSON VIEW ──────────────────────────────────────
+                return (
+                  <pre style={{
+                    margin: 0,
+                    fontSize: '11px',
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--athena-text-secondary)',
+                    backgroundColor: 'var(--athena-canvas)',
+                    padding: '12px',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--athena-border-subtle)',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-all',
+                    flex: 1,
+                    overflowY: 'auto'
+                  }}>
+                    {JSON.stringify(outs, null, 2)}
+                  </pre>
+                );
+              })()}
             </div>
           </div>
         )}

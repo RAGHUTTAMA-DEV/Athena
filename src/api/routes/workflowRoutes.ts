@@ -281,6 +281,21 @@ export function registerWorkflowRoutes(app: Router, services: WorkflowServices) 
   });
 
   /**
+   * GET /api/v1/workflows/:id/runs
+   * List historical runs for a specific workflow.
+   */
+  app.get('/api/v1/workflows/:id/runs', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const limit = parseInt(req.query.limit as string || '20', 10);
+      const runs = await registry.listRuns(id, limit);
+      res.json({ runs });
+    } catch (err: any) {
+      res.status(500).json({ error: { message: err.message } });
+    }
+  });
+
+  /**
    * GET /api/v1/workflows/runs/:runId
    * Retrieve execution details and node outputs for a specific run.
    */

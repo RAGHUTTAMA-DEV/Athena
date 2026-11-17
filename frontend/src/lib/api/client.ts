@@ -491,6 +491,10 @@ export class AthenaApiClient {
     return this.request(`/api/v1/workflows/runs/${runId}`);
   }
 
+  async listWorkflowRuns(workflowId: string, limit = 20): Promise<{ runs: any[] }> {
+    return this.request(`/api/v1/workflows/${encodeURIComponent(workflowId)}/runs?limit=${limit}`);
+  }
+
   async resumeWorkflowRun(runId: string, decision: { approved: boolean; notes?: string }): Promise<any> {
     return this.request(`/api/v1/workflows/runs/${runId}/resume`, {
       method: 'POST',

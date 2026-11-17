@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { X, Trash2, Sliders, Zap, CheckCircle, Search, Wrench, Plug } from 'lucide-react';
+import { X, Trash2, Sliders, Zap, CheckCircle, Search, Wrench, Plug, Copy, Check, FileText } from 'lucide-react';
+import { MarkdownRenderer } from '../../components/primitives/MarkdownRenderer';
 
 export interface ToolItem {
   name: string;
@@ -283,27 +284,79 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
             <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--athena-success)', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Zap size={11} fill="var(--athena-success)" /> Execution Output
             </span>
-            <span style={{
-              fontSize: '9px',
-              fontWeight: 600,
-              padding: '1px 5px',
-              borderRadius: '2px',
-              backgroundColor: 'var(--athena-success-dim, rgba(142, 173, 154, 0.15))',
-              color: 'var(--athena-success)',
-              textTransform: 'uppercase'
-            }}>
-              {node.status || 'completed'}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = typeof node.output === 'string'
+                    ? node.output
+                    : JSON.stringify(node.output, null, 2);
+                  navigator.clipboard.writeText(text);
+                }}
+                title="Copy output"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  padding: '2px 6px',
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--athena-border-subtle)',
+                  borderRadius: '2px',
+                  color: 'var(--athena-text-muted)',
+                  fontSize: '10px',
+                  cursor: 'pointer'
+                }}
+              >
+                <Copy size={10} />
+                <span>Copy</span>
+              </button>
+              <span style={{
+                fontSize: '9px',
+                fontWeight: 600,
+                padding: '1px 5px',
+                borderRadius: '2px',
+                backgroundColor: 'var(--athena-success-dim, rgba(142, 173, 154, 0.15))',
+                color: 'var(--athena-success)',
+                textTransform: 'uppercase'
+              }}>
+                {node.status || 'completed'}
+              </span>
+            </div>
           </div>
 
+          {/* Render String / Markdown Output */}
+          {typeof node.output === 'string' && (
+            <div style={{
+              maxHeight: '380px',
+              overflowY: 'auto',
+              padding: '10px 12px',
+              backgroundColor: 'var(--athena-canvas, #171819)',
+              borderRadius: 'var(--radius-xs)',
+              border: '1px solid var(--athena-border-subtle)',
+              fontSize: '12px',
+              color: 'var(--athena-text)',
+              lineHeight: '1.5'
+            }}>
+              <MarkdownRenderer content={node.output} />
+            </div>
+          )}
+
           {/* Structured Output Cards */}
-          {(() => {
+          {typeof node.output === 'object' && node.output !== null && (() => {
             const out = node.output;
-            if (out && typeof out === 'object') {
-              // Agent Verdict output
-              if (out.verdict !== undefined) {
-                const isApproved = String(out.verdict).toLowerCase() === 'approve';
-                return (
+
+            // Check if object contains embedded markdown text
+            const embeddedText = typeof out.content === 'string' ? out.content :
+              typeof out.text === 'string' ? out.text :
+              typeof out.result === 'string' ? out.result :
+              typeof out.report === 'string' ? out.report :
+              typeof out.markdown === 'string' ? out.markdown :
+              typeof out.briefing === 'string' ? out.briefing : null;
+
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* Agent Verdict output */}
+                {out.verdict !== undefined && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{
@@ -311,8 +364,8 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
                         fontWeight: 700,
                         padding: '2px 8px',
                         borderRadius: '2px',
-                        backgroundColor: isApproved ? 'rgba(142, 173, 154, 0.2)' : 'rgba(199, 125, 125, 0.2)',
-                        color: isApproved ? 'var(--athena-success)' : 'var(--athena-danger)',
+                        backgroundColor: String(out.verdict).toLowerCase() === 'approve' ? 'rgba(142, 173, 154, 0.2)' : 'rgba(199, 125, 125, 0.2)',
+                        color: String(out.verdict).toLowerCase() === 'approve' ? 'var(--athena-success)' : 'var(--athena-danger)',
                         textTransform: 'uppercase'
                       }}>
                         Verdict: {out.verdict}
@@ -329,12 +382,10 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
                       </div>
                     )}
                   </div>
-                );
-              }
+                )}
 
-              // Collector consensus output
-              if (out.strategy === 'consensus_voting') {
-                return (
+                {/* Collector consensus output */}
+                {out.strategy === 'consensus_voting' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--athena-success)' }}>
@@ -352,12 +403,10 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
                       </div>
                     )}
                   </div>
-                );
-              }
+                )}
 
-              // PR Diff output
-              if (out.diff) {
-                return (
+                {/* PR Diff output */}
+                {out.diff && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--athena-text)' }}>
                       {out.title || `PR #${out.pr}`}
@@ -367,7 +416,7 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
                     </div>
                     <pre style={{
                       margin: 0,
-                      maxHeight: '100px',
+                      maxHeight: '120px',
                       overflowY: 'auto',
                       fontSize: '9px',
                       fontFamily: 'var(--font-mono)',
@@ -379,11 +428,26 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
                       {out.diff}
                     </pre>
                   </div>
-                );
-              }
-            }
+                )}
 
-            return null;
+                {/* Render embedded markdown content if present */}
+                {embeddedText && (
+                  <div style={{
+                    maxHeight: '340px',
+                    overflowY: 'auto',
+                    padding: '8px 10px',
+                    backgroundColor: 'var(--athena-canvas, #171819)',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--athena-border-subtle)',
+                    fontSize: '12px',
+                    color: 'var(--athena-text)',
+                    lineHeight: '1.5'
+                  }}>
+                    <MarkdownRenderer content={embeddedText} />
+                  </div>
+                )}
+              </div>
+            );
           })()}
 
           {/* Raw JSON collapse */}

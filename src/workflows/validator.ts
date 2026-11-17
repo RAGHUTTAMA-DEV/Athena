@@ -118,14 +118,14 @@ export function validateWorkflow(wf: Workflow): ValidationResult {
   };
 }
 
-function validateNode(n: WfNode, nodeMap: Map<string, WfNode>, errors: string[]): void {
+function validateNode(n: WfNode, nodeMap: Map<string, WfNode>, errors: string[], edges: [string, string][] = []): void {
   switch (n.type) {
     case 'agent':
       if (!n.prompt || typeof n.prompt !== 'string' || n.prompt.trim().length === 0) {
         errors.push(`Agent node '${n.id}' requires a non-empty prompt`);
       }
       if (!Array.isArray(n.tools)) {
-        errors.push(`Agent node '${n.id}' requires a tools array`);
+        n.tools = [];
       }
       break;
 
@@ -179,13 +179,22 @@ function validateNode(n: WfNode, nodeMap: Map<string, WfNode>, errors: string[])
       }
       break;
 
-    case 'collector':
+    case 'collector': {
+      if (!n.strategy) {
+        (n as any).strategy = 'structured_merge';
+      }
       if (!['structured_merge', 'consensus_voting', 'debate_refine', 'synthesis_agent'].includes(n.strategy)) {
         errors.push(`Collector node '${n.id}' has unknown strategy '${n.strategy}'`);
       }
       if (!Array.isArray(n.sources) || n.sources.length === 0) {
-        errors.push(`Collector node '${n.id}' requires at least one source node in sources[]`);
-      } else {
+        const incoming = edges.filter(([from, to]) => to === n.id).map(([from]) => from);
+        if (incoming.length > 0) {
+          n.sources = incoming;
+        } else {
+          errors.push(`Collector node '${n.id}' requires at least one source node in sources[]`);
+        }
+      }
+      if (Array.isArray(n.sources)) {
         for (const src of n.sources) {
           if (!nodeMap.has(src)) {
             errors.push(`Collector node '${n.id}' references non-existent source node '${src}'`);
@@ -196,6 +205,7 @@ function validateNode(n: WfNode, nodeMap: Map<string, WfNode>, errors: string[])
         }
       }
       break;
+    }
 
     case 'approval':
       if (!n.message || typeof n.message !== 'string' || n.message.trim().length === 0) {
@@ -209,14 +219,17 @@ function validateNode(n: WfNode, nodeMap: Map<string, WfNode>, errors: string[])
       }
       break;
 
-    case 'trigger':
-      if (!['manual', 'cron', 'webhook', 'chat'].includes(n.triggerType)) {
+    case 'trigger': {
+      const rawType = n.triggerType || (n as any).config?.triggerType || (n as any).config?.event || 'manual';
+      n.triggerType = rawType as any;
+      if (!['manual', 'cron', 'webhook', 'chat', 'event'].includes(n.triggerType)) {
         errors.push(`Trigger node '${n.id}' has invalid triggerType '${n.triggerType}'`);
       }
       if (n.triggerType === 'cron' && (!n.schedule || n.schedule.trim().length === 0)) {
         errors.push(`Cron trigger node '${n.id}' requires a schedule cron expression`);
       }
       break;
+    }
 
     default:
       errors.push(`Node '${(n as any).id}' has unknown type '${(n as any).type}'`);
