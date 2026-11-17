@@ -22,10 +22,11 @@ export const TemplatePickerModal: React.FC<TemplatePickerModalProps> = ({
 
   const handleUseTemplate = () => {
     const tmpl = STARTER_TEMPLATES.find(t => t.id === selectedTemplateId) || STARTER_TEMPLATES[0];
+    const hash = Date.now().toString(36).substring(2, 6);
     const cloned: StarterWorkflowTemplate = {
       ...JSON.parse(JSON.stringify(tmpl)),
-      id: `${tmpl.id}-${Date.now().toString(36).substring(2, 6)}`,
-      name: tmpl.name
+      id: `${tmpl.id}-${hash}`,
+      name: `${tmpl.name} (Custom ${hash})`
     };
     onSelectTemplate(cloned);
   };

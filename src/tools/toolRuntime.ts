@@ -886,8 +886,11 @@ export class ToolSelector {
   };
 
   /**
-   * Filter available tools using the 5-stage ToolDiscoveryPipeline.
-   * Scales gracefully to 100+ registered tools while keeping prompt size bounded.
+   * Selects relevant tools for the agent prompt and conversational context.
+   * If the toolset is within the context budget (<= 64 tools), all permitted tools
+   * are provided so the LLM has complete visibility into its capabilities and can
+   * accurately report and execute any registered tool.
+   * For larger toolsets (> 64 tools), executes the 5-stage ToolDiscoveryPipeline.
    */
   static selectRelevantTools(
     userPrompt: string,
@@ -895,22 +898,31 @@ export class ToolSelector {
     context?: string,
     options?: { policyEngine?: PolicyEngine; isBackground?: boolean; forcedTools?: string[] }
   ): Tool[] {
-    if (availableTools.length <= 8) {
-      return availableTools;
+    const policyEngine = options?.policyEngine || PolicyEngine.getInstance();
+    const maxBudgetTools = 64;
+
+    // Within standard tool budget, return all policy-permitted tools
+    if (availableTools.length <= maxBudgetTools) {
+      return availableTools.filter(t => {
+        const check = policyEngine.evaluateToolCall(t.definition.name, {}, t.manifest?.permissions, {
+          isBackground: options?.isBackground
+        });
+        return check.allowed;
+      });
     }
 
+    // For large tool registries, filter dynamically using the 5-stage discovery pipeline
     const registry = new SearchableToolRegistry(availableTools);
-    const lower = (userPrompt || '').toLowerCase();
-    const workflowForced = (lower.includes('workflow') || lower.includes('@workflow'))
-      ? ['createWorkflow', 'getWorkflow', 'runWorkflow']
-      : [];
     return ToolDiscoveryPipeline.discover(registry, userPrompt, {
       recentContext: context,
-      policyEngine: options?.policyEngine,
+      policyEngine,
       isBackground: options?.isBackground,
-      maxPromptTokens: 8000,
-      maxTools: 25,
-      forcedTools: [...Array.from(ToolSelector.CORE_TOOLS), ...workflowForced, ...(options?.forcedTools || [])]
+      maxPromptTokens: 24000,
+      maxTools: maxBudgetTools,
+      forcedTools: [
+        ...Array.from(ToolSelector.CORE_TOOLS),
+        ...(options?.forcedTools || [])
+      ]
     });
   }
 }

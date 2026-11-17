@@ -72,8 +72,8 @@ export class ToolDiscoveryPipeline {
     intent: string,
     options?: ToolDiscoveryOptions
   ): Tool[] {
-    const maxTools = options?.maxTools || 30;
-    const maxPromptTokens = options?.maxPromptTokens || 8000;
+    const maxTools = options?.maxTools || 64;
+    const maxPromptTokens = options?.maxPromptTokens || 24000;
     const policyEngine = options?.policyEngine || PolicyEngine.getInstance();
     const forcedTools = new Set(options?.forcedTools || []);
 
@@ -97,7 +97,7 @@ export class ToolDiscoveryPipeline {
 
     // Stage 2: Search & Discovery
     const scored = registry.search(searchQuery, {
-      limit: Math.max(maxTools * 2, 30),
+      limit: Math.max(maxTools * 2, 40),
       capabilities
     });
 
@@ -115,7 +115,7 @@ export class ToolDiscoveryPipeline {
     }
 
     const topScore = scored.length > 0 ? scored[0].score : 0;
-    const minThreshold = Math.max(2.0, topScore * 0.35);
+    const minThreshold = Math.max(1.5, topScore * 0.25);
     const relevantScored = scored.filter(item => {
       if (item.score < minThreshold) return false;
       const isDestructive = item.tool.manifest?.riskLevel === 'destructive' || item.tool.definition.risk === 'destructive';
@@ -130,6 +130,28 @@ export class ToolDiscoveryPipeline {
       if (!seenNames.has(item.tool.definition.name)) {
         rankedTools.push(item.tool);
         seenNames.add(item.tool.definition.name);
+      }
+    }
+
+    // Stage 3b: MCP Server Coherence
+    // MCP servers provide a cohesive suite of tools. If any tool from an MCP server
+    // is selected or matched, include all sibling tools from that server so the LLM
+    // has complete operational capability without missing essential verbs.
+    const activeMcpServers = new Set<string>();
+    for (const tool of rankedTools) {
+      const server = tool.manifest?.mcpServer || tool.definition.mcpServer || (tool.manifest?.tags?.find(t => t.startsWith('mcp:'))?.replace('mcp:', ''));
+      if (server) {
+        activeMcpServers.add(server);
+      }
+    }
+
+    if (activeMcpServers.size > 0) {
+      for (const t of registry.getAll()) {
+        const server = t.manifest?.mcpServer || t.definition.mcpServer || (t.manifest?.tags?.find(tag => tag.startsWith('mcp:'))?.replace('mcp:', ''));
+        if (server && activeMcpServers.has(server) && !seenNames.has(t.definition.name)) {
+          rankedTools.push(t);
+          seenNames.add(t.definition.name);
+        }
       }
     }
 

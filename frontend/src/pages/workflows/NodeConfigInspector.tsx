@@ -220,7 +220,8 @@ export const NodeConfigInspector: React.FC<NodeConfigInspectorProps> = ({
 
   return (
     <div style={{
-      width: '320px',
+      width: '360px',
+      flexShrink: 0,
       backgroundColor: 'var(--athena-surface, #1D1E20)',
       borderLeft: '1px solid var(--athena-border, #303234)',
       display: 'flex',

@@ -540,35 +540,71 @@ const WorkflowsPageContent: React.FC = () => {
         await handleSaveChanges();
       }
 
+      // 1. Initial state: set trigger to 'running', other nodes to 'pending'
       setNodes((nds) =>
         nds.map((n) => ({
           ...n,
-          data: { ...n.data, status: 'running' }
+          data: {
+            ...n.data,
+            status: (n.type === 'trigger' || n.data?.type === 'trigger') ? 'running' : 'pending',
+            output: undefined,
+            error: undefined
+          }
         }))
       );
 
-      const res = await apiClient.runWorkflow(activeWf.id, inputs, true);
-      setActiveRunResult(res);
-      setShowOutputDrawer(true);
-      setDrawerTab('deliverable');
+      // 2. Start asynchronous execution to track live node-by-node updates
+      const startRes = await apiClient.runWorkflow(activeWf.id, inputs, false);
+      const runId = startRes.runId;
 
-      // Refresh runs list
-      apiClient.listWorkflowRuns(activeWf.id).then((r) => setWorkflowRuns(r?.runs || [])).catch(() => {});
+      if (!runId) {
+        throw new Error('Backend failed to return a valid execution runId');
+      }
 
-      const nodeOuts = res.run?.nodeOutputs || {};
-      setNodes((nds) =>
-        nds.map((n) => {
-          const out = nodeOuts[n.id];
-          return {
-            ...n,
-            data: {
-              ...n.data,
-              status: out?.status || 'completed',
-              output: out?.output
+      // 3. Poll execution status every 350ms to update running/completed glowing nodes live
+      await new Promise<void>((resolve) => {
+        const pollInterval = setInterval(async () => {
+          try {
+            const details = await apiClient.getWorkflowRun(runId);
+            if (!details || !details.run) return;
+
+            const nodeOuts = details.nodeOutputs || details.run.nodeOutputs || {};
+
+            setNodes((nds) =>
+              nds.map((n) => {
+                const out = nodeOuts[n.id];
+                const nodeStatus = out?.status || (n.type === 'trigger' ? 'running' : 'pending');
+                return {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    status: nodeStatus,
+                    output: out?.output,
+                    error: out?.error
+                  }
+                };
+              })
+            );
+
+            if (details.run.status === 'completed' || details.run.status === 'failed') {
+              clearInterval(pollInterval);
+              setActiveRunResult(details);
+              setShowOutputDrawer(true);
+              setDrawerTab('deliverable');
+              apiClient.listWorkflowRuns(activeWf.id).then((r) => setWorkflowRuns(r?.runs || [])).catch(() => {});
+              resolve();
             }
-          };
-        })
-      );
+          } catch {
+            // Keep polling
+          }
+        }, 350);
+
+        // Safety timeout
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          resolve();
+        }, 300000);
+      });
     } catch (err: any) {
       alert(`Execution failed: ${err.message}`);
     } finally {
@@ -706,13 +742,36 @@ const WorkflowsPageContent: React.FC = () => {
                   transition: 'background 0.12s ease'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--athena-text)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--athena-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {wf.name}
                   </span>
-                  <span style={{ fontSize: '10px', color: 'var(--athena-text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    v{wf.version || 1}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                    <span style={{ fontSize: '10px', color: 'var(--athena-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                      v{wf.version || 1}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteWorkflow(wf.id);
+                      }}
+                      title={`Delete ${wf.name}`}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--athena-text-muted)',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderRadius: '2px'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--athena-danger)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--athena-text-muted)')}
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
                 </div>
                 <div style={{
                   fontSize: '11px',
@@ -731,7 +790,7 @@ const WorkflowsPageContent: React.FC = () => {
       </div>
 
       {/* ── Main Canvas Viewport ─────────────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
         {/* Top Workflow Action Bar */}
         <div style={{
           height: '48px',
@@ -740,13 +799,25 @@ const WorkflowsPageContent: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 20px',
-          zIndex: 10
+          padding: '0 16px',
+          zIndex: 10,
+          gap: '12px'
         }}>
           {/* Left: Workflow Title & Badges */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <GitBranch size={16} color="var(--athena-accent)" />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--athena-text)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flexShrink: 1 }}>
+            <GitBranch size={16} color="var(--athena-accent)" style={{ flexShrink: 0 }} />
+            <span
+              style={{
+                fontSize: '13px',
+                fontWeight: 600,
+                color: 'var(--athena-text)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                maxWidth: '220px'
+              }}
+              title={activeWf?.name}
+            >
               {activeWf?.name || 'Workflow Canvas'}
             </span>
             <span style={{
@@ -755,7 +826,8 @@ const WorkflowsPageContent: React.FC = () => {
               color: 'var(--athena-text-muted)',
               backgroundColor: 'var(--athena-surface-deep)',
               padding: '2px 6px',
-              borderRadius: 'var(--radius-xs)'
+              borderRadius: 'var(--radius-xs)',
+              flexShrink: 0
             }}>
               v{activeWf?.version || 1}
             </span>
@@ -765,7 +837,8 @@ const WorkflowsPageContent: React.FC = () => {
                 color: 'var(--athena-warning)',
                 backgroundColor: 'var(--athena-warning-dim)',
                 padding: '2px 6px',
-                borderRadius: 'var(--radius-xs)'
+                borderRadius: 'var(--radius-xs)',
+                flexShrink: 0
               }}>
                 Unsaved changes
               </span>
@@ -773,7 +846,7 @@ const WorkflowsPageContent: React.FC = () => {
           </div>
 
           {/* Right: Actions (Integrations, GitHub status, Add Node, Save, Run) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
             {/* GitHub Auth Status Pill */}
             {(() => {
               const githubInt = integrations.find((i) => i.id === 'github');
@@ -784,12 +857,12 @@ const WorkflowsPageContent: React.FC = () => {
                     setSelectedIntegrationId('github');
                     setShowIntegrationsModal(true);
                   }}
-                  title={isConn ? `GitHub Connected (${githubInt?.authSource === 'environment' ? 'Environment variable' : 'Vault'})` : 'Click to connect GitHub'}
+                  title={isConn ? `GitHub Connected (${githubInt?.maskedToken || 'Vault'})` : 'Click to connect GitHub'}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '5px 10px',
+                    gap: '5px',
+                    padding: '5px 8px',
                     backgroundColor: isConn ? 'rgba(142, 173, 154, 0.12)' : 'var(--athena-surface-deep)',
                     border: `1px solid ${isConn ? 'var(--athena-success)' : 'var(--athena-border)'}`,
                     borderRadius: 'var(--radius-xs)',
@@ -801,14 +874,14 @@ const WorkflowsPageContent: React.FC = () => {
                 >
                   <span
                     style={{
-                      width: 7,
-                      height: 7,
+                      width: 6,
+                      height: 6,
                       borderRadius: '50%',
                       backgroundColor: isConn ? 'var(--athena-success)' : '#73787e',
                       boxShadow: isConn ? '0 0 6px var(--athena-success)' : 'none'
                     }}
                   />
-                  <span>GitHub: {isConn ? (githubInt?.maskedToken ? `Connected (${githubInt.maskedToken})` : 'Connected') : 'Not Connected'}</span>
+                  <span>{isConn ? 'GitHub' : 'Connect Git'}</span>
                 </button>
               );
             })()}
@@ -819,8 +892,8 @@ const WorkflowsPageContent: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                padding: '5px 10px',
+                gap: '4px',
+                padding: '5px 8px',
                 backgroundColor: 'var(--athena-surface-deep)',
                 border: '1px solid var(--athena-border)',
                 borderRadius: 'var(--radius-xs)',
@@ -830,7 +903,34 @@ const WorkflowsPageContent: React.FC = () => {
               }}
             >
               <Key size={11} />
-              <span>Integrations ({integrations.filter((i) => i.connected).length}/{integrations.length})</span>
+              <span>Vault ({integrations.filter((i) => i.connected).length}/{integrations.length})</span>
+            </button>
+
+            {/* Toggle Inspector Button */}
+            <button
+              onClick={() => {
+                if (selectedNodeId) {
+                  setSelectedNodeId(null);
+                } else if (nodes.length > 0) {
+                  setSelectedNodeId(nodes[0].id);
+                }
+              }}
+              title={selectedNodeId ? "Close Node Inspector" : "Open Node Inspector"}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '5px 8px',
+                backgroundColor: selectedNodeId ? 'var(--athena-surface-elevated)' : 'var(--athena-surface-deep)',
+                border: `1px solid ${selectedNodeId ? 'var(--athena-accent)' : 'var(--athena-border)'}`,
+                borderRadius: 'var(--radius-xs)',
+                color: selectedNodeId ? 'var(--athena-accent)' : 'var(--athena-text-secondary)',
+                fontSize: '11px',
+                cursor: 'pointer'
+              }}
+            >
+              <Sliders size={11} />
+              <span>Inspector</span>
             </button>
 
             {/* Add Node Dropdown */}

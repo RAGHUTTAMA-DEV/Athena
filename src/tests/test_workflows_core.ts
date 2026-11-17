@@ -155,17 +155,20 @@ async function runTests() {
       return {
         init: async () => {},
         run: async (prompt: string) => {
-          if (prompt.includes('3 targeted search queries')) {
+          if (prompt.includes('investigative blueprint')) {
             return JSON.stringify([
               'query 1: agent architectures',
               'query 2: prompt caching',
               'query 3: tool calling runtime'
             ]);
           }
-          if (prompt.includes('Research this query thoroughly:')) {
-            return `Findings for: ${prompt}`;
+          if (prompt.includes('Investigate the blueprint')) {
+            return `Findings for web investigation`;
           }
-          if (prompt.includes('Write a comprehensive report')) {
+          if (prompt.includes('Adversarial Fact Checker')) {
+            return `Adversarial audit passed with no critical pitfalls`;
+          }
+          if (prompt.includes('Executive Technology Analyst')) {
             return `# Consolidated Research Report\nBased on findings.\n\nApproved.`;
           }
           return `Processed: ${prompt}`;
@@ -181,16 +184,16 @@ async function runTests() {
 
   const runResult = await executor.run(templateContent, { topic: 'Agentic Workflows' }, 'test_parent');
   assert(runResult.status === 'completed', `Workflow executed with status 'completed' (actual: ${runResult.status}, error: ${runResult.error})`);
-  assert(runResult.nodeOutputs['plan']?.status === 'completed', 'Plan node completed');
-  assert(Array.isArray(runResult.nodeOutputs['plan']?.output), 'Plan node produced JSON array');
-  assert(runResult.nodeOutputs['search']?.status === 'completed', 'Map search node completed');
-  assert(runResult.nodeOutputs['write']?.status === 'completed', 'Write node completed');
-  assert(runResult.nodeOutputs['review']?.status === 'completed', 'Review node completed');
+  assert(runResult.nodeOutputs['research_planner']?.status === 'completed', 'Research planner node completed');
+  assert(runResult.nodeOutputs['web_investigator']?.status === 'completed', 'Web investigator node completed');
+  assert(runResult.nodeOutputs['adversarial_fact_checker']?.status === 'completed', 'Adversarial fact checker node completed');
+  assert(runResult.nodeOutputs['dossier_collector']?.status === 'completed', 'Dossier collector node completed');
+  assert(runResult.nodeOutputs['executive_report_writer']?.status === 'completed', 'Executive report writer node completed');
 
   // Verify persistence in registry
   const persistedRun = await registry.getRun(runResult.runId);
   assert(persistedRun !== null && persistedRun.status === 'completed', 'Run persisted in database');
-  const persistedPlanOut = await registry.getNodeOutput(runResult.runId, 'plan');
+  const persistedPlanOut = await registry.getNodeOutput(runResult.runId, 'research_planner');
   assert(persistedPlanOut !== null && persistedPlanOut.status === 'completed', 'Node outputs persisted in database');
 
   // ── 5. Multi-Agent Collective & Collector Node ────────────────────

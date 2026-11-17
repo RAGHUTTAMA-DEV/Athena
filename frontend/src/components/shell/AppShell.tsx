@@ -38,29 +38,32 @@ export const AppShell: React.FC<AppShellProps> = ({
   const location = useLocation();
 
   const getBreadcrumbs = () => {
+    const base = [{ label: 'Athena', path: '/' }];
     switch (location.pathname) {
       case '/':
-        return ['Ops room', 'Workspace'];
+        return [{ label: 'Athena', path: '/' }, { label: 'Workspace' }];
+      case '/workflows':
+        return [...base, { label: 'Workflows' }];
       case '/activity':
-        return ['Ops room', 'Run activity'];
+        return [...base, { label: 'Run activity' }];
       case '/artifacts':
-        return ['Ops room', 'Artifacts'];
+        return [...base, { label: 'Artifacts' }];
       case '/goals':
-        return ['Ops room', 'Goals & tasks'];
+        return [...base, { label: 'Goals & tasks' }];
       case '/approvals':
-        return ['Ops room', 'Approvals'];
+        return [...base, { label: 'Approvals' }];
       case '/automations':
-        return ['Ops room', 'Automations'];
+        return [...base, { label: 'Automations' }];
       case '/knowledge':
-        return ['Ops room', 'Knowledge'];
+        return [...base, { label: 'Knowledge' }];
       case '/agents':
-        return ['Ops room', 'Agent Studio'];
+        return [...base, { label: 'Agent Studio' }];
       case '/tools':
-        return ['Ops room', 'Tools & Connections'];
+        return [...base, { label: 'Tools & MCP' }];
       case '/inspection':
-        return ['Ops room', 'Inspection'];
+        return [...base, { label: 'Inspection' }];
       default:
-        return ['Ops room', 'Workspace'];
+        return [...base, { label: location.pathname.replace('/', '') }];
     }
   };
 
@@ -118,13 +121,15 @@ export const AppShell: React.FC<AppShellProps> = ({
         </main>
       </div>
 
-      {/* Zone 3: Contextual Inspector */}
-      <ContextInspector
-        run={currentRun}
-        isOpen={isInspectorOpen}
-        onToggle={onToggleInspector}
-        onAbortRun={onAbortRun}
-      />
+      {/* Zone 3: Contextual Inspector (hidden on full-screen studio pages like workflows) */}
+      {location.pathname !== '/workflows' && (
+        <ContextInspector
+          run={currentRun}
+          isOpen={isInspectorOpen}
+          onToggle={onToggleInspector}
+          onAbortRun={onAbortRun}
+        />
+      )}
     </div>
   );
 };

@@ -42,6 +42,8 @@ export interface ToolDefinition {
   timeout?: number;
   sideEffects?: boolean;
   idempotent?: boolean;
+  mcpServer?: string;
+  originalName?: string;
   parallelSafe?: boolean;
   tags?: string[];
   /** Backward-compatible alias matching Gemini/OpenAI tool declarations */
@@ -65,6 +67,8 @@ export interface ToolManifest {
   capabilities?: string[];
   sideEffects?: boolean;
   idempotent?: boolean;
+  mcpServer?: string;
+  originalName?: string;
 }
 
 import type { ToolContext } from '../runtime/types.js';

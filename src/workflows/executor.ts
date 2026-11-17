@@ -305,12 +305,16 @@ export class WorkflowExecutor {
         let agent: Agent | null = null;
         const effectiveTools = (n.tools && n.tools.length > 0) ? n.tools : undefined;
 
+        const nodeSystemPrompt = (n as any).systemPrompt ||
+          (DEFAULT_AGENT_PROMPT + '\n\nDEFENSIVE CODING & QUALITY DIRECTIVE:\nWhen evaluating codebases, repositories, or system architecture, perform authorized defensive static application security testing (SAST), code hygiene, and software engineering quality assessment. Provide constructive code review, architectural resilience advice, and actionable remediation steps.');
+
         if (this.cfg.agentFactory) {
           agent = this.cfg.agentFactory.create({
             parentRunId: wfRunId,
             allowedTools: effectiveTools,
             budget: n.budget,
-            modelOverride: n.model
+            modelOverride: n.model,
+            systemPromptOverride: nodeSystemPrompt
           });
         } else if (process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY) {
           try {
@@ -318,7 +322,7 @@ export class WorkflowExecutor {
               provider: (process.env.LLM_PROVIDER as any) || 'gemini',
               modelName: n.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash',
               maxTurns: n.budget?.maxTurns || 15,
-              systemPrompt: DEFAULT_AGENT_PROMPT,
+              systemPrompt: nodeSystemPrompt,
               allowedTools: effectiveTools,
               soulPath: './SOUL.md',
               dbPath: process.env.DATABASE_PATH || './state.db'

@@ -254,30 +254,48 @@ export class MCPManager {
         for (const mcpTool of mcpTools) {
           const sanitizedServerName = serverName.replace(/[^a-zA-Z0-9_]/g, '_');
           const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_]/g, '_');
-          const namespacedName = `${sanitizedServerName}_${sanitizedToolName}`;
+
+          // Clean redundant prefixes generically (e.g. if tool name already starts with server prefix)
+          let cleanToolName = sanitizedToolName;
+          if (cleanToolName.startsWith(sanitizedServerName + '_')) {
+            cleanToolName = cleanToolName.slice(sanitizedServerName.length + 1);
+          }
+          const namespacedName = `${sanitizedServerName}_${cleanToolName}`;
 
           const rawSchema = (mcpTool.inputSchema as any) || {};
           const cleanedSchema = cleanGeminiSchema(rawSchema);
 
-          const toolCapabilities: string[] = [serverName.toLowerCase()];
-          if (serverName.toLowerCase().includes('calendar') || sanitizedToolName.includes('calendar')) {
-            toolCapabilities.push('calendar');
-          }
-          if (serverName.toLowerCase().includes('gmail') || serverName.toLowerCase().includes('mail')) {
-            toolCapabilities.push('communication', 'email');
-          }
-          if (serverName.toLowerCase().includes('filesystem') || serverName.toLowerCase().includes('file')) {
-            toolCapabilities.push('fs:read', 'fs:write');
-          }
-          if (serverName.toLowerCase().includes('github')) {
-            toolCapabilities.push('git', 'github');
-          }
+          // Generic token extraction: split on underscores, hyphens, and camelCase
+          const serverTokens = serverName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .split(/\s+/)
+            .filter(t => t.length >= 2);
+          const toolTokens = mcpTool.name
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .split(/\s+/)
+            .filter(t => t.length >= 2);
+
+          const tags = Array.from(new Set([
+            'mcp',
+            `mcp:${serverName}`,
+            serverName.toLowerCase(),
+            sanitizedServerName.toLowerCase(),
+            ...serverTokens,
+            ...toolTokens
+          ]));
+
+          const toolCapabilities = [serverName.toLowerCase()];
 
           const toolDef: ToolDefinition = {
             name: namespacedName,
             description: `[MCP: ${serverName}] ${mcpTool.description || ''}`,
             capabilities: toolCapabilities,
-            tags: [serverName.toLowerCase(), 'mcp'],
+            tags,
+            mcpServer: serverName,
+            originalName: mcpTool.name,
             parameters: cleanedSchema && cleanedSchema.properties && Object.keys(cleanedSchema.properties).length > 0 ? {
               type: 'OBJECT',
               properties: cleanedSchema.properties,
@@ -293,7 +311,9 @@ export class MCPManager {
               parallelSafe: true,
               capabilities: toolCapabilities,
               permissions: [serverName.toLowerCase()],
-              tags: [serverName.toLowerCase(), 'mcp']
+              tags,
+              mcpServer: serverName,
+              originalName: mcpTool.name
             },
             execute: async (args: any) => {
               try {
@@ -320,6 +340,17 @@ export class MCPManager {
           };
 
           serverTools.push(athenaTool);
+
+          // If clean name differs from raw verbatim name, also register alias tool
+          const verbatimName = `${sanitizedServerName}_${sanitizedToolName}`;
+          if (verbatimName !== namespacedName) {
+            serverTools.push({
+              ...athenaTool,
+              definition: { ...toolDef, name: verbatimName },
+              manifest: { ...athenaTool.manifest!, name: verbatimName }
+            });
+          }
+
           if (process.env.ATHENA_DEBUG) {
             console.log(`[MCP] Registered tool: ${namespacedName}`);
           }

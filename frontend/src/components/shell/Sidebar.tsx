@@ -47,17 +47,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [refreshTrigger, activeSessionId]);
 
   const navItems = [
-    { name: 'Workspace', path: '/', icon: MessageSquare, shortcut: '~1' },
-    { name: 'Run activity', path: '/activity', icon: Activity, shortcut: '~2' },
-    { name: 'Goals & tasks', path: '/goals', icon: Target, shortcut: '~3' },
-    { name: 'Approvals', path: '/approvals', icon: ShieldCheck, shortcut: '~4', badge: pendingApprovalCount },
-    { name: 'Workflows', path: '/workflows', icon: GitBranch, shortcut: '~w' },
-    { name: 'Automations', path: '/automations', icon: Clock, shortcut: '~5' },
-    { name: 'Knowledge', path: '/knowledge', icon: BookOpen, shortcut: '~6' },
-    { name: 'Artifacts', path: '/artifacts', icon: FileText, shortcut: '~7' },
-    { name: 'Agent Studio', path: '/agents', icon: Bot, shortcut: '~8' },
-    { name: 'Tools & MCP', path: '/tools', icon: Wrench, shortcut: '~9' },
-    { name: 'Inspection', path: '/inspection', icon: Eye, shortcut: '~0' },
+    { name: 'Workspace', path: '/', icon: MessageSquare },
+    { name: 'Run activity', path: '/activity', icon: Activity },
+    { name: 'Goals & tasks', path: '/goals', icon: Target },
+    { name: 'Approvals', path: '/approvals', icon: ShieldCheck, badge: pendingApprovalCount },
+    { name: 'Workflows', path: '/workflows', icon: GitBranch },
+    { name: 'Automations', path: '/automations', icon: Clock },
+    { name: 'Knowledge', path: '/knowledge', icon: BookOpen },
+    { name: 'Artifacts', path: '/artifacts', icon: FileText },
+    { name: 'Agent Studio', path: '/agents', icon: Bot },
+    { name: 'Tools & MCP', path: '/tools', icon: Wrench },
+    { name: 'Inspection', path: '/inspection', icon: Eye },
   ];
 
   return (
@@ -110,18 +110,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             athena
           </span>
         </div>
-
-        <span
-          style={{
-            fontSize: '9px',
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--athena-text-muted)',
-            letterSpacing: '0.04em',
-            textTransform: 'uppercase',
-          }}
-        >
-          COMMAND / 02
-        </span>
       </div>
 
       {/* New Chat Button */}
@@ -165,19 +153,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Primary Navigation */}
       <div style={{ padding: '8px 10px 4px 10px', flexShrink: 0 }}>
-        <div
-          style={{
-            fontSize: '9px',
-            fontWeight: 700,
-            color: 'var(--athena-text-muted)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            padding: '4px 8px 6px 8px',
-          }}
-        >
-          COMMAND
-        </div>
-
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -189,7 +164,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '6px 10px',
+                  padding: '7px 10px',
                   borderRadius: 'var(--radius-xs)',
                   fontSize: '12px',
                   fontWeight: isActive ? 600 : 500,
@@ -200,36 +175,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   transition: 'all 0.15s ease',
                 })}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Icon size={14} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                  <Icon size={15} />
                   <span>{item.name}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {item.badge && item.badge > 0 ? (
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        padding: '0 5px',
-                        borderRadius: '10px',
-                        backgroundColor: 'var(--athena-warning-dim)',
-                        color: 'var(--athena-warning)',
-                        border: '1px solid rgba(197, 166, 106, 0.4)',
-                      }}
-                    >
-                      {item.badge}
-                    </span>
-                  ) : null}
+                {item.badge && item.badge > 0 ? (
                   <span
                     style={{
                       fontSize: '10px',
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--athena-text-muted)',
+                      fontWeight: 700,
+                      padding: '0 5px',
+                      borderRadius: '10px',
+                      backgroundColor: 'var(--athena-warning-dim)',
+                      color: 'var(--athena-warning)',
+                      border: '1px solid rgba(197, 166, 106, 0.4)',
                     }}
                   >
-                    {item.shortcut}
+                    {item.badge}
                   </span>
-                </div>
+                ) : null}
               </NavLink>
             );
           })}
@@ -394,26 +358,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Footer Connection Status */}
-      <div
-        style={{
-          padding: '10px 14px',
-          borderTop: '1px solid var(--athena-border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          fontSize: '10px',
-          fontFamily: 'var(--font-mono)',
-          color: 'var(--athena-text-muted)',
-          letterSpacing: '0.04em',
-          flexShrink: 0,
-        }}
-      >
-        <Lock size={11} />
-        <span>
-          {isToolsConnected ? 'LOCAL RUNTIME · CONNECTED' : 'BACKEND DISCONNECTED'}
-        </span>
-      </div>
+      {/* Bottom Status only when disconnected */}
+      {!isToolsConnected && (
+        <div
+          style={{
+            padding: '8px 14px',
+            borderTop: '1px solid var(--athena-border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '10px',
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--athena-danger)',
+            backgroundColor: 'rgba(199, 125, 125, 0.1)',
+            letterSpacing: '0.04em',
+            flexShrink: 0,
+          }}
+        >
+          <Lock size={11} />
+          <span>BACKEND DISCONNECTED</span>
+        </div>
+      )}
     </aside>
   );
 };

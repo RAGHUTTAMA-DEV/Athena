@@ -1206,7 +1206,23 @@ export class Agent {
               });
 
               // Enforce tool scoping with alias resolution (prefer exact registered tool, e.g. MCP tools)
-              const canonicalName = toolsRegistry.has(call.name) ? call.name : (TOOL_ALIASES[call.name] || call.name);
+              let canonicalName = call.name;
+              if (!toolsRegistry.has(canonicalName)) {
+                if (TOOL_ALIASES[call.name]) {
+                  canonicalName = TOOL_ALIASES[call.name];
+                } else {
+                  // Generic tool resolution: match by originalName or namespace suffix
+                  for (const [regName, regTool] of toolsRegistry.entries()) {
+                    if (
+                      regTool.manifest?.originalName === call.name ||
+                      regName.endsWith(`_${call.name}`)
+                    ) {
+                      canonicalName = regName;
+                      break;
+                    }
+                  }
+                }
+              }
               const isAllowed = !this.config.allowedTools || this.config.allowedTools.includes(canonicalName);
               const tool = isAllowed ? toolsRegistry.get(canonicalName) : null;
               if (!tool) {

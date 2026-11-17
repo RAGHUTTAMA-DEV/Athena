@@ -106,8 +106,16 @@ export class GeminiProvider implements LLMProvider {
       total: response.usageMetadata.totalTokenCount || 0,
     } : undefined;
 
+    // Extract text directly from candidate parts without triggering the @google/genai getter's
+    // noisy console.warn: "there are non-text parts functionCall in the response..."
+    const textParts = (modelContent?.parts || [])
+      .filter((p: any) => typeof p.text === 'string' && p.text.length > 0)
+      .map((p: any) => p.text)
+      .join('');
+    const text = textParts.length > 0 ? textParts : undefined;
+
     return {
-      text: response.text || undefined,
+      text,
       functionCalls,
       parts: modelContent?.parts as Part[] | undefined,
       finishReason,

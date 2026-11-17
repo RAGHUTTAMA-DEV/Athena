@@ -11,7 +11,10 @@ import {
   Layers,
   Repeat,
   Trash2,
-  Code
+  Code,
+  Loader2,
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react';
 
 export interface WorkflowNodeData {
@@ -119,36 +122,64 @@ export const WorkflowNodeComponent: React.FC<NodeProps> = memo(({ id, data, sele
     }
   };
 
+  const isRunning = status === 'running';
+
   return (
     <div
+      className={isRunning ? 'athena-node-running' : ''}
       style={{
         width: '280px',
         backgroundColor: 'var(--athena-surface, #1D1E20)',
         borderRadius: 'var(--radius-sm, 4px)',
-        border: selected
+        border: isRunning
+          ? '1.5px solid var(--athena-accent, #A8B6AE)'
+          : selected
           ? '1px solid var(--athena-accent, #A8B6AE)'
           : '1px solid var(--athena-border, #303234)',
-        boxShadow: selected
+        boxShadow: isRunning
+          ? '0 0 0 2px var(--athena-accent, #A8B6AE), 0 0 20px rgba(168, 182, 174, 0.65), 0 0 35px rgba(168, 182, 174, 0.3)'
+          : selected
           ? '0 0 0 1px var(--athena-accent), 0 8px 16px rgba(0, 0, 0, 0.4)'
           : '0 2px 4px rgba(0, 0, 0, 0.3)',
         padding: '12px',
         position: 'relative',
         color: 'var(--athena-text, #EDEEEF)',
         fontFamily: 'var(--font-sans)',
-        transition: 'border 0.15s ease, box-shadow 0.15s ease'
+        transition: 'border 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease',
+        transform: isRunning ? 'scale(1.02)' : 'scale(1)',
+        overflow: 'hidden'
       }}
     >
+      {/* Top Animated Progress/Scanner bar when node is active */}
+      {isRunning && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '3px',
+            background: 'linear-gradient(90deg, transparent, var(--athena-accent, #A8B6AE), #FFFFFF, var(--athena-accent, #A8B6AE), transparent)',
+            backgroundSize: '200% 100%',
+            animation: 'athenaShimmer 1.4s linear infinite',
+            zIndex: 10
+          }}
+        />
+      )}
+
       {/* Target input handle (unless trigger node) */}
       {nodeType !== 'trigger' && (
         <Handle
           type="target"
           position={Position.Top}
           style={{
-            background: theme.accent,
-            width: '8px',
-            height: '8px',
+            background: isRunning ? '#EDEEEF' : theme.accent,
+            width: isRunning ? '10px' : '8px',
+            height: isRunning ? '10px' : '8px',
             border: '2px solid var(--athena-canvas, #171819)',
-            top: '-5px'
+            top: '-5px',
+            boxShadow: isRunning ? '0 0 10px var(--athena-accent)' : 'none',
+            transition: 'all 0.2s ease'
           }}
         />
       )}
@@ -247,24 +278,39 @@ export const WorkflowNodeComponent: React.FC<NodeProps> = memo(({ id, data, sele
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           {status && (
-            <span style={{
-              fontSize: '9px',
-              fontWeight: 600,
-              padding: '2px 5px',
-              borderRadius: 'var(--radius-xs, 2px)',
-              textTransform: 'uppercase',
-              backgroundColor:
-                status === 'completed' ? 'var(--athena-success-dim, rgba(142, 173, 154, 0.15))' :
-                status === 'running' ? 'var(--athena-info-dim, rgba(145, 167, 183, 0.15))' :
-                status === 'failed' ? 'var(--athena-danger-dim, rgba(199, 125, 125, 0.15))' :
-                'var(--athena-warning-dim, rgba(197, 166, 106, 0.15))',
-              color:
-                status === 'completed' ? 'var(--athena-success, #8EAD9A)' :
-                status === 'running' ? 'var(--athena-info, #91A7B7)' :
-                status === 'failed' ? 'var(--athena-danger, #C77D7D)' :
-                'var(--athena-warning, #C5A66A)'
-            }}>
-              {status}
+            <span
+              style={{
+                fontSize: '9px',
+                fontWeight: isRunning ? 700 : 600,
+                padding: isRunning ? '2px 7px' : '2px 5px',
+                borderRadius: 'var(--radius-xs, 2px)',
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                letterSpacing: '0.04em',
+                backgroundColor:
+                  isRunning ? 'rgba(168, 182, 174, 0.25)' :
+                  status === 'completed' ? 'var(--athena-success-dim, rgba(142, 173, 154, 0.15))' :
+                  status === 'failed' ? 'var(--athena-danger-dim, rgba(199, 125, 125, 0.15))' :
+                  'var(--athena-surface-raised, rgba(197, 166, 106, 0.15))',
+                border:
+                  isRunning ? '1px solid var(--athena-accent, #A8B6AE)' :
+                  status === 'completed' ? '1px solid rgba(142, 173, 154, 0.35)' :
+                  status === 'failed' ? '1px solid rgba(199, 125, 125, 0.35)' :
+                  '1px solid var(--athena-border-subtle)',
+                color:
+                  isRunning ? '#EDEEEF' :
+                  status === 'completed' ? 'var(--athena-success, #8EAD9A)' :
+                  status === 'failed' ? 'var(--athena-danger, #C77D7D)' :
+                  'var(--athena-text-muted, #777D80)',
+                boxShadow: isRunning ? '0 0 10px rgba(168, 182, 174, 0.5)' : 'none'
+              }}
+            >
+              {isRunning && <Loader2 size={10} className="athena-spin" color="var(--athena-accent, #A8B6AE)" />}
+              {status === 'completed' && <CheckCircle size={10} color="var(--athena-success, #8EAD9A)" />}
+              {status === 'failed' && <AlertTriangle size={10} color="var(--athena-danger, #C77D7D)" />}
+              <span>{status}</span>
             </span>
           )}
 

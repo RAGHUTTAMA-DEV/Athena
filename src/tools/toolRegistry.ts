@@ -44,13 +44,6 @@ export class SearchableToolRegistry {
     const caps = new Set<string>(
       (tool.definition.capabilities || tool.manifest?.capabilities || tool.manifest?.permissions || []).map(c => c.toLowerCase())
     );
-    if (name.toLowerCase().startsWith('calendar_') || name.toLowerCase().includes('calendar')) {
-      caps.add('calendar');
-    }
-    if (name.toLowerCase().includes('workflow')) {
-      caps.add('workflow');
-      caps.add('system');
-    }
     for (const cap of caps) {
       const capKey = cap.toLowerCase();
       if (!this.capabilityIndex.has(capKey)) {
@@ -162,14 +155,21 @@ export class SearchableToolRegistry {
   }
 
   private tokenize(text: string): string[] {
-    const rawTokens = text
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, ' ')
+    const lower = text.toLowerCase();
+    // Natural tokens: split on punctuation, whitespace, underscores, and hyphens
+    const subWords = lower
+      .replace(/[^a-z0-9]+/g, ' ')
       .split(/\s+/)
       .filter(t => t.length >= 2);
 
-    const result = new Set<string>(rawTokens);
-    for (const t of rawTokens) {
+    // Also keep snake_case identifier tokens if present
+    const rawWords = lower
+      .replace(/[^a-z0-9_]+/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length >= 2);
+
+    const result = new Set<string>([...subWords, ...rawWords]);
+    for (const t of Array.from(result)) {
       if (t.endsWith('s') && t.length > 3) {
         result.add(t.slice(0, -1)); // e.g. events -> event, meetings -> meeting
       }

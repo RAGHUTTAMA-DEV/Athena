@@ -23,9 +23,12 @@
         "https://mcp.notion.com/sse"
       ]
     },
-    "excalidraw" : {
-      "command":"npx",
-      "args": ["-y", "mcp-excalidraw-server"],
+    "excalidraw": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-excalidraw-server"
+      ],
       "env": {
         "PORT": "3099",
         "EXPRESS_SERVER_URL": "http://127.0.0.1:3099",
@@ -45,11 +48,17 @@
         "-y",
         "@modelcontextprotocol/server-github"
       ],
-            "env": {
+      "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}"
       }
-
+    },
+    "browser-ref-mcp": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "browser-ref-mcp"
+      ]
     }
-    
   }
 }

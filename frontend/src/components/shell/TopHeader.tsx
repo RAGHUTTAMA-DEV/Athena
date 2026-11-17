@@ -1,9 +1,15 @@
 import React from 'react';
-import { Sun, Moon, MoreHorizontal, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Sun, Moon, ChevronRight } from 'lucide-react';
 import { ConnectionStatus } from '../../types/events';
 
+export interface BreadcrumbItem {
+  label: string;
+  path?: string;
+}
+
 interface TopHeaderProps {
-  breadcrumbs?: string[];
+  breadcrumbs?: (string | BreadcrumbItem)[];
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
   isRunning?: boolean;
@@ -12,13 +18,19 @@ interface TopHeaderProps {
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
-  breadcrumbs = ['Ops room', 'Workspace'],
+  breadcrumbs = [{ label: 'Athena', path: '/' }, { label: 'Workspace' }],
   theme,
   onToggleTheme,
   isRunning = false,
   connectionStatus = 'connected',
   isSimulatedPreview = false,
 }) => {
+  const navigate = useNavigate();
+
+  const normalizedCrumbs: BreadcrumbItem[] = breadcrumbs.map((c) =>
+    typeof c === 'string' ? { label: c } : c
+  );
+
   return (
     <header
       style={{
@@ -35,20 +47,38 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     >
       {/* Breadcrumbs */}
       <nav style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {breadcrumbs.map((crumb, idx) => (
-          <React.Fragment key={crumb}>
-            {idx > 0 && <ChevronRight size={12} color="var(--athena-text-muted)" />}
-            <span
-              style={{
-                fontSize: '12px',
-                fontWeight: idx === breadcrumbs.length - 1 ? 600 : 500,
-                color: idx === breadcrumbs.length - 1 ? 'var(--athena-text)' : 'var(--athena-text-muted)',
-              }}
-            >
-              {crumb}
-            </span>
-          </React.Fragment>
-        ))}
+        {normalizedCrumbs.map((crumb, idx) => {
+          const isLast = idx === normalizedCrumbs.length - 1;
+          const isClickable = !isLast && Boolean(crumb.path);
+
+          return (
+            <React.Fragment key={`${crumb.label}-${idx}`}>
+              {idx > 0 && <ChevronRight size={12} color="var(--athena-text-muted)" />}
+              <span
+                onClick={() => {
+                  if (isClickable && crumb.path) {
+                    navigate(crumb.path);
+                  }
+                }}
+                style={{
+                  fontSize: '12px',
+                  fontWeight: isLast ? 600 : 500,
+                  color: isLast ? 'var(--athena-text)' : 'var(--athena-text-muted)',
+                  cursor: isClickable ? 'pointer' : 'default',
+                  transition: 'color 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  if (isClickable) e.currentTarget.style.color = 'var(--athena-text)';
+                }}
+                onMouseLeave={(e) => {
+                  if (isClickable) e.currentTarget.style.color = 'var(--athena-text-muted)';
+                }}
+              >
+                {crumb.label}
+              </span>
+            </React.Fragment>
+          );
+        })}
       </nav>
 
       {/* Right Controls */}
@@ -84,6 +114,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             padding: '4px 8px',
             borderRadius: 'var(--radius-xs)',
             transition: 'color 0.15s ease',
+            cursor: 'pointer',
+            backgroundColor: 'transparent',
+            border: 'none',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--athena-text)')}
           onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--athena-text-secondary)')}
@@ -107,21 +140,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             {isRunning ? 'Run in progress' : connectionStatus}
           </span>
         </div>
-
-        {/* Options Menu */}
-        <button
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '24px',
-            height: '24px',
-            color: 'var(--athena-text-muted)',
-            borderRadius: 'var(--radius-xs)',
-          }}
-        >
-          <MoreHorizontal size={14} />
-        </button>
       </div>
     </header>
   );
